@@ -25,10 +25,35 @@ export default function ScholarshipForm() {
 
   // === 2. 處理函式 (Handlers) ===
   // 新增列的函式
-  const addJournal = () => setJournals([...journals, { doi: "", date: "", author: "", title: "", journal: "", database: "" }]);
-  const addConference = () => setConferences([...conferences, { date: "", author: "", title: "", conference: "", type: "口頭發表" }]);
-  const addExperience = () => setExperiences([...experiences, { institution: "", title: "", nature: "", duration: "", hasAttachment: false }]);
+  const addJournal = () => {
+    // 取得目前陣列的最後一筆資料
+    const last = journals[journals.length - 1];
+    // 檢查必填欄位是否為空 (DOI 通常非必填，故不檢查)
+    if (!last.date || !last.author || !last.title || !last.journal || !last.database) {
+      alert("請先將最後一列「期刊發表」的欄位填寫完整，再新增下一列！");
+      return; // 終止執行，不會新增下一列
+    }
+    setJournals([...journals, { doi: "", date: "", author: "", title: "", journal: "", database: "" }]);
+  };
 
+  const addConference = () => {
+    const last = conferences[conferences.length - 1];
+    if (!last.date || !last.author || !last.title || !last.conference) {
+      alert("請先將最後一列「國際研討會」的欄位填寫完整，再新增下一列！");
+      return;
+    }
+    setConferences([...conferences, { date: "", author: "", title: "", conference: "", type: "口頭發表" }]);
+  };
+
+  const addExperience = () => {
+    const last = experiences[experiences.length - 1];
+    // 下拉選單預設是空字串，也必須檢查
+    if (!last.institution || !last.title || !last.nature || !last.duration) {
+      alert("請先將最後一列「研究經歷」的欄位（含下拉選單）填寫完整，再新增下一列！");
+      return;
+    }
+    setExperiences([...experiences, { institution: "", title: "", nature: "", duration: "", hasAttachment: false }]);
+  };
   // 更新欄位的函式
   const handleJournalChange = (index: number, field: string, value: string) => {
     const newData = [...journals];
