@@ -44,14 +44,14 @@ academic-system/
 │   │   ├── auth/
 │   │   │   └── [...nextauth]/route.ts  # (模組三) NextAuth 登入驗證邏輯
 │   │   └── publications/
-│   │       └── fetch/route.ts          # (模組五) 剛剛寫的 Crossref 論文抓取 API
+│   │       └── fetch/route.ts          # (模組五) Crossref 論文抓取 API
 │   │
 │   ├── admin/                # 後台管理員介面 (需要登入才能看)
 │   │   ├── dashboard/page.tsx          # 大報表總覽列表
 │   │   └── layout.tsx                  # 後台共用的導覽列
 │   │
 │   ├── apply/                # 學生申請介面
-│   │   └── page.tsx                    # 把你原本的 test.html 轉成 React 元件放在這裡
+│   │   └── page.tsx                    # 把原本的 test.html 轉成 React 元件放在這裡
 │   │
 │   ├── globals.css           # 全域 CSS (Tailwind 設定檔)
 │   ├── layout.tsx            # 全網站共用的根佈局 (Root Layout)
