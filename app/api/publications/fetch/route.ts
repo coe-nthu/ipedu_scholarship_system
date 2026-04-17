@@ -44,7 +44,8 @@ export async function GET(request: Request) {
       : '';
 
     // 處理作者群
-    const authorsRaw = data.author || [];
+        const authorsRaw = data.author || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const authors = authorsRaw.map((author: any) => ({
       given: author.given || '',
       family: author.family || '',
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
     // 組合前端顯示用的作者字串 (例如: "Brown, T., Mann, B. et al.")
     let authorString = '';
     if (authors.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedNames = authors.slice(0, 3).map((a: any) => {
         const initial = a.given ? `${a.given.charAt(0)}.` : '';
         return `${a.family}, ${initial}`.trim();

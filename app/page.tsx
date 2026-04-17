@@ -1,37 +1,51 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea"
 
 export default function ScholarshipForm() {
   // === 1. 狀態管理 (State Management) ===
-  // 期刊發表狀態
   const [journals, setJournals] = useState([
     { doi: "", date: "", author: "", title: "", journal: "", database: "" },
   ]);
 
-  // 國際研討會狀態
   const [conferences, setConferences] = useState([
     { date: "", author: "", title: "", conference: "", type: "口頭發表" },
   ]);
 
-  // 研究經歷狀態
   const [experiences, setExperiences] = useState([
     { institution: "", title: "", nature: "", duration: "", hasAttachment: false },
   ]);
 
-  // 其他純文字輸入狀態
   const [awards, setAwards] = useState("");
   const [otherAchievements, setOtherAchievements] = useState("");
 
   // === 2. 處理函式 (Handlers) ===
-  // 新增列的函式
   const addJournal = () => {
-    // 取得目前陣列的最後一筆資料
     const last = journals[journals.length - 1];
-    // 檢查必填欄位是否為空 (DOI 通常非必填，故不檢查)
     if (!last.date || !last.author || !last.title || !last.journal || !last.database) {
       alert("請先將最後一列「期刊發表」的欄位填寫完整，再新增下一列！");
-      return; // 終止執行，不會新增下一列
+      return; 
     }
     setJournals([...journals, { doi: "", date: "", author: "", title: "", journal: "", database: "" }]);
   };
@@ -47,14 +61,13 @@ export default function ScholarshipForm() {
 
   const addExperience = () => {
     const last = experiences[experiences.length - 1];
-    // 下拉選單預設是空字串，也必須檢查
     if (!last.institution || !last.title || !last.nature || !last.duration) {
-      alert("請先將最後一列「研究經歷」的欄位（含下拉選單）填寫完整，再新增下一列！");
+      alert("請先將最後一列「研究經歷」的欄位填寫完整，再新增下一列！");
       return;
     }
     setExperiences([...experiences, { institution: "", title: "", nature: "", duration: "", hasAttachment: false }]);
   };
-  // 更新欄位的函式
+
   const handleJournalChange = (index: number, field: string, value: string) => {
     const newData = [...journals];
     newData[index] = { ...newData[index], [field]: value };
@@ -73,7 +86,6 @@ export default function ScholarshipForm() {
     setExperiences(newData);
   };
 
-  // DOI 抓取 API (模擬)
   const fetchPaperData = async (index: number) => {
     const doiValue = journals[index].doi;
     if (!doiValue) {
@@ -93,171 +105,263 @@ export default function ScholarshipForm() {
       } else {
         alert(result.error || "找不到資料");
       }
-    } catch (error) {
+        } catch {
       alert("連線發生錯誤，請稍後再試。");
     }
   };
 
   // === 3. 畫面渲染 (UI Rendering) ===
   return (
-    <div className="max-w-5xl mx-auto p-6 bg-gray-50 min-h-screen font-sans">
+    <div className="max-w-5xl mx-auto py-10 px-4 sm:px-6 bg-slate-50 min-h-screen font-sans">
       <h1 className="text-3xl font-bold text-center text-[#1a3a5f] mb-8">
         竹師教育學院博士生獎學金學術表現表
       </h1>
 
-      <form className="space-y-6">
+      <form className="space-y-8">
         {/* 基本資料區塊 */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <div className="grid grid-cols-2 gap-6 mb-4">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">申請人姓名</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none" />
+        <Card className="shadow-sm">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="applicantName">申請人姓名</Label>
+                <Input id="applicantName" placeholder="請輸入姓名" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="department">所屬學系所</Label>
+                <Input id="department" placeholder="請輸入系所名稱" />
+              </div>
             </div>
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">所屬學系所</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none" />
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* ＝＝＝ 一、期刊發表區塊 ＝＝＝ */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 border-l-4 border-blue-500 pl-3 mb-4 bg-gray-50 py-1">一、期刊發表</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse mb-4 min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700 text-sm">
-                  <th className="border p-2 text-left w-48">DOI 自動帶入</th>
-                  <th className="border p-2 text-left w-36">發表日期</th>
-                  <th className="border p-2 text-left w-36">作者/順位</th>
-                  <th className="border p-2 text-left">期刊∕論文名稱</th>
-                  <th className="border p-2 text-left w-32">資料庫</th>
-                </tr>
-              </thead>
-              <tbody>
-                {journals.map((journal, index) => (
-                  <tr key={index}>
-                    <td className="border p-2">
-                      <div className="flex flex-col gap-2">
-                        <input type="text" placeholder="10.10xx/..." className="w-full p-1 border rounded text-sm" value={journal.doi} onChange={(e) => handleJournalChange(index, "doi", e.target.value)} />
-                        <button type="button" onClick={() => fetchPaperData(index)} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm hover:bg-blue-200 transition">自動帶入</button>
-                      </div>
-                    </td>
-                    <td className="border p-2"><input type="date" className="w-full p-1 border rounded text-sm" value={journal.date} onChange={(e) => handleJournalChange(index, "date", e.target.value)} /></td>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" placeholder="第一/通訊" value={journal.author} onChange={(e) => handleJournalChange(index, "author", e.target.value)} /></td>
-                    <td className="border p-2">
-                      <div className="flex flex-col gap-2">
-                        <input type="text" className="w-full p-1 border rounded font-medium text-sm" placeholder="論文名稱" value={journal.title} onChange={(e) => handleJournalChange(index, "title", e.target.value)} />
-                        <input type="text" className="w-full p-1 border rounded text-sm text-gray-600" placeholder="期刊名稱與期數" value={journal.journal} onChange={(e) => handleJournalChange(index, "journal", e.target.value)} />
-                      </div>
-                    </td>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" placeholder="如SSCI" value={journal.database} onChange={(e) => handleJournalChange(index, "database", e.target.value)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button type="button" onClick={addJournal} className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition">+ 新增一列期刊</button>
-        </div>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="text-lg font-bold text-slate-800 border-l-4 border-blue-500 pl-3">
+              一、期刊發表
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-48">DOI 自動帶入</TableHead>
+                    <TableHead className="w-40">發表日期</TableHead>
+                    <TableHead className="w-36">作者/順位</TableHead>
+                    <TableHead>期刊∕論文名稱</TableHead>
+                    <TableHead className="w-40">資料庫</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {journals.map((journal, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="align-top">
+                        <div className="flex flex-col gap-2">
+                          <Input placeholder="10.10xx/..." value={journal.doi} onChange={(e) => handleJournalChange(index, "doi", e.target.value)} />
+                          <Button type="button" variant="secondary" size="sm" onClick={() => fetchPaperData(index)}>自動帶入</Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="align-top"><Input type="date" value={journal.date} onChange={(e) => handleJournalChange(index, "date", e.target.value)} /></TableCell>
+                      <TableCell className="align-top"><Input placeholder="第一/通訊" value={journal.author} onChange={(e) => handleJournalChange(index, "author", e.target.value)} /></TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex flex-col gap-2">
+                          <Input className="font-medium" placeholder="論文名稱" value={journal.title} onChange={(e) => handleJournalChange(index, "title", e.target.value)} />
+                          <Input className="text-muted-foreground" placeholder="期刊名稱與期數" value={journal.journal} onChange={(e) => handleJournalChange(index, "journal", e.target.value)} />
+                        </div>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Select value={journal.database} onValueChange={(val) => handleJournalChange(index, "database", val)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="選擇資料庫" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="SSCI">SSCI</SelectItem>
+                            <SelectItem value="SCI">SCI</SelectItem>
+                            <SelectItem value="TSSCI">TSSCI</SelectItem>
+                            <SelectItem value="THCI">THCI</SelectItem>
+                            <SelectItem value="Scopus">Scopus</SelectItem>
+                            <SelectItem value="其他">其他</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4">
+              <Button type="button" variant="outline" className="w-full border-dashed" onClick={addJournal}>＋ 新增期刊發表</Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* ＝＝＝ 二、國際研討會發表 ＝＝＝ */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 border-l-4 border-blue-500 pl-3 mb-4 bg-gray-50 py-1">二、國際研討會發表</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse mb-4 min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700 text-sm">
-                  <th className="border p-2 text-left w-36">發表日期</th>
-                  <th className="border p-2 text-left w-36">作者/順位</th>
-                  <th className="border p-2 text-left">論文名稱</th>
-                  <th className="border p-2 text-left">研討會名稱</th>
-                  <th className="border p-2 text-left w-32">類別</th>
-                </tr>
-              </thead>
-              <tbody>
-                {conferences.map((conf, index) => (
-                  <tr key={index}>
-                    <td className="border p-2"><input type="date" className="w-full p-1 border rounded text-sm" value={conf.date} onChange={(e) => handleConfChange(index, "date", e.target.value)} /></td>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" value={conf.author} onChange={(e) => handleConfChange(index, "author", e.target.value)} /></td>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" value={conf.title} onChange={(e) => handleConfChange(index, "title", e.target.value)} /></td>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" value={conf.conference} onChange={(e) => handleConfChange(index, "conference", e.target.value)} /></td>
-                    <td className="border p-2">
-                      <select className="w-full p-1 border rounded text-sm bg-white" value={conf.type} onChange={(e) => handleConfChange(index, "type", e.target.value)}>
-                        <option>口頭發表</option>
-                        <option>壁報發表</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button type="button" onClick={addConference} className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition">+ 新增一列研討會</button>
-        </div>
+        {/* ＝＝＝ 二、國際研討會 ＝＝＝ */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="text-lg font-bold text-slate-800 border-l-4 border-emerald-500 pl-3">
+              二、國際研討會 (口頭發表/海報發表)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-40">發表日期</TableHead>
+                    <TableHead className="w-36">作者/順位</TableHead>
+                    <TableHead>發表主題</TableHead>
+                    <TableHead>研討會名稱</TableHead>
+                    <TableHead className="w-40">發表形式</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {conferences.map((conf, index) => (
+                    <TableRow key={index}>
+                      <TableCell><Input type="date" value={conf.date} onChange={(e) => handleConfChange(index, "date", e.target.value)} /></TableCell>
+                      <TableCell><Input placeholder="第一作者" value={conf.author} onChange={(e) => handleConfChange(index, "author", e.target.value)} /></TableCell>
+                      <TableCell><Input className="font-medium" placeholder="發表主題" value={conf.title} onChange={(e) => handleConfChange(index, "title", e.target.value)} /></TableCell>
+                      <TableCell><Input placeholder="研討會名稱" value={conf.conference} onChange={(e) => handleConfChange(index, "conference", e.target.value)} /></TableCell>
+                      <TableCell>
+                        <Select value={conf.type} onValueChange={(val) => handleConfChange(index, "type", val)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="發表形式" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="口頭發表">口頭發表</SelectItem>
+                            <SelectItem value="海報發表">海報發表</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4">
+              <Button type="button" variant="outline" className="w-full border-dashed" onClick={addConference}>＋ 新增研討會發表</Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* ＝＝＝ 三、相關研究參與表現 ＝＝＝ */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 border-l-4 border-blue-500 pl-3 mb-4 bg-gray-50 py-1">三、相關研究參與表現</h2>
-          
-          <h3 className="text-md font-semibold text-gray-700 mb-2 mt-4">(一) 研究經歷</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse mb-4 min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700 text-sm">
-                  <th className="border p-2 text-left">機構/主持人</th>
-                  <th className="border p-2 text-left w-32">職稱</th>
-                  <th className="border p-2 text-left w-36">性質</th>
-                  <th className="border p-2 text-left w-48">起訖日期</th>
-                  <th className="border p-2 text-center w-20">附件</th>
-                </tr>
-              </thead>
-              <tbody>
-                {experiences.map((exp, index) => (
-                  <tr key={index}>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" placeholder="如：OO大學/OOO教授" value={exp.institution} onChange={(e) => handleExpChange(index, "institution", e.target.value)} /></td>
-                    <td className="border p-2">
-                      <select className="w-full p-1 border rounded text-sm bg-white" value={exp.title} onChange={(e) => handleExpChange(index, "title", e.target.value)}>
-                        <option value="">請選擇</option>
-                        <option>研究者本人</option>
-                        <option>研究助理</option>
-                        <option>工讀生</option>
-                        <option>其他</option>
-                      </select>
-                    </td>
-                    <td className="border p-2">
-                      <select className="w-full p-1 border rounded text-sm bg-white" value={exp.nature} onChange={(e) => handleExpChange(index, "nature", e.target.value)}>
-                        <option value="">請選擇</option>
-                        <option>教師研究案</option>
-                        <option>畢業專案</option>
-                        <option>其他</option>
-                      </select>
-                    </td>
-                    <td className="border p-2"><input type="text" className="w-full p-1 border rounded text-sm" placeholder="2023/01-2024/01" value={exp.duration} onChange={(e) => handleExpChange(index, "duration", e.target.value)} /></td>
-                    <td className="border p-2 text-center">
-                      <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={exp.hasAttachment as boolean} onChange={(e) => handleExpChange(index, "hasAttachment", e.target.checked)} /> 有
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button type="button" onClick={addExperience} className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition mb-6">+ 新增一列研究經歷</button>
+        {/* ＝＝＝ 三、研究群及國際合作經歷 ＝＝＝ */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="text-lg font-bold text-slate-800 border-l-4 border-purple-500 pl-3">
+              三、參與研究群及國際合作經歷
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead>機構/學校</TableHead>
+                    <TableHead>計畫/專案名稱</TableHead>
+                    <TableHead className="w-48">參與性質</TableHead>
+                    <TableHead className="w-48">參與期間</TableHead>
+                    <TableHead className="w-24 text-center">佐證資料</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {experiences.map((exp, index) => (
+                    <TableRow key={index}>
+                      <TableCell><Input placeholder="如：牛津大學研究室" value={exp.institution} onChange={(e) => handleExpChange(index, "institution", e.target.value)} /></TableCell>
+                      <TableCell><Input className="font-medium" placeholder="OO研究計畫" value={exp.title} onChange={(e) => handleExpChange(index, "title", e.target.value)} /></TableCell>
+                      <TableCell>
+                        <Select value={exp.nature} onValueChange={(val) => handleExpChange(index, "nature", val)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="請選擇性質" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="國際合作">國際合作</SelectItem>
+                            <SelectItem value="國內研究群">國內研究群</SelectItem>
+                            <SelectItem value="跨領域計畫">跨領域計畫</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell><Input placeholder="如：2023.01~2023.06" value={exp.duration} onChange={(e) => handleExpChange(index, "duration", e.target.value)} /></TableCell>
+                      <TableCell className="text-center align-middle">
+                        <div className="flex justify-center">
+                            <Checkbox checked={exp.hasAttachment} onCheckedChange={(checked) => handleExpChange(index, "hasAttachment", checked === true)} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4">
+              <Button type="button" variant="outline" className="w-full border-dashed" onClick={addExperience}>＋ 新增研究經歷</Button>
+            </div>
+          </CardContent>
+        </Card>
 
-          <h3 className="text-md font-semibold text-gray-700 mb-2">(二) 研究獲獎/獎助</h3>
-          <textarea rows={3} className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none" placeholder="請填寫名稱、計畫編號、金額等" value={awards} onChange={(e) => setAwards(e.target.value)}></textarea>
-        </div>
+        {/* ＝＝＝ 四、得獎紀錄 ＝＝＝ */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="text-lg font-bold text-slate-800 border-l-4 border-amber-500 pl-3">
+              四、得獎紀錄
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="mb-3 text-sm text-slate-500 flex items-center justify-between">
+              <span>請列出歷年學術或競賽得獎紀錄（請註明年份、獎項名稱及頒獎機構）</span>
+              {awards && <Button type="button" variant="ghost" size="sm" onClick={() => setAwards("")}>清空</Button>}
+            </div>
+            <Textarea
+              className="min-h-[120px] resize-y"
+              placeholder="1. 2023年，獲國科會大專學生研究計畫研究創作獎&#10;2. 2022年，獲竹師教育學院傑出論文獎"
+              value={awards}
+              onChange={(e) => setAwards(e.target.value)}
+            />
+          </CardContent>
+        </Card>
 
-        {/* ＝＝＝ 五、其他表現 ＝＝＝ */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 border-l-4 border-blue-500 pl-3 mb-4 bg-gray-50 py-1">五、其他有助於審查之優秀事蹟說明</h2>
-          <textarea rows={4} className="w-full p-2 border border-gray-300 rounded focus:border-blue-500 focus:outline-none" placeholder="例如：專利發表、獲獎紀錄、語言能力證明 (JLPT, TOEFL等)" value={otherAchievements} onChange={(e) => setOtherAchievements(e.target.value)}></textarea>
-        </div>
+        {/* ＝＝＝ 五、其他傑出學術表現 ＝＝＝ */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4 border-b">
+            <CardTitle className="text-lg font-bold text-slate-800 border-l-4 border-rose-500 pl-3">
+              五、其他傑出學術表現
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="mb-3 text-sm text-slate-500 flex items-center justify-between">
+              <span>如：取得專利、出版專書、受邀學術演講等</span>
+              {otherAchievements && <Button type="button" variant="ghost" size="sm" onClick={() => setOtherAchievements("")}>清空</Button>}
+            </div>
+            <Textarea
+              className="min-h-[120px] resize-y"
+              placeholder="1. 2023年 發明專利：一種新型教學輔具設計...&#10;2. 2022年 受邀至OO大學進行學術專題演講..."
+              value={otherAchievements}
+              onChange={(e) => setOtherAchievements(e.target.value)}
+            />
+          </CardContent>
+        </Card>
 
-        {/* 列印與簽名區塊 */}
-        <div className="text-center mt-12 mb-8 print:hidden">
-          <button type="button" onClick={() => window.print()} className="bg-gray-800 text-white px-8 py-3 rounded-lg hover:bg-gray-700 transition text-lg shadow-md">
-            產生 PDF / 預覽列印
-          </button>
+        {/* 提交按鈕區 */}
+        <div className="flex justify-center gap-4 mt-8 pb-12">
+          <Button type="button" variant="outline" className="w-32" onClick={() => {
+            if (confirm("確定要清空所有填寫資料嗎？")) {
+               setJournals([{ doi: "", date: "", author: "", title: "", journal: "", database: "" }]);
+               setConferences([{ date: "", author: "", title: "", conference: "", type: "口頭發表" }]);
+               setExperiences([{ institution: "", title: "", nature: "", duration: "", hasAttachment: false }]);
+               setAwards("");
+               setOtherAchievements("");
+            }
+          }}>
+            清除重填
+          </Button>
+          <Button type="button" className="w-32 bg-[#1a3a5f] hover:bg-[#1a3a5f]/90" onClick={() => {
+            alert("此為展示用範本，尚未串接後端儲存功能。");
+          }}>
+            儲存資料
+          </Button>
+          <Button type="button" className="w-32 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => {
+            alert("正在產生 PDF 並送出申請...");
+          }}>
+            送出申請
+          </Button>
         </div>
       </form>
     </div>
