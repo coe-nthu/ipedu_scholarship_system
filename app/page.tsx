@@ -171,7 +171,7 @@ export default function ScholarshipForm() {
                         </div>
                       </TableCell>
                       <TableCell className="align-top">
-                        <Select value={journal.database} onValueChange={(val) => handleJournalChange(index, "database", val)}>
+                        <Select value={journal.database} onValueChange={(val) => handleJournalChange(index, "database", val ?? "")}>
                           <SelectTrigger>
                             <SelectValue placeholder="選擇資料庫" />
                           </SelectTrigger>
@@ -223,7 +223,7 @@ export default function ScholarshipForm() {
                       <TableCell><Input className="font-medium" placeholder="發表主題" value={conf.title} onChange={(e) => handleConfChange(index, "title", e.target.value)} /></TableCell>
                       <TableCell><Input placeholder="研討會名稱" value={conf.conference} onChange={(e) => handleConfChange(index, "conference", e.target.value)} /></TableCell>
                       <TableCell>
-                        <Select value={conf.type} onValueChange={(val) => handleConfChange(index, "type", val)}>
+                        <Select value={conf.type} onValueChange={(val) => handleConfChange(index, "type", val ?? "")}>
                           <SelectTrigger>
                             <SelectValue placeholder="發表形式" />
                           </SelectTrigger>
@@ -269,7 +269,7 @@ export default function ScholarshipForm() {
                       <TableCell><Input placeholder="如：牛津大學研究室" value={exp.institution} onChange={(e) => handleExpChange(index, "institution", e.target.value)} /></TableCell>
                       <TableCell><Input className="font-medium" placeholder="OO研究計畫" value={exp.title} onChange={(e) => handleExpChange(index, "title", e.target.value)} /></TableCell>
                       <TableCell>
-                        <Select value={exp.nature} onValueChange={(val) => handleExpChange(index, "nature", val)}>
+                        <Select value={exp.nature} onValueChange={(val) => handleExpChange(index, "nature", val ?? "")}>
                           <SelectTrigger>
                             <SelectValue placeholder="請選擇性質" />
                           </SelectTrigger>
