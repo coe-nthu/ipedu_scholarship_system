@@ -97,9 +97,12 @@ public.scholarship_applications
 | `author` | DOI 自動帶出的作者清單，可手動補登 |
 | `applicantAuthorName` | 申請人在論文中的作者姓名 |
 | `doiAuthorNames` | DOI 回傳的作者姓名陣列 |
+| `issns` | DOI 回傳的 ISSN 陣列，用於期刊索引對照 |
 | `title` | 論文名稱 |
 | `journal` | 期刊名稱與期數 |
 | `reviewUnit` | 審查單位 |
+| `journalLevel` | 期刊等級：I級期刊、非I級期刊 |
+| `indexSource` | 期刊等級/資料庫判別來源 |
 | `isCorrespondingAuthor` | 是否標記為通訊作者 |
 | `hasTrustedDatabase` | 是否發表於具公信力之資料庫 |
 | `database` | 資料庫名稱，如 SSCI、SCIE、TSSCI、SCOPUS |
@@ -108,6 +111,24 @@ public.scholarship_applications
 | `authorOrderModified` | 是否由申請人手動更改作者順位 |
 | `authorOrderChangeNote` | 作者順位更改註記 |
 | `attachmentNote` | 附件或佐證資料備註 |
+
+期刊等級與資料庫判別方式：
+
+1. DOI 查詢會從 Crossref 帶回期刊名稱與 ISSN。
+2. 系統會用 `lib/journal-indexes.ts` 的期刊索引對照表比對 ISSN 或期刊名稱。
+3. 若命中對照表，會自動填入 `database` 與 `journalLevel`，並將 `indexSource` 設為「依期刊索引對照表自動判別」。
+4. 若未命中，會保留人工選擇，並將 `indexSource` 設為「未命中索引對照表，請人工選擇」。
+
+`lib/journal-indexes.ts` 需要由系所或院辦維護官方認可清單，例如：
+
+```ts
+{
+  journalTitle: "Journal of Educational Psychology",
+  issns: ["0022-0663", "1939-2176"],
+  database: "SSCI",
+  level: "I級期刊",
+}
+```
 
 ## 國際研討會發表：`payload.conferences[]`
 

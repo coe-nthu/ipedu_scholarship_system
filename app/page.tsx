@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { findJournalIndexMatch } from "@/lib/journal-indexes";
 
 type SubmissionStatus = "draft" | "submitted";
 
@@ -66,9 +67,12 @@ type Journal = {
   author: string;
   applicantAuthorName: string;
   doiAuthorNames: string[];
+  issns: string[];
   title: string;
   journal: string;
   reviewUnit: string;
+  journalLevel: string;
+  indexSource: string;
   isCorrespondingAuthor: boolean;
   hasTrustedDatabase: string;
   database: string;
@@ -145,9 +149,12 @@ const emptyJournal = (): Journal => ({
   author: "",
   applicantAuthorName: "",
   doiAuthorNames: [],
+  issns: [],
   title: "",
   journal: "",
   reviewUnit: "",
+  journalLevel: "",
+  indexSource: "",
   isCorrespondingAuthor: false,
   hasTrustedDatabase: "是",
   database: "",
@@ -254,6 +261,26 @@ function inferAuthorOrder(
   return authorIndex >= 0 ? formatAuthorOrder(authorIndex) : "未比對到作者姓名";
 }
 
+function getAuthorOrderBucket(authorOrder: string) {
+  if (authorOrder.includes("通訊")) {
+    return "corresponding";
+  }
+
+  if (authorOrder.includes("第一")) {
+    return "first";
+  }
+
+  return "other";
+}
+
+function createJournalLevelStats() {
+  return {
+    first: 0,
+    corresponding: 0,
+    other: 0,
+  };
+}
+
 export default function ScholarshipForm() {
   const [applicantInfo, setApplicantInfo] = useState<ApplicantInfo>({
     applicantName: "",
@@ -321,6 +348,29 @@ export default function ScholarshipForm() {
 
     return "請填寫學士排名、碩士 GPA/百分制或特殊表現推薦";
   }, [eligibility]);
+
+  const journalSummary = useMemo(() => {
+    const levelStats = {
+      "I級期刊": createJournalLevelStats(),
+      "非I級期刊": createJournalLevelStats(),
+    };
+    const databaseStats: Record<string, number> = {};
+
+    compactRows(journals).forEach((journal) => {
+      const level =
+        journal.journalLevel === "I級期刊" ? "I級期刊" : "非I級期刊";
+      const authorOrderBucket = getAuthorOrderBucket(journal.authorOrder);
+
+      levelStats[level][authorOrderBucket] += 1;
+
+      if (journal.database && journal.database !== "否") {
+        databaseStats[journal.database] =
+          (databaseStats[journal.database] || 0) + 1;
+      }
+    });
+
+    return { levelStats, databaseStats };
+  }, [journals]);
 
   const updateApplicant = (field: keyof ApplicantInfo, value: string) => {
     setApplicantInfo((current) => ({ ...current, [field]: value }));
@@ -483,6 +533,11 @@ export default function ScholarshipForm() {
         result.data.authors?.map((author: { given: string; family: string }) =>
           [author.given, author.family].filter(Boolean).join(" ").trim()
         ) ?? [];
+      const issns = result.data.issns ?? [];
+      const journalIndexMatch = findJournalIndexMatch({
+        issns,
+        journalTitle: result.data.journalName,
+      });
 
       setJournals((current) =>
         current.map((journal, rowIndex) => {
@@ -503,6 +558,12 @@ export default function ScholarshipForm() {
                 date: result.data.publishDate,
                 author: result.data.authorString,
             doiAuthorNames,
+            issns,
+            database: journalIndexMatch?.database || journal.database,
+            journalLevel: journalIndexMatch?.level || journal.journalLevel,
+            indexSource: journalIndexMatch
+              ? "依期刊索引對照表自動判別"
+              : "未命中索引對照表，請人工選擇",
             authorOrder: journal.authorOrderModified
               ? journal.authorOrder
               : inferredOrder,
@@ -939,7 +1000,7 @@ export default function ScholarshipForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="overflow-x-auto rounded-md border">
-                <Table className="min-w-[1360px]">
+                <Table className="min-w-[1500px]">
                   <TableHeader className="bg-slate-50">
                     <TableRow>
                       <TableHead className="w-44">DOI</TableHead>
@@ -948,6 +1009,7 @@ export default function ScholarshipForm() {
                       <TableHead className="w-44">DOI 作者清單</TableHead>
                       <TableHead>期刊/論文名稱</TableHead>
                       <TableHead className="w-36">審查單位</TableHead>
+                      <TableHead className="w-36">期刊等級</TableHead>
                       <TableHead className="w-40">資料庫</TableHead>
                       <TableHead className="w-24">通訊</TableHead>
                       <TableHead className="w-40">作者順位</TableHead>
@@ -1056,6 +1118,16 @@ export default function ScholarshipForm() {
                               }
                               placeholder="期刊名稱/期數"
                             />
+                            {journal.issns.length > 0 ? (
+                              <p className="text-xs leading-5 text-slate-500">
+                                ISSN：{journal.issns.join("、")}
+                              </p>
+                            ) : null}
+                            {journal.indexSource ? (
+                              <p className="text-xs leading-5 text-slate-500">
+                                {journal.indexSource}
+                              </p>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -1072,6 +1144,28 @@ export default function ScholarshipForm() {
                             }
                             placeholder="審查單位"
                           />
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <Select
+                            value={journal.journalLevel}
+                            onValueChange={(value) =>
+                              updateRow(
+                                journals,
+                                setJournals,
+                                index,
+                                "journalLevel",
+                                value ?? ""
+                              )
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="期刊等級" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="I級期刊">I級期刊</SelectItem>
+                              <SelectItem value="非I級期刊">非I級期刊</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className="align-top">
                           <Select
@@ -1156,6 +1250,37 @@ export default function ScholarshipForm() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="grid grid-cols-1 gap-4 rounded-md border border-slate-200 bg-white p-4 text-sm md:grid-cols-[1.2fr_1fr]">
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-slate-900">期刊累計</h3>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <JournalLevelSummary
+                      label="I級期刊"
+                      stats={journalSummary.levelStats["I級期刊"]}
+                    />
+                    <JournalLevelSummary
+                      label="非I級期刊"
+                      stats={journalSummary.levelStats["非I級期刊"]}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-slate-900">資料庫統計</h3>
+                  {Object.keys(journalSummary.databaseStats).length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(journalSummary.databaseStats).map(
+                        ([database, count]) => (
+                          <Badge key={database} variant="secondary">
+                            {database}：{count} 篇
+                          </Badge>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500">尚未選擇資料庫。</p>
+                  )}
+                </div>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -1172,6 +1297,7 @@ export default function ScholarshipForm() {
                       "author",
                       "title",
                       "journal",
+                      "journalLevel",
                       "database",
                       "authorOrder",
                     ],
@@ -1997,6 +2123,24 @@ function Field({
         {required ? <span className="ml-1 text-red-600">*</span> : null}
       </Label>
       {children}
+    </div>
+  );
+}
+
+function JournalLevelSummary({
+  label,
+  stats,
+}: {
+  label: string;
+  stats: { first: number; corresponding: number; other: number };
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="font-medium text-slate-900">{label}</p>
+      <p className="mt-2 leading-6 text-slate-700">
+        第一作者：{stats.first} 篇；通訊作者：{stats.corresponding} 篇；其他：
+        {stats.other} 篇
+      </p>
     </div>
   );
 }

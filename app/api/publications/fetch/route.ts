@@ -80,6 +80,7 @@ export async function GET(request: Request) {
         journalName: data['container-title']?.[0] || '未提供期刊名稱',
         publishDate,
         volumeIssue,
+        issns: data.ISSN || [],
         authors,
         authorString,
         publisher: data.publisher || ''
