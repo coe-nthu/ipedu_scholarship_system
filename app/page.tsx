@@ -47,6 +47,9 @@ const documentFields = [
   { key: "noFullTimeDeclaration", label: "無專職切結書", required: true },
 ] as const;
 
+const otherScholarshipRuleUrl =
+  "https://ec.site.nthu.edu.tw/p/406-1584-160474,r255.php?Lang=zh-tw";
+
 const emptyJournal = (): Journal => ({
   doi: "",
   date: "",
@@ -233,6 +236,10 @@ export default function ScholarshipForm() {
   const [otherReviewDocuments, setOtherReviewDocuments] = useState<
     OtherReviewDocument[]
   >([emptyOtherReviewDocument()]);
+  const [
+    hasOpenedOtherScholarshipRule,
+    setHasOpenedOtherScholarshipRule,
+  ] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -285,6 +292,25 @@ export default function ScholarshipForm() {
     value: string | boolean
   ) => {
     setEligibility((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleOtherScholarshipConfirmation = (checked: boolean) => {
+    if (!checked) {
+      updateEligibility("notReceivingOtherScholarship", false);
+      return;
+    }
+
+    if (!hasOpenedOtherScholarshipRule) {
+      window.open(otherScholarshipRuleUrl, "_blank", "noopener,noreferrer");
+      setHasOpenedOtherScholarshipRule(true);
+      setSubmitMessage(
+        "請先閱讀本院其他獎助學金頁面，回到表單後再次勾選即可確認。"
+      );
+      return;
+    }
+
+    updateEligibility("notReceivingOtherScholarship", true);
+    setSubmitMessage("");
   };
 
   const updateAcademicPerformance = (
@@ -879,11 +905,22 @@ export default function ScholarshipForm() {
                 <CheckField
                   checked={eligibility.notReceivingOtherScholarship}
                   label="確認未重複請領本院其他獎助學金"
-                  onChange={(checked) =>
-                    updateEligibility("notReceivingOtherScholarship", checked)
-                  }
+                  onChange={handleOtherScholarshipConfirmation}
                 />
               </div>
+              <p className="text-sm leading-6 text-slate-600">
+                勾選「未重複請領」前，系統會先開啟
+                <a
+                  className="mx-1 font-medium text-[#1f6f78] underline underline-offset-4"
+                  href={otherScholarshipRuleUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setHasOpenedOtherScholarshipRule(true)}
+                >
+                  本院獎助學金頁面
+                </a>
+                供閱讀申請規則。
+              </p>
 
               <Textarea
                 className="min-h-24"
@@ -1865,78 +1902,29 @@ export default function ScholarshipForm() {
               />
 
               <section className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-base font-semibold">其他有利審查文件</h2>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      addRowWhenComplete(
-                        otherReviewDocuments,
-                        setOtherReviewDocuments,
-                        emptyOtherReviewDocument,
-                        ["name"],
-                        "請先填寫最後一列「其他有利審查文件」名稱，再新增下一列。"
-                      )
-                    }
+                <h2 className="text-base font-semibold">其他有利審查文件</h2>
+                <div className="grid grid-cols-1 gap-4 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
+                  <Field label="名稱" htmlFor="otherReviewDocumentName">
+                    <Input
+                      id="otherReviewDocumentName"
+                      value={otherReviewDocuments[0]?.name ?? ""}
+                      onChange={(event) =>
+                        setOtherReviewDocuments([{ name: event.target.value }])
+                      }
+                      placeholder="例：語言能力證明、專利證書、作品集"
+                    />
+                  </Field>
+                  <Field
+                    label="有利資料上傳（請合併上傳成 1 件）"
+                    htmlFor="document_otherReviewDocuments_0"
                   >
-                    <Plus className="size-4" />
-                    新增有利文件
-                  </Button>
-                </div>
-                <div className="overflow-x-auto rounded-md border">
-                  <Table className="min-w-[720px]">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead>名稱</TableHead>
-                        <TableHead>有利資料上傳</TableHead>
-                        <TableHead className="w-20" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {otherReviewDocuments.map((document, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="align-top">
-                            <Input
-                              value={document.name}
-                              onChange={(event) =>
-                                updateRow(
-                                  otherReviewDocuments,
-                                  setOtherReviewDocuments,
-                                  index,
-                                  "name",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="例：語言能力證明、專利證書、作品集"
-                            />
-                          </TableCell>
-                          <TableCell className="align-top">
-                            <Input
-                              id={`document_otherReviewDocuments_${index}`}
-                              name={`document_otherReviewDocuments_${index}`}
-                              type="file"
-                              accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
-                            />
-                          </TableCell>
-                          <TableCell className="align-top">
-                            <DeleteButton
-                              label="刪除有利審查文件"
-                              onClick={() =>
-                                removeRow(
-                                  otherReviewDocuments,
-                                  setOtherReviewDocuments,
-                                  index,
-                                  emptyOtherReviewDocument
-                                )
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                    <Input
+                      id="document_otherReviewDocuments_0"
+                      name="document_otherReviewDocuments_0"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
+                    />
+                  </Field>
                 </div>
               </section>
 

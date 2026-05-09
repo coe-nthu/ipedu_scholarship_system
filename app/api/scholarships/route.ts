@@ -136,6 +136,16 @@ export async function POST(request: Request) {
     const status = formData.get("status") === "submitted" ? "submitted" : "draft";
     const applicationId = crypto.randomUUID();
     const files: SupabaseFileRecord[] = [];
+    const otherReviewDocumentFields = Array.from(formData.keys()).filter(
+      (field) => field.match(/^document_otherReviewDocuments_\d+$/)
+    );
+
+    if (
+      otherReviewDocumentFields.length > 1 ||
+      (payload.otherReviewDocuments?.length || 0) > 1
+    ) {
+      return jsonError("其他有利審查文件限上傳一件。");
+    }
 
     if (status === "submitted") {
       const missingDocuments = REQUIRED_DOCUMENT_FIELDS.filter((field) => {
