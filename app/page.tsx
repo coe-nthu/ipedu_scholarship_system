@@ -26,115 +26,19 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { findJournalIndexMatch } from "@/lib/journal-indexes";
-
-type SubmissionStatus = "draft" | "submitted";
-
-type ApplicantInfo = {
-  applicantName: string;
-  studentId: string;
-  department: string;
-  email: string;
-  phone: string;
-  advisorName: string;
-  admissionAcademicYear: string;
-  studyStatus: string;
-  applicationType: string;
-};
-
-type Eligibility = {
-  bachelorRankPercent: string;
-  masterGpa: string;
-  gpaScale: string;
-  masterPercentScore: string;
-  hasSpecialRecommendation: boolean;
-  noFullTimeJob: boolean;
-  notReceivingOtherScholarship: boolean;
-  eligibilityNotes: string;
-};
-
-type AcademicPerformance = {
-  cumulativeGpa: string;
-  cumulativeGpaScale: string;
-  classRankPercent: string;
-  completedCredits: string;
-  conductScore: string;
-  transcriptNotes: string;
-};
-
-type Journal = {
-  doi: string;
-  date: string;
-  author: string;
-  applicantAuthorName: string;
-  doiAuthorNames: string[];
-  issns: string[];
-  title: string;
-  journal: string;
-  reviewUnit: string;
-  journalLevel: string;
-  indexSource: string;
-  isCorrespondingAuthor: boolean;
-  hasTrustedDatabase: string;
-  database: string;
-  authorOrder: string;
-  authorOrderOriginal: string;
-  authorOrderModified: boolean;
-  authorOrderChangeNote: string;
-  attachmentNote: string;
-};
-
-type Conference = {
-  date: string;
-  author: string;
-  title: string;
-  conference: string;
-  organizer: string;
-  type: string;
-  database: string;
-  authorOrder: string;
-};
-
-type ResearchExperience = {
-  institution: string;
-  role: string;
-  nature: string;
-  duration: string;
-  attachmentNote: string;
-};
-
-type ResearchAward = {
-  name: string;
-  projectNumber: string;
-  amountOrItem: string;
-  contribution: string;
-  attachmentNote: string;
-};
-
-type PlannedResearch = {
-  title: string;
-  expectedDate: string;
-  targetVenue: string;
-  hasTrustedDatabase: string;
-  database: string;
-  advisor: string;
-};
-
-type OtherReviewDocument = {
-  name: string;
-};
-
-type ScholarshipPayload = {
-  applicantInfo: ApplicantInfo;
-  eligibility: Eligibility;
-  academicPerformance: AcademicPerformance;
-  journals: Journal[];
-  conferences: Conference[];
-  researchExperiences: ResearchExperience[];
-  researchAwards: ResearchAward[];
-  plannedResearch: PlannedResearch[];
-  otherAchievements: string;
-  otherReviewDocuments: OtherReviewDocument[];
-};
+import type {
+  SubmissionStatus,
+  ApplicantInfo,
+  Eligibility,
+  AcademicPerformance,
+  Journal,
+  Conference,
+  ResearchExperience,
+  ResearchAward,
+  PlannedResearch,
+  OtherReviewDocument,
+  ScholarshipPayload,
+} from "@/lib/types";
 
 const documentFields = [
   { key: "transcript", label: "歷年成績單", required: true },
