@@ -78,6 +78,7 @@ function loadJson<T>(key: string, fallback: T): T {
 }
 
 function saveJson(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
   localStorage.setItem(key, JSON.stringify(value));
 }
 
@@ -298,18 +299,14 @@ export function DashboardTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
-  const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [remarks, setRemarks] = useState<Record<string, string>>(() =>
+    loadJson<Record<string, string>>(REMARKS_STORAGE_KEY, {}),
+  );
   const [reviewStatuses, setReviewStatuses] = useState<
     Record<string, ReviewStatus>
-  >({});
-
-  // Load persisted data from localStorage on mount
-  useEffect(() => {
-    setRemarks(loadJson<Record<string, string>>(REMARKS_STORAGE_KEY, {}));
-    setReviewStatuses(
-      loadJson<Record<string, ReviewStatus>>(REVIEW_STATUS_STORAGE_KEY, {}),
-    );
-  }, []);
+  >(() =>
+    loadJson<Record<string, ReviewStatus>>(REVIEW_STATUS_STORAGE_KEY, {}),
+  );
 
   const handleRemarkChange = useCallback((id: string, value: string) => {
     setRemarks((prev) => {

@@ -1928,6 +1928,9 @@ export default function ScholarshipForm() {
                 </div>
               </section>
 
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
+                上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。
+              </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {documentFields.map((document) => (
                   <div
