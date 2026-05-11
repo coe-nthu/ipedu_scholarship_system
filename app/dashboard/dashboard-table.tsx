@@ -13,7 +13,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -22,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStatus, ScholarshipApplication } from "@/lib/types";
 import { REVIEW_STATUS_LABELS } from "@/lib/types";
 import { ApplicationDetail } from "./application-detail";
@@ -55,23 +61,29 @@ type DashboardRow = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
+/*  localStorage helpers                                               */
 /* ------------------------------------------------------------------ */
 
 const REMARKS_STORAGE_KEY = "dashboard_remarks";
+const REVIEW_STATUS_STORAGE_KEY = "dashboard_review_statuses";
 
-function loadRemarks(): Record<string, string> {
-  if (typeof window === "undefined") return {};
+function loadJson<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
   try {
-    return JSON.parse(localStorage.getItem(REMARKS_STORAGE_KEY) ?? "{}");
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
-    return {};
+    return fallback;
   }
 }
 
-function saveRemarks(remarks: Record<string, string>) {
-  localStorage.setItem(REMARKS_STORAGE_KEY, JSON.stringify(remarks));
+function saveJson(key: string, value: unknown) {
+  localStorage.setItem(key, JSON.stringify(value));
 }
+
+/* ------------------------------------------------------------------ */
+/*  Row builder                                                        */
+/* ------------------------------------------------------------------ */
 
 function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
   return apps.map((app, idx) => ({
@@ -103,8 +115,15 @@ function comparePrimitive(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Review status badge                                                */
+/*  Review status config                                               */
 /* ------------------------------------------------------------------ */
+
+const ALL_REVIEW_STATUSES: ReviewStatus[] = [
+  "auto_verified",
+  "pending_manual",
+  "manual_verified",
+  "data_error",
+];
 
 const REVIEW_STATUS_CONFIG: Record<
   ReviewStatus,
@@ -133,11 +152,52 @@ function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
   const Icon = config.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${config.className}`}
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${config.className}`}
     >
       <Icon className="size-3" />
       {REVIEW_STATUS_LABELS[status]}
     </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Review status dropdown                                             */
+/* ------------------------------------------------------------------ */
+
+function ReviewStatusSelect({
+  status,
+  onStatusChange,
+}: {
+  status: ReviewStatus;
+  onStatusChange: (s: ReviewStatus) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <ReviewStatusBadge status={status} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="bg-white min-w-[180px]">
+        {ALL_REVIEW_STATUSES.map((s) => {
+          const config = REVIEW_STATUS_CONFIG[s];
+          const Icon = config.icon;
+          return (
+            <DropdownMenuItem
+              key={s}
+              className={`text-xs gap-2 cursor-pointer ${s === status ? "font-semibold" : ""}`}
+              onClick={() => onStatusChange(s)}
+            >
+              <Icon className={`size-3.5 ${s === status ? "opacity-100" : "opacity-50"}`} />
+              {REVIEW_STATUS_LABELS[s]}
+              {s === status && (
+                <span className="ml-auto text-emerald-600">✓</span>
+              )}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -178,10 +238,16 @@ function RemarkCell({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus();
+    if (editing) {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    }
   }, [editing]);
 
   const commit = useCallback(() => {
@@ -193,7 +259,7 @@ function RemarkCell({
     return (
       <button
         type="button"
-        className="w-full text-left text-xs text-slate-500 hover:text-slate-800 transition-colors min-h-[24px] rounded px-1 -mx-1 hover:bg-slate-50"
+        className="w-full text-left text-xs text-slate-500 hover:text-slate-800 transition-colors min-h-[24px] rounded px-1 -mx-1 hover:bg-slate-50 whitespace-pre-wrap break-words"
         onClick={() => {
           setDraft(value);
           setEditing(true);
@@ -206,14 +272,13 @@ function RemarkCell({
   }
 
   return (
-    <Input
-      ref={inputRef}
-      className="h-7 text-xs min-w-[100px]"
+    <Textarea
+      ref={textareaRef}
+      className="text-xs min-w-[120px] min-h-[32px] p-1.5 resize-none"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
         if (e.key === "Escape") setEditing(false);
       }}
     />
@@ -234,17 +299,31 @@ export function DashboardTable({
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [reviewStatuses, setReviewStatuses] = useState<
+    Record<string, ReviewStatus>
+  >({});
 
-  // Load remarks from localStorage on mount
+  // Load persisted data from localStorage on mount
   useEffect(() => {
-    setRemarks(loadRemarks());
+    setRemarks(loadJson<Record<string, string>>(REMARKS_STORAGE_KEY, {}));
+    setReviewStatuses(
+      loadJson<Record<string, ReviewStatus>>(REVIEW_STATUS_STORAGE_KEY, {}),
+    );
   }, []);
 
-  const handleRemarkChange = useCallback(
-    (id: string, value: string) => {
-      setRemarks((prev) => {
-        const next = { ...prev, [id]: value };
-        saveRemarks(next);
+  const handleRemarkChange = useCallback((id: string, value: string) => {
+    setRemarks((prev) => {
+      const next = { ...prev, [id]: value };
+      saveJson(REMARKS_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const handleReviewStatusChange = useCallback(
+    (id: string, status: ReviewStatus) => {
+      setReviewStatuses((prev) => {
+        const next = { ...prev, [id]: status };
+        saveJson(REVIEW_STATUS_STORAGE_KEY, next);
         return next;
       });
     },
@@ -402,77 +481,84 @@ export function DashboardTable({
           </TableHeader>
 
           <TableBody>
-            {sortedRows.map((row) => (
-              <TableRow key={row.application.id}>
-                <TableCell className="text-center font-medium">
-                  {row.rowNumber}
-                </TableCell>
-                <TableCell>
-                  <RemarkCell
-                    appId={row.application.id}
-                    value={remarks[row.application.id] ?? ""}
-                    onChange={handleRemarkChange}
-                  />
-                </TableCell>
-                <TableCell>{row.department}</TableCell>
-                <TableCell className="font-mono text-xs">
-                  {row.studentId}
-                </TableCell>
-                <TableCell>
-                  <button
-                    type="button"
-                    className="text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:text-emerald-900 hover:decoration-emerald-600 transition-colors font-medium"
-                    onClick={() => setSelectedApp(row.application)}
-                  >
-                    {row.name}
-                  </button>
-                </TableCell>
-                <TableCell>
-                  {row.gpa != null ? (
-                    <>
-                      {row.gpa.toFixed(2)}
-                      <span className="text-slate-400 ml-0.5 text-xs">
-                        （{row.completedCredits}）
-                      </span>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge
-                    variant={row.journalCount > 0 ? "default" : "secondary"}
-                  >
-                    {row.journalCount}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge
-                    variant={
-                      row.conferenceCount > 0 ? "default" : "secondary"
-                    }
-                  >
-                    {row.conferenceCount}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <ReviewStatusBadge
-                    status={row.application.review_status}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs gap-1"
-                    onClick={() => setSelectedApp(row.application)}
-                  >
-                    <FileText className="size-3.5" />
-                    附件
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {sortedRows.map((row) => {
+              const appId = row.application.id;
+              const effectiveStatus =
+                reviewStatuses[appId] ?? row.application.review_status;
+
+              return (
+                <TableRow key={appId}>
+                  <TableCell className="text-center font-medium">
+                    {row.rowNumber}
+                  </TableCell>
+                  <TableCell className="whitespace-normal min-w-[120px] max-w-[200px]">
+                    <RemarkCell
+                      appId={appId}
+                      value={remarks[appId] ?? ""}
+                      onChange={handleRemarkChange}
+                    />
+                  </TableCell>
+                  <TableCell>{row.department}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {row.studentId}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="text-emerald-700 underline underline-offset-2 decoration-emerald-300 hover:text-emerald-900 hover:decoration-emerald-600 transition-colors font-medium"
+                      onClick={() => setSelectedApp(row.application)}
+                    >
+                      {row.name}
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    {row.gpa != null ? (
+                      <>
+                        {row.gpa.toFixed(2)}
+                        <span className="text-slate-400 ml-0.5 text-xs">
+                          （{row.completedCredits}）
+                        </span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={row.journalCount > 0 ? "default" : "secondary"}
+                    >
+                      {row.journalCount}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={
+                        row.conferenceCount > 0 ? "default" : "secondary"
+                      }
+                    >
+                      {row.conferenceCount}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <ReviewStatusSelect
+                      status={effectiveStatus}
+                      onStatusChange={(s) => handleReviewStatusChange(appId, s)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => setSelectedApp(row.application)}
+                    >
+                      <FileText className="size-3.5" />
+                      附件
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
