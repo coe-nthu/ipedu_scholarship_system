@@ -55,7 +55,7 @@ export function ApplicationDetail({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="sm:max-w-2xl w-full overflow-y-auto"
+        className="data-[side=right]:sm:max-w-2xl overflow-y-auto"
       >
         <SheetHeader className="border-b border-slate-200 pb-4">
           <SheetTitle className="text-lg">
