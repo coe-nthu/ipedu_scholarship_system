@@ -55,7 +55,7 @@ export function ApplicationDetail({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="data-[side=right]:sm:max-w-2xl overflow-y-auto"
+        className="data-[side=right]:sm:max-w-2xl overflow-y-auto bg-white"
       >
         <SheetHeader className="border-b border-slate-200 pb-4">
           <SheetTitle className="text-lg">
@@ -69,7 +69,7 @@ export function ApplicationDetail({
         </SheetHeader>
 
         <div className="px-4 pb-6">
-          <Tabs defaultValue="basic">
+          <Tabs defaultValue="basic" className="flex-col">
             <TabsList className="mt-2 mb-4">
               <TabsTrigger value="basic">基本資料</TabsTrigger>
               <TabsTrigger value="academic">學術表現</TabsTrigger>
