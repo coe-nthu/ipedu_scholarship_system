@@ -48,7 +48,7 @@ public.scholarship_applications
 | `researchAwards` | 研究獲獎/獎助 |
 | `plannedResearch` | 獲獎當學年預計研究議題 |
 | `otherAchievements` | 其他優秀事蹟文字說明 |
-| `otherReviewDocuments` | 其他有利審查文件名稱列表 |
+| `otherReviewDocuments` | 其他有利審查文件名稱列表，目前限制最多 1 件 |
 
 ## 基本資料：`payload.applicantInfo`
 
@@ -176,6 +176,8 @@ public.scholarship_applications
 
 ## 其他有利審查文件：`payload.otherReviewDocuments[]`
 
+目前前端與後端皆限制最多上傳 1 件其他有利審查文件。
+
 | 欄位 | 定義 |
 |---|---|
 | `name` | 其他有利審查文件名稱 |
@@ -201,9 +203,7 @@ public.scholarship_applications
 | `document_advisorRecommendation` | 指導教授推薦函 | 是 |
 | `document_learningPlan` | 個人學習計畫書，最多 3 頁 | 是 |
 | `document_noFullTimeDeclaration` | 無專職切結書 | 是 |
-| `document_otherReviewDocuments_0` | 第 1 件其他有利審查文件 | 否 |
-| `document_otherReviewDocuments_1` | 第 2 件其他有利審查文件 | 否 |
-| `document_otherReviewDocuments_N` | 第 N+1 件其他有利審查文件 | 否 |
+| `document_otherReviewDocuments_0` | 其他有利審查文件，限 1 件 | 否 |
 
 ## `files` 結構
 
