@@ -10,6 +10,7 @@ export const dummyApplications: ScholarshipApplication[] = [
     gpa: 4.12,
     gpa_scale: 4.3,
     status: "submitted",
+    review_status: "auto_verified",
     submitted_at: "2026-04-20T10:30:00Z",
     created_at: "2026-04-18T08:00:00Z",
     files: [
@@ -145,6 +146,7 @@ export const dummyApplications: ScholarshipApplication[] = [
     gpa: 3.89,
     gpa_scale: 4.3,
     status: "submitted",
+    review_status: "pending_manual",
     submitted_at: "2026-04-19T14:20:00Z",
     created_at: "2026-04-15T09:00:00Z",
     files: [
@@ -261,6 +263,7 @@ export const dummyApplications: ScholarshipApplication[] = [
     gpa: 4.21,
     gpa_scale: 4.3,
     status: "submitted",
+    review_status: "manual_verified",
     submitted_at: "2026-04-21T09:45:00Z",
     created_at: "2026-04-19T11:00:00Z",
     files: [
@@ -424,6 +427,7 @@ export const dummyApplications: ScholarshipApplication[] = [
     gpa: 3.95,
     gpa_scale: 4.3,
     status: "submitted",
+    review_status: "data_error",
     submitted_at: "2026-04-22T16:00:00Z",
     created_at: "2026-04-20T10:00:00Z",
     files: [
@@ -538,6 +542,7 @@ export const dummyApplications: ScholarshipApplication[] = [
     gpa: 3.72,
     gpa_scale: 4.3,
     status: "submitted",
+    review_status: "auto_verified",
     submitted_at: "2026-04-18T11:15:00Z",
     created_at: "2026-04-16T14:00:00Z",
     files: [
@@ -629,6 +634,7 @@ export const dummyApplications: ScholarshipApplication[] = [
     gpa: 4.05,
     gpa_scale: 4.3,
     status: "submitted",
+    review_status: "pending_manual",
     submitted_at: "2026-04-23T08:30:00Z",
     created_at: "2026-04-21T15:00:00Z",
     files: [

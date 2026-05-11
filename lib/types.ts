@@ -107,6 +107,19 @@ export type ScholarshipPayload = {
   otherReviewDocuments: OtherReviewDocument[];
 };
 
+export type ReviewStatus =
+  | "auto_verified"       // 自動審核完成
+  | "pending_manual"      // 待人工審核
+  | "manual_verified"     // 人工審核完成
+  | "data_error";         // 上傳資料有錯誤
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  auto_verified: "自動審核完成",
+  pending_manual: "待人工審核",
+  manual_verified: "人工審核完成",
+  data_error: "上傳資料有錯誤",
+};
+
 export type SupabaseFileRecord = {
   field: string;
   label: string | null;
@@ -125,6 +138,7 @@ export type ScholarshipApplication = {
   gpa: number | null;
   gpa_scale: number | null;
   status: SubmissionStatus;
+  review_status: ReviewStatus;
   payload: ScholarshipPayload;
   files: SupabaseFileRecord[];
   submitted_at: string | null;

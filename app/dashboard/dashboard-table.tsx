@@ -1,9 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CheckCircle2,
+  CircleAlert,
+  CircleDot,
+  Clock,
+  FileText,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -12,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ScholarshipApplication } from "@/lib/types";
+import type { ReviewStatus, ScholarshipApplication } from "@/lib/types";
+import { REVIEW_STATUS_LABELS } from "@/lib/types";
 import { ApplicationDetail } from "./application-detail";
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +58,21 @@ type DashboardRow = {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+const REMARKS_STORAGE_KEY = "dashboard_remarks";
+
+function loadRemarks(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(REMARKS_STORAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveRemarks(remarks: Record<string, string>) {
+  localStorage.setItem(REMARKS_STORAGE_KEY, JSON.stringify(remarks));
+}
+
 function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
   return apps.map((app, idx) => ({
     rowNumber: idx + 1,
@@ -77,7 +103,46 @@ function comparePrimitive(
 }
 
 /* ------------------------------------------------------------------ */
-/*  SortableHeader                                                     */
+/*  Review status badge                                                */
+/* ------------------------------------------------------------------ */
+
+const REVIEW_STATUS_CONFIG: Record<
+  ReviewStatus,
+  { icon: typeof CheckCircle2; className: string }
+> = {
+  auto_verified: {
+    icon: CheckCircle2,
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  pending_manual: {
+    icon: Clock,
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  manual_verified: {
+    icon: CircleDot,
+    className: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  data_error: {
+    icon: CircleAlert,
+    className: "bg-red-50 text-red-700 border-red-200",
+  },
+};
+
+function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
+  const config = REVIEW_STATUS_CONFIG[status];
+  const Icon = config.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${config.className}`}
+    >
+      <Icon className="size-3" />
+      {REVIEW_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sort icon                                                          */
 /* ------------------------------------------------------------------ */
 
 function SortIcon({
@@ -99,6 +164,63 @@ function SortIcon({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Editable remark cell                                               */
+/* ------------------------------------------------------------------ */
+
+function RemarkCell({
+  appId,
+  value,
+  onChange,
+}: {
+  appId: string;
+  value: string;
+  onChange: (id: string, val: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const commit = useCallback(() => {
+    setEditing(false);
+    if (draft !== value) onChange(appId, draft);
+  }, [appId, draft, value, onChange]);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="w-full text-left text-xs text-slate-500 hover:text-slate-800 transition-colors min-h-[24px] rounded px-1 -mx-1 hover:bg-slate-50"
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+        title="點擊編輯備註"
+      >
+        {value || <span className="text-slate-300 italic">點擊新增備註</span>}
+      </button>
+    );
+  }
+
+  return (
+    <Input
+      ref={inputRef}
+      className="h-7 text-xs min-w-[100px]"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") setEditing(false);
+      }}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -111,6 +233,23 @@ export function DashboardTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
+  const [remarks, setRemarks] = useState<Record<string, string>>({});
+
+  // Load remarks from localStorage on mount
+  useEffect(() => {
+    setRemarks(loadRemarks());
+  }, []);
+
+  const handleRemarkChange = useCallback(
+    (id: string, value: string) => {
+      setRemarks((prev) => {
+        const next = { ...prev, [id]: value };
+        saveRemarks(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const rows = useMemo(() => toRows(applications), [applications]);
 
@@ -231,6 +370,7 @@ export function DashboardTable({
                   新生統計五年內、非新生過去一年內
                 </div>
               </TableHead>
+              <TableHead rowSpan={2}>文獻真實性審核</TableHead>
               <TableHead rowSpan={2}>審查資料</TableHead>
             </TableRow>
 
@@ -267,7 +407,13 @@ export function DashboardTable({
                 <TableCell className="text-center font-medium">
                   {row.rowNumber}
                 </TableCell>
-                <TableCell className="text-slate-400 text-xs">—</TableCell>
+                <TableCell>
+                  <RemarkCell
+                    appId={row.application.id}
+                    value={remarks[row.application.id] ?? ""}
+                    onChange={handleRemarkChange}
+                  />
+                </TableCell>
                 <TableCell>{row.department}</TableCell>
                 <TableCell className="font-mono text-xs">
                   {row.studentId}
@@ -308,6 +454,11 @@ export function DashboardTable({
                   >
                     {row.conferenceCount}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <ReviewStatusBadge
+                    status={row.application.review_status}
+                  />
                 </TableCell>
                 <TableCell>
                   <Button

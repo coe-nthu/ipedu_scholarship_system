@@ -94,7 +94,11 @@ export function ApplicationDetail({
                     label="入學學年度"
                     value={applicantInfo.admissionAcademicYear}
                   />
-                  <InfoRow label="申請類別" value={applicantInfo.studyStatus} />
+                  <InfoRow label="新領/續領" value={applicantInfo.studyStatus} />
+                  <InfoRow
+                    label="申請類別"
+                    value={applicantInfo.applicationType}
+                  />
                 </CardContent>
               </Card>
 
@@ -137,6 +141,12 @@ export function ApplicationDetail({
                       eligibility.notReceivingOtherScholarship ? "是" : "否"
                     }
                   />
+                  {eligibility.eligibilityNotes && (
+                    <InfoRow
+                      label="補充說明"
+                      value={eligibility.eligibilityNotes}
+                    />
+                  )}
                 </CardContent>
               </Card>
 
@@ -165,6 +175,12 @@ export function ApplicationDetail({
                     label="操行成績"
                     value={academicPerformance.conductScore}
                   />
+                  {academicPerformance.transcriptNotes && (
+                    <InfoRow
+                      label="成績備註"
+                      value={academicPerformance.transcriptNotes}
+                    />
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -192,10 +208,18 @@ export function ApplicationDetail({
                             {j.title}
                           </p>
                           <p className="text-xs text-slate-500">{j.journal}</p>
+                          <p className="text-xs text-slate-500">
+                            作者：{j.author}
+                          </p>
                           <div className="flex flex-wrap gap-1.5">
                             <Badge variant="outline" className="text-xs">
                               {j.authorOrder}
                             </Badge>
+                            {j.isCorrespondingAuthor && (
+                              <Badge variant="outline" className="text-xs">
+                                通訊作者
+                              </Badge>
+                            )}
                             {j.database && (
                               <Badge className="text-xs">{j.database}</Badge>
                             )}
@@ -209,10 +233,28 @@ export function ApplicationDetail({
                             >
                               {j.journalLevel}
                             </Badge>
+                            {j.hasTrustedDatabase === "是" && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-emerald-600 border-emerald-200"
+                              >
+                                具公信力資料庫
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-xs text-slate-400">
                             DOI: {j.doi} | 日期: {j.date}
                           </p>
+                          {j.indexSource && (
+                            <p className="text-xs text-slate-400">
+                              判別來源：{j.indexSource}
+                            </p>
+                          )}
+                          {j.authorOrderModified && j.authorOrderChangeNote && (
+                            <p className="text-xs text-amber-600">
+                              作者順位變更：{j.authorOrderChangeNote}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -231,32 +273,38 @@ export function ApplicationDetail({
                   {conferences.length === 0 ? (
                     <p className="text-sm text-slate-400">無研討會發表紀錄</p>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>論文名稱</TableHead>
-                          <TableHead>研討會</TableHead>
-                          <TableHead>類型</TableHead>
-                          <TableHead>日期</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {conferences.map((c, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="text-xs max-w-[200px] whitespace-normal">
-                              {c.title}
-                            </TableCell>
-                            <TableCell className="text-xs max-w-[160px] whitespace-normal">
-                              {c.conference}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <Badge variant="outline">{c.type}</Badge>
-                            </TableCell>
-                            <TableCell className="text-xs">{c.date}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <div className="space-y-3">
+                      {conferences.map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md border border-slate-200 p-3 space-y-1.5"
+                        >
+                          <p className="text-sm font-medium text-slate-900">
+                            {c.title}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {c.conference}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            主辦單位：{c.organizer} | 作者：{c.author}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <Badge variant="outline" className="text-xs">
+                              {c.authorOrder}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {c.type}
+                            </Badge>
+                            {c.database && (
+                              <Badge className="text-xs">{c.database}</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            日期: {c.date}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -279,6 +327,7 @@ export function ApplicationDetail({
                           <TableHead>職稱</TableHead>
                           <TableHead>性質</TableHead>
                           <TableHead>期間</TableHead>
+                          <TableHead>附件</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -293,6 +342,9 @@ export function ApplicationDetail({
                             </TableCell>
                             <TableCell className="text-xs">
                               {r.duration}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-400">
+                              {r.attachmentNote || "—"}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -314,8 +366,10 @@ export function ApplicationDetail({
                       <TableHeader>
                         <TableRow>
                           <TableHead>名稱</TableHead>
+                          <TableHead>編號</TableHead>
                           <TableHead>金額/項目</TableHead>
                           <TableHead>貢獻</TableHead>
+                          <TableHead>附件</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -325,10 +379,16 @@ export function ApplicationDetail({
                               {a.name}
                             </TableCell>
                             <TableCell className="text-xs">
+                              {a.projectNumber || "—"}
+                            </TableCell>
+                            <TableCell className="text-xs">
                               {a.amountOrItem}
                             </TableCell>
                             <TableCell className="text-xs">
                               {a.contribution}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-400">
+                              {a.attachmentNote || "—"}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -364,11 +424,21 @@ export function ApplicationDetail({
                           <p className="text-xs text-slate-500">
                             預計時間：{p.expectedDate} | 指導教授：{p.advisor}
                           </p>
-                          {p.database && (
-                            <Badge variant="outline" className="text-xs">
-                              {p.database}
-                            </Badge>
-                          )}
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.hasTrustedDatabase === "是" && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-emerald-600 border-emerald-200"
+                              >
+                                具公信力資料庫
+                              </Badge>
+                            )}
+                            {p.database && (
+                              <Badge variant="outline" className="text-xs">
+                                {p.database}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
