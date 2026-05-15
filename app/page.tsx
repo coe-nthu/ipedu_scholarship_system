@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { FileText, Plus, Save, Send, Trash2, Upload } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AuthButton } from "@/components/auth-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -600,6 +601,7 @@ export default function ScholarshipForm() {
             <Badge className="w-fit bg-[#1f6f78] text-white">
               每月 4 萬元，至多 4 學年
             </Badge>
+            <AuthButton />
           </div>
         </header>
 
