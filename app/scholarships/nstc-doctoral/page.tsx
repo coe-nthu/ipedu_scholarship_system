@@ -50,7 +50,11 @@ import type {
   PlannedResearch,
   OtherReviewDocument,
   ScholarshipPayload,
+  SupabaseFileRecord,
 } from "@/lib/types";
+
+const DOCUMENT_PREFIX = "document_";
+const STORAGE_BUCKET = "scholarship-documents";
 
 const documentFields = [
   { key: "transcript", label: "歷年成績單", required: true },
@@ -58,6 +62,13 @@ const documentFields = [
   { key: "learningPlan", label: "個人學習計畫書（最多 3 頁）", required: true },
   { key: "noFullTimeDeclaration", label: "無專職切結書", required: true },
 ] as const;
+
+function sanitizeFileName(name: string) {
+  return name
+    .normalize("NFKD")
+    .replace(/[^\w.\-\u4e00-\u9fff]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
 const otherScholarshipRuleUrl =
   "https://ec.site.nthu.edu.tw/p/406-1584-160474,r255.php?Lang=zh-tw";
@@ -580,7 +591,7 @@ export default function ScholarshipForm() {
     const missingRequiredDocuments = documentFields
       .filter((document) => document.required)
       .filter((document) => {
-        const file = formData.get(`document_${document.key}`);
+        const file = formData.get(`${DOCUMENT_PREFIX}${document.key}`);
         return !(file instanceof File) || file.size === 0;
       });
 
@@ -593,25 +604,113 @@ export default function ScholarshipForm() {
       return;
     }
 
-    formData.set("status", status);
-    formData.set("payload", JSON.stringify(buildPayload()));
+    // Check otherReviewDocuments limit
+    const otherReviewDocumentFields = Array.from(formData.keys()).filter(
+      (field) => field.match(/^document_otherReviewDocuments_\d+$/)
+    );
+    if (
+      otherReviewDocumentFields.length > 1 ||
+      (otherReviewDocuments.filter((d) => d.name.trim()).length || 0) > 1
+    ) {
+      setSubmitMessage("其他有利審查文件限上傳一件。");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/scholarships", {
-        method: "POST",
-        body: formData,
-      });
-      const result = await response.json();
+      const payload = buildPayload();
+      const applicationId = crypto.randomUUID();
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "儲存失敗，請稍後再試。");
+      // Step 1: Create DB record (JSON only, no files)
+      setSubmitMessage("正在建立申請資料...");
+      const createResponse = await fetch("/api/scholarships", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ applicationId, payload, status }),
+      });
+      const createResult = await createResponse.json();
+
+      if (!createResponse.ok || !createResult.success) {
+        throw new Error(createResult.error || "建立申請資料失敗。");
+      }
+
+      // Step 2: Upload files directly to Supabase Storage from browser
+      const supabase = createClient();
+      const files: SupabaseFileRecord[] = [];
+      const fileEntries: { field: string; file: File; label: string | null }[] =
+        [];
+
+      for (const [key, value] of formData.entries()) {
+        if (
+          key.startsWith(DOCUMENT_PREFIX) &&
+          value instanceof File &&
+          value.size > 0
+        ) {
+          const documentField = key.replace(DOCUMENT_PREFIX, "");
+          const otherDocMatch = documentField.match(
+            /^otherReviewDocuments_(\d+)$/
+          );
+          const label = otherDocMatch
+            ? payload.otherReviewDocuments?.[Number(otherDocMatch[1])]?.name ||
+              null
+            : null;
+          fileEntries.push({ field: documentField, file: value, label });
+        }
+      }
+
+      if (fileEntries.length > 0) {
+        setSubmitMessage(
+          `正在上傳檔案（0/${fileEntries.length}）...`
+        );
+
+        for (let i = 0; i < fileEntries.length; i++) {
+          const { field, file, label } = fileEntries[i];
+          const safeFileName = sanitizeFileName(file.name) || "upload";
+          const path = `${applicationId}/${field}/${Date.now()}-${safeFileName}`;
+
+          setSubmitMessage(
+            `正在上傳檔案（${i + 1}/${fileEntries.length}）...`
+          );
+
+          const { error: uploadError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(path, file, {
+              cacheControl: "3600",
+              upsert: false,
+            });
+
+          if (uploadError) {
+            throw new Error(`檔案「${file.name}」上傳失敗：${uploadError.message}`);
+          }
+
+          files.push({
+            field,
+            label,
+            name: file.name,
+            path,
+            type: file.type,
+            size: file.size,
+          });
+        }
+
+        // Step 3: Update DB record with file metadata
+        setSubmitMessage("正在更新檔案資料...");
+        const patchResponse = await fetch("/api/scholarships", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ applicationId, files }),
+        });
+        const patchResult = await patchResponse.json();
+
+        if (!patchResponse.ok || !patchResult.success) {
+          throw new Error(patchResult.error || "檔案資料更新失敗。");
+        }
       }
 
       setSubmitMessage(
         status === "draft"
-          ? `草稿已儲存，申請編號：${result.applicationId}`
-          : `申請已送出，申請編號：${result.applicationId}`
+          ? `草稿已儲存，申請編號：${applicationId}`
+          : `申請已送出，申請編號：${applicationId}`
       );
     } catch (error) {
       setSubmitMessage(
