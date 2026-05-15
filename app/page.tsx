@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { FileText, Plus, Save, Send, Trash2, Upload } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AuthButton } from "@/components/auth-button";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { findJournalIndexMatch } from "@/lib/journal-indexes";
+import { createClient } from "@/lib/supabase/client";
 import type {
   SubmissionStatus,
   ApplicantInfo,
@@ -243,6 +245,34 @@ export default function ScholarshipForm() {
   ] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let isMounted = true;
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setCurrentUser(data.user);
+      setIsAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const eligibilitySummary = useMemo(() => {
     const masterGpa = Number(eligibility.masterGpa);
@@ -614,13 +644,38 @@ export default function ScholarshipForm() {
           </AlertDescription>
         </Alert>
 
-        <form
-          className="space-y-6"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitApplication(event.currentTarget, "submitted");
-          }}
-        >
+        {isAuthLoading ? (
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">正在確認登入狀態</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm leading-6 text-slate-600">
+                請稍候，系統正在確認你的 Google 登入狀態。
+              </p>
+            </CardContent>
+          </Card>
+        ) : !currentUser ? (
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">請先登入 Google 帳戶</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">
+                登入後才能填寫與送出獎學金申請表。系統會使用你的 Google
+                帳戶建立登入狀態。
+              </p>
+              <AuthButton />
+            </CardContent>
+          </Card>
+        ) : (
+          <form
+            className="space-y-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitApplication(event.currentTarget, "submitted");
+            }}
+          >
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">一、基本資料</CardTitle>
@@ -1996,7 +2051,8 @@ export default function ScholarshipForm() {
               {isSubmitting ? "處理中..." : "送出申請"}
             </Button>
           </div>
-        </form>
+          </form>
+        )}
       </div>
     </main>
   );

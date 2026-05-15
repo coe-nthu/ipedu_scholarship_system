@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 const DOCUMENT_PREFIX = "document_";
 const STORAGE_BUCKET = "scholarship-documents";
@@ -130,6 +131,16 @@ function getDocumentLabel(payload: ScholarshipPayload, field: string) {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return jsonError("請先使用 Google 帳戶登入。", 401);
+    }
+
     const { serviceRoleKey, url } = getSupabaseConfig();
     const formData = await request.formData();
     const payload = parsePayload(formData.get("payload"));

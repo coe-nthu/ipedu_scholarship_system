@@ -7,6 +7,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
+function getSiteOrigin() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    window.location.origin
+  );
+}
+
 export function AuthButton() {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,7 +43,7 @@ export function AuthButton() {
     startTransition(async () => {
       const supabase = createClient();
       const next = pathname || "/";
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+      const redirectTo = `${getSiteOrigin()}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
