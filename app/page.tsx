@@ -618,31 +618,35 @@ export default function ScholarshipForm() {
   return (
     <main className="min-h-screen bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="border-b border-slate-300 pb-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm font-medium text-emerald-700">
-                國科會-培育優秀博士生獎學金
-              </p>
-              <h1 className="mt-2 text-3xl font-bold text-slate-950">
-                適用 111-112 學年度學生申請表單
-              </h1>
-            </div>
-            <Badge className="w-fit bg-[#1f6f78] text-white">
-              每月 4 萬元，至多 4 學年
-            </Badge>
-            <AuthButton />
-          </div>
-        </header>
+        {currentUser ? (
+          <>
+            <header className="border-b border-slate-300 pb-6">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-emerald-700">
+                    國科會-培育優秀博士生獎學金
+                  </p>
+                  <h1 className="mt-2 text-3xl font-bold text-slate-950">
+                    適用 111-112 學年度學生申請表單
+                  </h1>
+                </div>
+                <Badge className="w-fit bg-[#1f6f78] text-white">
+                  每月 4 萬元，至多 4 學年
+                </Badge>
+                <AuthButton />
+              </div>
+            </header>
 
-        <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950">
-          <FileText className="size-4" />
-          <AlertTitle>請領資格提醒</AlertTitle>
-          <AlertDescription>
-            學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85
-            分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。
-          </AlertDescription>
-        </Alert>
+            <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950">
+              <FileText className="size-4" />
+              <AlertTitle>請領資格提醒</AlertTitle>
+              <AlertDescription>
+                學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85
+                分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。
+              </AlertDescription>
+            </Alert>
+          </>
+        ) : null}
 
         {isAuthLoading ? (
           <Card className="shadow-sm">
