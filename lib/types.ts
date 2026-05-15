@@ -70,7 +70,6 @@ export type ResearchExperience = {
   role: string;
   nature: string;
   duration: string;
-  attachmentNote: string;
 };
 
 export type ResearchAward = {
@@ -78,7 +77,6 @@ export type ResearchAward = {
   projectNumber: string;
   amountOrItem: string;
   contribution: string;
-  attachmentNote: string;
 };
 
 export type PlannedResearch = {
@@ -108,16 +106,16 @@ export type ScholarshipPayload = {
 };
 
 export type ReviewStatus =
-  | "auto_verified"       // 自動審核完成
-  | "pending_manual"      // 待人工審核
-  | "manual_verified"     // 人工審核完成
-  | "data_error";         // 上傳資料有錯誤
+  | "自動審核完成"
+  | "等待人工審核"
+  | "人工審核完成"
+  | "資料錯誤";
 
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
-  auto_verified: "自動審核完成",
-  pending_manual: "待人工審核",
-  manual_verified: "人工審核完成",
-  data_error: "上傳資料有錯誤",
+  "自動審核完成": "自動審核完成",
+  "等待人工審核": "等待人工審核",
+  "人工審核完成": "人工審核完成",
+  "資料錯誤": "資料錯誤",
 };
 
 export type SupabaseFileRecord = {
@@ -137,7 +135,7 @@ export type ScholarshipApplication = {
   advisor_name: string | null;
   gpa: number | null;
   gpa_scale: number | null;
-  status: SubmissionStatus;
+  submission_status: SubmissionStatus;
   review_status: ReviewStatus;
   payload: ScholarshipPayload;
   files: SupabaseFileRecord[];

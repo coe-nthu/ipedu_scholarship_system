@@ -9,8 +9,8 @@ export const dummyApplications: ScholarshipApplication[] = [
     advisor_name: "林明德",
     gpa: 4.12,
     gpa_scale: 4.3,
-    status: "submitted",
-    review_status: "auto_verified",
+    submission_status: "submitted",
+    review_status: "自動審核完成",
     submitted_at: "2026-04-20T10:30:00Z",
     created_at: "2026-04-18T08:00:00Z",
     files: [
@@ -69,7 +69,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-1",
+          attachmentNote: "",
         },
         {
           doi: "10.1016/j.learninstruc.2025.101922",
@@ -90,7 +90,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第二作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-2",
+          attachmentNote: "",
         },
       ],
       conferences: [
@@ -111,7 +111,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           role: "研究助理",
           nature: "個別型計畫",
           duration: "2024/08 - 2025/07",
-          attachmentNote: "附件5-1",
         },
       ],
       researchAwards: [
@@ -120,7 +119,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           projectNumber: "EDU-2025-003",
           amountOrItem: "NT$60,000",
           contribution: "獨立研究",
-          attachmentNote: "附件6-1",
         },
       ],
       plannedResearch: [
@@ -145,8 +143,8 @@ export const dummyApplications: ScholarshipApplication[] = [
     advisor_name: "張雅芳",
     gpa: 3.89,
     gpa_scale: 4.3,
-    status: "submitted",
-    review_status: "pending_manual",
+    submission_status: "submitted",
+    review_status: "等待人工審核",
     submitted_at: "2026-04-19T14:20:00Z",
     created_at: "2026-04-15T09:00:00Z",
     files: [
@@ -205,7 +203,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-1",
+          attachmentNote: "",
         },
       ],
       conferences: [
@@ -236,7 +234,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           role: "兼任研究助理",
           nature: "整合型計畫",
           duration: "2023/08 - 2025/07",
-          attachmentNote: "附件5-1",
         },
       ],
       researchAwards: [],
@@ -262,8 +259,8 @@ export const dummyApplications: ScholarshipApplication[] = [
     advisor_name: "黃志偉",
     gpa: 4.21,
     gpa_scale: 4.3,
-    status: "submitted",
-    review_status: "manual_verified",
+    submission_status: "submitted",
+    review_status: "人工審核完成",
     submitted_at: "2026-04-21T09:45:00Z",
     created_at: "2026-04-19T11:00:00Z",
     files: [
@@ -322,7 +319,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-1",
+          attachmentNote: "",
         },
         {
           doi: "10.6151/CERQ.202503_22(1).0003",
@@ -343,7 +340,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-2",
+          attachmentNote: "",
         },
         {
           doi: "10.1002/tea.21890",
@@ -364,7 +361,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第二作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-3",
+          attachmentNote: "",
         },
       ],
       conferences: [
@@ -385,14 +382,12 @@ export const dummyApplications: ScholarshipApplication[] = [
           role: "研究助理",
           nature: "個別型計畫",
           duration: "2024/02 - 2025/01",
-          attachmentNote: "附件5-1",
         },
         {
           institution: "教育部教學實踐計畫（黃志偉主持）",
           role: "共同研究者",
           nature: "教學實踐研究計畫",
           duration: "2025/02 - 2026/01",
-          attachmentNote: "附件5-2",
         },
       ],
       researchAwards: [
@@ -401,7 +396,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           projectNumber: "MOST 113-2813-C-007-001-H",
           amountOrItem: "NT$48,000",
           contribution: "計畫主持人",
-          attachmentNote: "附件6-1",
         },
       ],
       plannedResearch: [
@@ -426,8 +420,8 @@ export const dummyApplications: ScholarshipApplication[] = [
     advisor_name: "吳美玲",
     gpa: 3.95,
     gpa_scale: 4.3,
-    status: "submitted",
-    review_status: "data_error",
+    submission_status: "submitted",
+    review_status: "資料錯誤",
     submitted_at: "2026-04-22T16:00:00Z",
     created_at: "2026-04-20T10:00:00Z",
     files: [
@@ -486,7 +480,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-1",
+          attachmentNote: "",
         },
       ],
       conferences: [
@@ -507,7 +501,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           role: "研究助理",
           nature: "個別型計畫",
           duration: "2024/08 - 2025/07",
-          attachmentNote: "附件5-1",
         },
       ],
       researchAwards: [
@@ -516,7 +509,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           projectNumber: "",
           amountOrItem: "NT$20,000",
           contribution: "第一作者",
-          attachmentNote: "附件6-1",
         },
       ],
       plannedResearch: [
@@ -541,8 +533,8 @@ export const dummyApplications: ScholarshipApplication[] = [
     advisor_name: "陳國華",
     gpa: 3.72,
     gpa_scale: 4.3,
-    status: "submitted",
-    review_status: "auto_verified",
+    submission_status: "submitted",
+    review_status: "自動審核完成",
     submitted_at: "2026-04-18T11:15:00Z",
     created_at: "2026-04-16T14:00:00Z",
     files: [
@@ -600,14 +592,12 @@ export const dummyApplications: ScholarshipApplication[] = [
           role: "兼任研究助理",
           nature: "政府委託計畫",
           duration: "2023/01 - 2024/12",
-          attachmentNote: "附件5-1",
         },
         {
           institution: "國科會計畫（陳國華主持）",
           role: "研究助理",
           nature: "個別型計畫",
           duration: "2025/01 - 2025/12",
-          attachmentNote: "附件5-2",
         },
       ],
       researchAwards: [],
@@ -633,8 +623,8 @@ export const dummyApplications: ScholarshipApplication[] = [
     advisor_name: "劉俊廷",
     gpa: 4.05,
     gpa_scale: 4.3,
-    status: "submitted",
-    review_status: "pending_manual",
+    submission_status: "submitted",
+    review_status: "等待人工審核",
     submitted_at: "2026-04-23T08:30:00Z",
     created_at: "2026-04-21T15:00:00Z",
     files: [
@@ -693,7 +683,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-1",
+          attachmentNote: "",
         },
         {
           doi: "10.6278/tjme.202506.002",
@@ -714,7 +704,7 @@ export const dummyApplications: ScholarshipApplication[] = [
           authorOrderOriginal: "第一作者",
           authorOrderModified: false,
           authorOrderChangeNote: "",
-          attachmentNote: "附件3-2",
+          attachmentNote: "",
         },
       ],
       conferences: [
@@ -735,7 +725,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           role: "研究助理",
           nature: "個別型計畫",
           duration: "2025/02 - 2026/01",
-          attachmentNote: "附件5-1",
         },
       ],
       researchAwards: [
@@ -744,7 +733,6 @@ export const dummyApplications: ScholarshipApplication[] = [
           projectNumber: "",
           amountOrItem: "第一名",
           contribution: "獨立研究",
-          attachmentNote: "附件6-1",
         },
       ],
       plannedResearch: [

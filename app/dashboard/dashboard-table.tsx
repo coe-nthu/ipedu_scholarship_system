@@ -120,29 +120,29 @@ function comparePrimitive(
 /* ------------------------------------------------------------------ */
 
 const ALL_REVIEW_STATUSES: ReviewStatus[] = [
-  "auto_verified",
-  "pending_manual",
-  "manual_verified",
-  "data_error",
+  "自動審核完成",
+  "等待人工審核",
+  "人工審核完成",
+  "資料錯誤",
 ];
 
 const REVIEW_STATUS_CONFIG: Record<
   ReviewStatus,
   { icon: typeof CheckCircle2; className: string }
 > = {
-  auto_verified: {
+  "自動審核完成": {
     icon: CheckCircle2,
     className: "bg-emerald-50 text-emerald-700 border-emerald-200",
   },
-  pending_manual: {
+  "等待人工審核": {
     icon: Clock,
     className: "bg-amber-50 text-amber-700 border-amber-200",
   },
-  manual_verified: {
+  "人工審核完成": {
     icon: CircleDot,
     className: "bg-blue-50 text-blue-700 border-blue-200",
   },
-  data_error: {
+  "資料錯誤": {
     icon: CircleAlert,
     className: "bg-red-50 text-red-700 border-red-200",
   },

@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     const { serviceRoleKey, url } = getSupabaseConfig();
     const formData = await request.formData();
     const payload = parsePayload(formData.get("payload"));
-    const status = formData.get("status") === "submitted" ? "submitted" : "draft";
+    const submissionStatus = formData.get("status") === "submitted" ? "submitted" : "draft";
     const applicationId = crypto.randomUUID();
     const files: SupabaseFileRecord[] = [];
     const otherReviewDocumentFields = Array.from(formData.keys()).filter(
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       return jsonError("其他有利審查文件限上傳一件。");
     }
 
-    if (status === "submitted") {
+    if (submissionStatus === "submitted") {
       const missingDocuments = REQUIRED_DOCUMENT_FIELDS.filter((field) => {
         const file = formData.get(`${DOCUMENT_PREFIX}${field}`);
         return !(file instanceof File) || file.size === 0;
@@ -204,6 +204,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           id: applicationId,
+          user_id: user.id,
           scholarship_program: "國科會-培育優秀博士生獎學金",
           applicant_name: applicant.applicantName,
           student_id: applicant.studentId || null,
@@ -215,7 +216,7 @@ export async function POST(request: Request) {
           application_type: applicant.applicationType || null,
           gpa: academic.cumulativeGpa || null,
           gpa_scale: academic.cumulativeGpaScale || null,
-          status,
+          submission_status: submissionStatus,
           payload,
           files,
         }),

@@ -327,7 +327,6 @@ export function ApplicationDetail({
                           <TableHead>職稱</TableHead>
                           <TableHead>性質</TableHead>
                           <TableHead>期間</TableHead>
-                          <TableHead>附件</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -342,9 +341,6 @@ export function ApplicationDetail({
                             </TableCell>
                             <TableCell className="text-xs">
                               {r.duration}
-                            </TableCell>
-                            <TableCell className="text-xs text-slate-400">
-                              {r.attachmentNote || "—"}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -369,7 +365,6 @@ export function ApplicationDetail({
                           <TableHead>編號</TableHead>
                           <TableHead>金額/項目</TableHead>
                           <TableHead>貢獻</TableHead>
-                          <TableHead>附件</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -386,9 +381,6 @@ export function ApplicationDetail({
                             </TableCell>
                             <TableCell className="text-xs">
                               {a.contribution}
-                            </TableCell>
-                            <TableCell className="text-xs text-slate-400">
-                              {a.attachmentNote || "—"}
                             </TableCell>
                           </TableRow>
                         ))}

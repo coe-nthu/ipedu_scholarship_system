@@ -100,7 +100,6 @@ const emptyResearchExperience = (): ResearchExperience => ({
   role: "",
   nature: "",
   duration: "",
-  attachmentNote: "",
 });
 
 const emptyResearchAward = (): ResearchAward => ({
@@ -108,7 +107,6 @@ const emptyResearchAward = (): ResearchAward => ({
   projectNumber: "",
   amountOrItem: "",
   contribution: "",
-  attachmentNote: "",
 });
 
 const emptyPlannedResearch = (): PlannedResearch => ({
@@ -1565,7 +1563,6 @@ export default function ScholarshipForm() {
                       "role",
                       "nature",
                       "duration",
-                      "attachmentNote",
                     ],
                     "請先將最後一列「研究經歷」填寫完整，再新增下一列。"
                   )
@@ -1664,17 +1661,9 @@ export default function ScholarshipForm() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          value={experience.attachmentNote}
-                          onChange={(event) =>
-                            updateRow(
-                              researchExperiences,
-                              setResearchExperiences,
-                              index,
-                              "attachmentNote",
-                              event.target.value
-                            )
-                          }
-                          placeholder="附件編號"
+                          name={`document_researchExperiences_${index}`}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
                         />
                       </TableCell>
                       <TableCell>
@@ -1709,7 +1698,6 @@ export default function ScholarshipForm() {
                       "projectNumber",
                       "amountOrItem",
                       "contribution",
-                      "attachmentNote",
                     ],
                     "請先將最後一列「研究獲獎/獎助」填寫完整，再新增下一列。"
                   )
@@ -1790,17 +1778,9 @@ export default function ScholarshipForm() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          value={award.attachmentNote}
-                          onChange={(event) =>
-                            updateRow(
-                              researchAwards,
-                              setResearchAwards,
-                              index,
-                              "attachmentNote",
-                              event.target.value
-                            )
-                          }
-                          placeholder="附件編號"
+                          name={`document_researchAwards_${index}`}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
                         />
                       </TableCell>
                       <TableCell>

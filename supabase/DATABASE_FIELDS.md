@@ -26,7 +26,9 @@ public.scholarship_applications
 | `application_type` | `text` | 申請類別 |
 | `gpa` | `numeric(4,2)` | 學業表現 GPA |
 | `gpa_scale` | `numeric(3,1)` | GPA 滿分制，例如 `4.3` |
-| `status` | `text` | 申請狀態：`draft` 草稿、`submitted` 已送出 |
+| `submission_status` | `text` | 學生填寫狀態：`draft` 草稿、`submitted` 已送出 |
+| `review_status` | `text` | 文獻真實性審查狀態：`自動審核完成`、`等待人工審核`、`人工審核完成`、`資料錯誤` |
+| `reviewer_remarks` | `text` | 審查備註（審查人員可讀寫的文字備註） |
 | `payload` | `jsonb` | 完整表單資料 JSON |
 | `files` | `jsonb` | 上傳檔案資料 JSON |
 | `submitted_at` | `timestamptz` | 送出時間 |
@@ -151,7 +153,8 @@ public.scholarship_applications
 | `role` | 職稱，例如研究者本人、研究助理 |
 | `nature` | 研究案性質 |
 | `duration` | 研究案起訖日期 |
-| `attachmentNote` | 證明文件或附件編號 |
+
+每筆研究經歷需上傳證明文件，對應檔案欄位為 `document_researchExperiences_{index}`（如 `document_researchExperiences_0`）。
 
 ## 研究獲獎/獎助：`payload.researchAwards[]`
 
@@ -161,7 +164,8 @@ public.scholarship_applications
 | `projectNumber` | 計畫或成果編號 |
 | `amountOrItem` | 獎助金額或項目 |
 | `contribution` | 主要參與部分 |
-| `attachmentNote` | 證明文件或附件編號 |
+
+每筆研究獲獎需上傳證明文件，對應檔案欄位為 `document_researchAwards_{index}`（如 `document_researchAwards_0`）。
 
 ## 預計研究議題：`payload.plannedResearch[]`
 
@@ -203,6 +207,8 @@ public.scholarship_applications
 | `document_advisorRecommendation` | 指導教授推薦函 | 是 |
 | `document_learningPlan` | 個人學習計畫書，最多 3 頁 | 是 |
 | `document_noFullTimeDeclaration` | 無專職切結書 | 是 |
+| `document_researchExperiences_{index}` | 研究經歷證明文件（每筆一份） | 否 |
+| `document_researchAwards_{index}` | 研究獲獎證明文件（每筆一份） | 否 |
 | `document_otherReviewDocuments_0` | 其他有利審查文件，限 1 件 | 否 |
 
 ## `files` 結構
