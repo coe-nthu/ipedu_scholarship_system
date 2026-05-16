@@ -64,10 +64,17 @@ const documentFields = [
 ] as const;
 
 function sanitizeFileName(name: string) {
-  return name
+  const extensionMatch = name.match(/\.[A-Za-z0-9]+$/);
+  const extension = extensionMatch?.[0]?.toLowerCase() || "";
+  const baseName = name.slice(0, extension ? -extension.length : undefined);
+  const safeBaseName = baseName
     .normalize("NFKD")
-    .replace(/[^\w.\-\u4e00-\u9fff]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+
+  return `${safeBaseName || "file"}${extension}`;
 }
 
 const otherScholarshipRuleUrl =
@@ -665,7 +672,7 @@ export default function ScholarshipForm() {
 
         for (let i = 0; i < fileEntries.length; i++) {
           const { field, file, label } = fileEntries[i];
-          const safeFileName = sanitizeFileName(file.name) || "upload";
+          const safeFileName = sanitizeFileName(file.name);
           const path = `${applicationId}/${field}/${Date.now()}-${safeFileName}`;
 
           setSubmitMessage(
