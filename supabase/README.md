@@ -1,6 +1,6 @@
 # Supabase 串接設定
 
-這個專案目前由 Next.js Route Handler 在伺服器端寫入 Supabase。前端送出表單到 `/api/scholarships`，後端再用 Supabase REST API 寫入 `scholarship_applications`，並把附件上傳到 Storage bucket `scholarship-documents`。
+這個專案目前由 Next.js Route Handler 在伺服器端寫入 Supabase。前端送出表單到 `/api/scholarships`，後端再用 Supabase REST API 寫入 `scholarship_applications`。附件由後端簽發上傳授權後，以 Supabase Storage TUS Resumable Uploads 上傳到 Storage bucket `scholarship-documents`。
 
 ## 1. 建立資料表與 Storage
 
@@ -29,7 +29,7 @@
 這會建立：
 
 - `public.scholarship_applications`
-- Storage bucket `scholarship-documents`
+- Storage bucket `scholarship-documents`（PDF only，單檔上限 100 MB）
 - service role 專用 RLS policies
 
 ## 2. 設定環境變數
@@ -57,7 +57,8 @@ pnpm dev
 
 - 申請資料會寫入 `public.scholarship_applications.payload`
 - 常用欄位如姓名、系所、GPA 會另外寫入資料表欄位方便查詢
-- 檔案會上傳到 `scholarship-documents/<application-id>/...`
+- 檔案會以 Resumable Uploads 上傳到 `scholarship-documents/<application-id>/...`
+- 檔案格式限制為 `.pdf`
 - 檔案資訊會存入 `scholarship_applications.files`
 
 ## 4. Direct connection string 何時使用

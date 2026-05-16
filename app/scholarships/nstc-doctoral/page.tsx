@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
+import * as tus from "tus-js-client";
 import {
   ArrowLeft,
   FileText,
@@ -55,6 +56,8 @@ import type {
 
 const DOCUMENT_PREFIX = "document_";
 const STORAGE_BUCKET = "scholarship-documents";
+const PDF_MIME_TYPE = "application/pdf";
+const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
 
 const documentFields = [
   { key: "transcript", label: "歷年成績單", required: true },
@@ -75,6 +78,96 @@ function sanitizeFileName(name: string) {
     .slice(0, 80);
 
   return `${safeBaseName || "file"}${extension}`;
+}
+
+function isPdfFile(file: File) {
+  return (
+    file.name.toLowerCase().endsWith(".pdf") &&
+    (!file.type || file.type === PDF_MIME_TYPE)
+  );
+}
+
+function getResumableUploadEndpoint() {
+  const fallbackUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+
+  try {
+    const url = new URL(fallbackUrl);
+    if (url.hostname.endsWith(".supabase.co")) {
+      url.hostname = url.hostname.replace(
+        ".supabase.co",
+        ".storage.supabase.co"
+      );
+    }
+    return `${url.origin}/storage/v1/upload/resumable`;
+  } catch {
+    return `${fallbackUrl.replace(/\/$/, "")}/storage/v1/upload/resumable`;
+  }
+}
+
+function uploadPdfWithTus({
+  file,
+  onProgress,
+  path,
+  token,
+}: {
+  file: File;
+  onProgress: (percentage: string) => void;
+  path: string;
+  token: string;
+}) {
+  return new Promise<void>((resolve, reject) => {
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const upload = new tus.Upload(file, {
+      endpoint: getResumableUploadEndpoint(),
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        ...(publishableKey
+          ? {
+              apikey: publishableKey,
+              authorization: `Bearer ${publishableKey}`,
+            }
+          : {}),
+        "x-signature": token,
+        "x-upsert": "false",
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: STORAGE_BUCKET,
+        objectName: path,
+        contentType: PDF_MIME_TYPE,
+        cacheControl: "3600",
+      },
+      chunkSize: TUS_CHUNK_SIZE,
+      async fingerprint() {
+        return [
+          STORAGE_BUCKET,
+          path,
+          file.name,
+          file.type || PDF_MIME_TYPE,
+          file.size,
+          file.lastModified,
+        ].join(":");
+      },
+      onError: reject,
+      onProgress(bytesUploaded, bytesTotal) {
+        onProgress(((bytesUploaded / bytesTotal) * 100).toFixed(0));
+      },
+      onSuccess() {
+        resolve();
+      },
+    });
+
+    upload
+      .findPreviousUploads()
+      .then((previousUploads) => {
+        if (previousUploads.length > 0) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+        upload.start();
+      })
+      .catch(reject);
+  });
 }
 
 const otherScholarshipRuleUrl =
@@ -641,8 +734,7 @@ export default function ScholarshipForm() {
         throw new Error(createResult.error || "建立申請資料失敗。");
       }
 
-      // Step 2: Upload files directly to Supabase Storage from browser
-      const supabase = createClient();
+      // Step 2: Upload files to Supabase Storage with TUS resumable uploads
       const files: SupabaseFileRecord[] = [];
       const fileEntries: { field: string; file: File; label: string | null }[] =
         [];
@@ -661,6 +753,10 @@ export default function ScholarshipForm() {
             ? payload.otherReviewDocuments?.[Number(otherDocMatch[1])]?.name ||
               null
             : null;
+          if (!isPdfFile(value)) {
+            throw new Error(`檔案「${value.name}」不是 PDF，請改上傳 .pdf 檔。`);
+          }
+
           fileEntries.push({ field: documentField, file: value, label });
         }
       }
@@ -679,23 +775,48 @@ export default function ScholarshipForm() {
             `正在上傳檔案（${i + 1}/${fileEntries.length}）...`
           );
 
-          const { error: uploadError } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .upload(path, file, {
-              cacheControl: "3600",
-              upsert: false,
-            });
+          const uploadUrlResponse = await fetch("/api/scholarships/upload-url", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              applicationId,
+              contentType: file.type || PDF_MIME_TYPE,
+              fileName: file.name,
+              path,
+              size: file.size,
+            }),
+          });
+          const uploadUrlResult = (await uploadUrlResponse.json()) as {
+            error?: string;
+            success?: boolean;
+            token?: string;
+          };
 
-          if (uploadError) {
-            throw new Error(`檔案「${file.name}」上傳失敗：${uploadError.message}`);
+          if (
+            !uploadUrlResponse.ok ||
+            !uploadUrlResult.success ||
+            !uploadUrlResult.token
+          ) {
+            throw new Error(uploadUrlResult.error || "建立檔案上傳授權失敗。");
           }
+
+          await uploadPdfWithTus({
+            file,
+            path,
+            token: uploadUrlResult.token,
+            onProgress: (percentage) => {
+              setSubmitMessage(
+                `正在上傳檔案（${i + 1}/${fileEntries.length}，${percentage}%）...`
+              );
+            },
+          });
 
           files.push({
             field,
             label,
             name: file.name,
             path,
-            type: file.type,
+            type: file.type || PDF_MIME_TYPE,
             size: file.size,
           });
         }
@@ -1769,7 +1890,7 @@ export default function ScholarshipForm() {
                         <Input
                           name={`document_researchExperiences_${index}`}
                           type="file"
-                          accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
+                          accept=".pdf"
                         />
                       </TableCell>
                       <TableCell>
@@ -1886,7 +2007,7 @@ export default function ScholarshipForm() {
                         <Input
                           name={`document_researchAwards_${index}`}
                           type="file"
-                          accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
+                          accept=".pdf"
                         />
                       </TableCell>
                       <TableCell>
@@ -2085,7 +2206,7 @@ export default function ScholarshipForm() {
                       id="document_otherReviewDocuments_0"
                       name="document_otherReviewDocuments_0"
                       type="file"
-                      accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
+                      accept=".pdf"
                     />
                   </Field>
                 </div>
@@ -2117,7 +2238,7 @@ export default function ScholarshipForm() {
                       id={`document_${document.key}`}
                       name={`document_${document.key}`}
                       type="file"
-                      accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png"
+                      accept=".pdf"
                     />
                   </div>
                 ))}
