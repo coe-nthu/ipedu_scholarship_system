@@ -10,15 +10,22 @@
 -- 注意：這會清掉測試申請資料；正式環境不要執行。
 -- ============================================================
 
-drop view if exists public.application_summary;
-drop policy if exists "Students can upload own documents"
-  on storage.objects;
-drop policy if exists "Students can view own documents"
-  on storage.objects;
-drop policy if exists "Teachers can view all documents"
-  on storage.objects;
+-- 舊版 schema 曾在 storage.objects 建立過引用 public tables 的 policies。
+-- 先移除這些 app-managed policies，避免 drop public tables 時被相依性阻擋。
+-- 這不會刪除 storage.objects metadata，也不會刪除實際 Storage 檔案。
 drop policy if exists "Service role can manage scholarship documents"
   on storage.objects;
+
+drop policy if exists "Students can upload own documents"
+  on storage.objects;
+
+drop policy if exists "Students can view own documents"
+  on storage.objects;
+
+drop policy if exists "Teachers can view all documents"
+  on storage.objects;
+
+drop view if exists public.application_summary;
 
 do $$
 begin

@@ -193,7 +193,7 @@ public.scholarship_applications
   "field": "otherReviewDocuments_0",
   "label": "語言能力證明",
   "name": "toeic.pdf",
-  "path": "申請案ID/otherReviewDocuments_0/檔名.pdf",
+  "path": "申請案ID/otherReviewDocuments_0/uuid.pdf",
   "type": "application/pdf",
   "size": 123456
 }
@@ -225,8 +225,8 @@ scholarship-documents
 |---|---|
 | `field` | 檔案欄位代號 |
 | `label` | 檔案對應名稱，主要用於其他有利審查文件 |
-| `name` | 原始檔名 |
-| `path` | Supabase Storage 中的路徑 |
+| `name` | 原始檔名，可包含中文 |
+| `path` | Supabase Storage 中的路徑；檔名由系統產生 UUID，避免中文或特殊字元造成 Storage 相容性問題 |
 | `type` | MIME type |
 | `size` | 檔案大小，單位 bytes |
 

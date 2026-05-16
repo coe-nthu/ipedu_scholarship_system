@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const STORAGE_BUCKET = "scholarship-documents";
 const PDF_MIME_TYPE = "application/pdf";
+const STORAGE_PATH_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[A-Za-z0-9_]+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i;
 
 type UploadUrlRequest = {
   applicationId?: string;
@@ -65,7 +67,10 @@ export async function POST(request: Request) {
       return jsonError("只能上傳 PDF 檔案。");
     }
 
-    if (!path.startsWith(`${applicationId}/`) || path.includes("..")) {
+    if (
+      !path.startsWith(`${applicationId}/`) ||
+      !STORAGE_PATH_PATTERN.test(path)
+    ) {
       return jsonError("檔案路徑不合法。");
     }
 

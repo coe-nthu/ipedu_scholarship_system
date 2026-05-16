@@ -1,6 +1,6 @@
 # Supabase 串接設定
 
-這個專案目前由 Next.js Route Handler 在伺服器端寫入 Supabase。前端送出表單到 `/api/scholarships`，後端再用 Supabase REST API 寫入 `scholarship_applications`。附件由後端簽發上傳授權後，以 Supabase Storage TUS Resumable Uploads 上傳到 Storage bucket `scholarship-documents`。
+這個專案目前由 Next.js Route Handler 在伺服器端寫入 Supabase。前端送出表單到 `/api/scholarships`，後端再用 Supabase REST API 寫入 `scholarship_applications`。附件由後端簽發上傳授權後，以 Supabase signed upload URL 上傳到 Storage bucket `scholarship-documents`。
 
 ## 1. 建立資料表與 Storage
 
@@ -29,8 +29,14 @@
 這會建立：
 
 - `public.scholarship_applications`
-- Storage bucket `scholarship-documents`（PDF only，單檔上限 100 MB）
 - service role 專用 RLS policies
+
+Storage bucket 請在 Supabase Dashboard 或 Storage API 建立，不要由 SQL migration 修改 `storage.*`：
+
+- bucket id/name: `scholarship-documents`
+- public: `false`
+- file size limit: `104857600` bytes（100 MB）
+- allowed MIME types: `application/pdf`
 
 ## 2. 設定環境變數
 
@@ -57,9 +63,27 @@ pnpm dev
 
 - 申請資料會寫入 `public.scholarship_applications.payload`
 - 常用欄位如姓名、系所、GPA 會另外寫入資料表欄位方便查詢
-- 檔案會以 Resumable Uploads 上傳到 `scholarship-documents/<application-id>/...`
+- 檔案會以 signed upload URL 上傳到 `scholarship-documents/<application-id>/...`
 - 檔案格式限制為 `.pdf`
+- Storage object name 由系統產生 UUID，例如 `<application-id>/transcript/<uuid>.pdf`
+- 原始檔名會保留在 `scholarship_applications.files[].name`
 - 檔案資訊會存入 `scholarship_applications.files`
+- 本 repo 不會用 SQL migration 修改 `storage.*` metadata rows 或 table schema；只管理 app-owned Storage RLS policies。
+- Storage signed upload URL 仍需要 `storage.objects` 的 insert policy 允許建立 object row。
+
+如果遠端 Supabase 已經套過舊版 Storage policies，且你確定要清掉舊 policy，可執行：
+
+```sql
+-- 開啟 supabase/drop_storage_policies.sql，整份貼上後執行
+```
+
+若 Storage API 回傳 `The database schema is invalid or incompatible`，請先在 SQL Editor 執行：
+
+```sql
+-- 開啟 supabase/check_storage_schema.sql，整份貼上後執行
+```
+
+若檢查結果顯示 `storage.objects.bucket_id` 或 `storage.objects.name` 允許 NULL，代表 Supabase 管理的 Storage schema 可能已不相容。優先聯絡 Supabase support 或建立新 Supabase 專案遷移資料；不要直接修改 `storage` schema。
 
 ## 4. Direct connection string 何時使用
 

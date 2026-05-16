@@ -450,32 +450,23 @@ create trigger log_review_changes_trigger
   execute function public.log_review_changes();
 
 -- ============================================================
--- 4. Storage bucket and policies
+-- 4. Storage setup
 -- ============================================================
-
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'scholarship-documents',
-  'scholarship-documents',
-  false,
-  104857600,
-  array[
-    'application/pdf'
-  ]
-)
-on conflict (id) do update
-set
-  public = excluded.public,
-  file_size_limit = excluded.file_size_limit,
-  allowed_mime_types = excluded.allowed_mime_types;
-
-drop policy if exists "Service role can manage scholarship documents"
-  on storage.objects;
-create policy "Service role can manage scholarship documents"
-  on storage.objects for all
-  to service_role
-  using (bucket_id = 'scholarship-documents')
-  with check (bucket_id = 'scholarship-documents');
+-- Supabase documents the `storage` schema as Storage-managed metadata.
+-- This migration intentionally does not insert/update/delete rows or alter/drop
+-- tables in `storage.*`. It only manages app-owned RLS policies, which Supabase
+-- supports for Storage access control.
+--
+-- Create the bucket outside SQL via Supabase Dashboard or Storage API:
+--   id/name: scholarship-documents
+--   public: false
+--   file size limit: 104857600 bytes (100 MB)
+--   allowed MIME types: application/pdf
+--
+-- File writes use server-issued signed upload URLs.
+-- Supabase Storage still checks storage.objects INSERT policies when creating
+-- the object row, so authenticated users may only upload files under their own
+-- application id folder.
 
 drop policy if exists "Students can upload own documents"
   on storage.objects;
@@ -484,11 +475,12 @@ create policy "Students can upload own documents"
   to authenticated
   with check (
     bucket_id = 'scholarship-documents'
+    and lower(right(name, 4)) = '.pdf'
     and exists (
       select 1
       from public.scholarship_applications a
-      where a.user_id = auth.uid()
-        and a.id::text = (storage.foldername(name))[1]
+      where a.id::text = (storage.foldername(name))[1]
+        and a.user_id = auth.uid()
     )
   );
 
@@ -502,8 +494,8 @@ create policy "Students can view own documents"
     and exists (
       select 1
       from public.scholarship_applications a
-      where a.user_id = auth.uid()
-        and a.id::text = (storage.foldername(name))[1]
+      where a.id::text = (storage.foldername(name))[1]
+        and a.user_id = auth.uid()
     )
   );
 

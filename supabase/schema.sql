@@ -347,37 +347,24 @@ create trigger log_review_changes_trigger
   execute function public.log_review_changes();
 
 -- ============================================================
--- 4. Storage bucket — 獎學金申請文件
+-- 4. Storage setup
 -- ============================================================
+-- Supabase documents the `storage` schema as Storage-managed metadata.
+-- This migration intentionally does not insert/update/delete rows or alter/drop
+-- tables in `storage.*`. It only manages app-owned RLS policies, which Supabase
+-- supports for Storage access control.
+--
+-- Create the bucket outside SQL via Supabase Dashboard or Storage API:
+--   id/name: scholarship-documents
+--   public: false
+--   file size limit: 104857600 bytes (100 MB)
+--   allowed MIME types: application/pdf
+--
+-- File writes use server-issued signed upload URLs.
+-- Supabase Storage still checks storage.objects INSERT policies when creating
+-- the object row, so authenticated users may only upload files under their own
+-- application id folder.
 
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'scholarship-documents',
-  'scholarship-documents',
-  false,
-  104857600, -- 100 MB
-  array[
-    'application/pdf'
-  ]
-)
-on conflict (id) do update
-set
-  public            = excluded.public,
-  file_size_limit   = excluded.file_size_limit,
-  allowed_mime_types = excluded.allowed_mime_types;
-
--- ── Storage RLS ──
-
--- Service role：完整存取
-drop policy if exists "Service role can manage scholarship documents"
-  on storage.objects;
-create policy "Service role can manage scholarship documents"
-  on storage.objects for all
-  to service_role
-  using (bucket_id = 'scholarship-documents')
-  with check (bucket_id = 'scholarship-documents');
-
--- 學生：只能上傳到自己申請案的目錄
 drop policy if exists "Students can upload own documents"
   on storage.objects;
 create policy "Students can upload own documents"
@@ -385,14 +372,15 @@ create policy "Students can upload own documents"
   to authenticated
   with check (
     bucket_id = 'scholarship-documents'
+    and lower(right(name, 4)) = '.pdf'
     and exists (
-      select 1 from public.scholarship_applications a
-      where a.user_id = auth.uid()
-        and a.id::text = (storage.foldername(name))[1]
+      select 1
+      from public.scholarship_applications a
+      where a.id::text = (storage.foldername(name))[1]
+        and a.user_id = auth.uid()
     )
   );
 
--- 學生：只能讀取自己申請案的檔案
 drop policy if exists "Students can view own documents"
   on storage.objects;
 create policy "Students can view own documents"
@@ -401,13 +389,13 @@ create policy "Students can view own documents"
   using (
     bucket_id = 'scholarship-documents'
     and exists (
-      select 1 from public.scholarship_applications a
-      where a.user_id = auth.uid()
-        and a.id::text = (storage.foldername(name))[1]
+      select 1
+      from public.scholarship_applications a
+      where a.id::text = (storage.foldername(name))[1]
+        and a.user_id = auth.uid()
     )
   );
 
--- 教師/管理者：可以讀取所有申請案的檔案
 drop policy if exists "Teachers can view all documents"
   on storage.objects;
 create policy "Teachers can view all documents"
@@ -416,7 +404,8 @@ create policy "Teachers can view all documents"
   using (
     bucket_id = 'scholarship-documents'
     and exists (
-      select 1 from public.profiles p
+      select 1
+      from public.profiles p
       where p.id = auth.uid()
         and p.role in ('teacher', 'admin')
     )

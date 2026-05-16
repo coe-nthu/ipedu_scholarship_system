@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
-import * as tus from "tus-js-client";
 import {
   ArrowLeft,
   FileText,
@@ -57,7 +56,6 @@ import type {
 const DOCUMENT_PREFIX = "document_";
 const STORAGE_BUCKET = "scholarship-documents";
 const PDF_MIME_TYPE = "application/pdf";
-const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
 
 const documentFields = [
   { key: "transcript", label: "歷年成績單", required: true },
@@ -66,19 +64,15 @@ const documentFields = [
   { key: "noFullTimeDeclaration", label: "無專職切結書", required: true },
 ] as const;
 
-function sanitizeFileName(name: string) {
-  const extensionMatch = name.match(/\.[A-Za-z0-9]+$/);
-  const extension = extensionMatch?.[0]?.toLowerCase() || "";
-  const baseName = name.slice(0, extension ? -extension.length : undefined);
-  const safeBaseName = baseName
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^A-Za-z0-9_-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 80);
-
-  return `${safeBaseName || "file"}${extension}`;
-}
+const databaseOptions = [
+  "SSCI",
+  "SCIE",
+  "SCI",
+  "TSSCI",
+  "SCOPUS",
+  "其他",
+  "否",
+] as const;
 
 function isPdfFile(file: File) {
   return (
@@ -87,87 +81,8 @@ function isPdfFile(file: File) {
   );
 }
 
-function getResumableUploadEndpoint() {
-  const fallbackUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-
-  try {
-    const url = new URL(fallbackUrl);
-    if (url.hostname.endsWith(".supabase.co")) {
-      url.hostname = url.hostname.replace(
-        ".supabase.co",
-        ".storage.supabase.co"
-      );
-    }
-    return `${url.origin}/storage/v1/upload/resumable`;
-  } catch {
-    return `${fallbackUrl.replace(/\/$/, "")}/storage/v1/upload/resumable`;
-  }
-}
-
-function uploadPdfWithTus({
-  file,
-  onProgress,
-  path,
-  token,
-}: {
-  file: File;
-  onProgress: (percentage: string) => void;
-  path: string;
-  token: string;
-}) {
-  return new Promise<void>((resolve, reject) => {
-    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    const upload = new tus.Upload(file, {
-      endpoint: getResumableUploadEndpoint(),
-      retryDelays: [0, 3000, 5000, 10000, 20000],
-      headers: {
-        ...(publishableKey
-          ? {
-              apikey: publishableKey,
-              authorization: `Bearer ${publishableKey}`,
-            }
-          : {}),
-        "x-signature": token,
-        "x-upsert": "false",
-      },
-      uploadDataDuringCreation: true,
-      removeFingerprintOnSuccess: true,
-      metadata: {
-        bucketName: STORAGE_BUCKET,
-        objectName: path,
-        contentType: PDF_MIME_TYPE,
-        cacheControl: "3600",
-      },
-      chunkSize: TUS_CHUNK_SIZE,
-      async fingerprint() {
-        return [
-          STORAGE_BUCKET,
-          path,
-          file.name,
-          file.type || PDF_MIME_TYPE,
-          file.size,
-          file.lastModified,
-        ].join(":");
-      },
-      onError: reject,
-      onProgress(bytesUploaded, bytesTotal) {
-        onProgress(((bytesUploaded / bytesTotal) * 100).toFixed(0));
-      },
-      onSuccess() {
-        resolve();
-      },
-    });
-
-    upload
-      .findPreviousUploads()
-      .then((previousUploads) => {
-        if (previousUploads.length > 0) {
-          upload.resumeFromPreviousUpload(previousUploads[0]);
-        }
-        upload.start();
-      })
-      .catch(reject);
-  });
+function createStoragePath(applicationId: string, field: string) {
+  return `${applicationId}/${field}/${crypto.randomUUID()}.pdf`;
 }
 
 const otherScholarshipRuleUrl =
@@ -720,6 +635,14 @@ export default function ScholarshipForm() {
     try {
       const payload = buildPayload();
       const applicationId = crypto.randomUUID();
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("登入資訊已失效，請重新登入後再試。");
+      }
 
       // Step 1: Create DB record (JSON only, no files)
       setSubmitMessage("正在建立申請資料...");
@@ -734,7 +657,7 @@ export default function ScholarshipForm() {
         throw new Error(createResult.error || "建立申請資料失敗。");
       }
 
-      // Step 2: Upload files to Supabase Storage with TUS resumable uploads
+      // Step 2: Upload files to Supabase Storage with signed upload URLs
       const files: SupabaseFileRecord[] = [];
       const fileEntries: { field: string; file: File; label: string | null }[] =
         [];
@@ -768,8 +691,7 @@ export default function ScholarshipForm() {
 
         for (let i = 0; i < fileEntries.length; i++) {
           const { field, file, label } = fileEntries[i];
-          const safeFileName = sanitizeFileName(file.name);
-          const path = `${applicationId}/${field}/${Date.now()}-${safeFileName}`;
+          const path = createStoragePath(applicationId, field);
 
           setSubmitMessage(
             `正在上傳檔案（${i + 1}/${fileEntries.length}）...`
@@ -800,16 +722,20 @@ export default function ScholarshipForm() {
             throw new Error(uploadUrlResult.error || "建立檔案上傳授權失敗。");
           }
 
-          await uploadPdfWithTus({
-            file,
-            path,
-            token: uploadUrlResult.token,
-            onProgress: (percentage) => {
-              setSubmitMessage(
-                `正在上傳檔案（${i + 1}/${fileEntries.length}，${percentage}%）...`
-              );
-            },
-          });
+          const { error: uploadError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .uploadToSignedUrl(path, uploadUrlResult.token, file, {
+              contentType: file.type || PDF_MIME_TYPE,
+              upsert: false,
+            });
+
+          if (uploadError) {
+            throw new Error(`檔案「${file.name}」上傳失敗：${uploadError.message}`);
+          }
+
+          setSubmitMessage(
+            `正在上傳檔案（${i + 1}/${fileEntries.length}，完成）...`
+          );
 
           files.push({
             field,
@@ -1254,7 +1180,7 @@ export default function ScholarshipForm() {
                       <TableHead className="w-36">審查單位</TableHead>
                       <TableHead className="w-36">期刊等級</TableHead>
                       <TableHead className="w-40">資料庫</TableHead>
-                      <TableHead className="w-24">通訊</TableHead>
+                      <TableHead className="w-28">通訊作者</TableHead>
                       <TableHead className="w-40">作者順位</TableHead>
                       <TableHead className="w-24" />
                     </TableRow>
@@ -1457,7 +1383,7 @@ export default function ScholarshipForm() {
                             onChange={(event) =>
                               updateJournalAuthorOrder(index, event.target.value)
                             }
-                            placeholder="第一/通訊"
+                            placeholder="第一作者/通訊作者"
                           />
                           {journal.authorOrderOriginal ? (
                             <p className="mt-2 text-xs leading-5 text-slate-500">
@@ -1716,7 +1642,7 @@ export default function ScholarshipForm() {
                                 event.target.value
                               )
                             }
-                            placeholder="第一/通訊"
+                            placeholder="第一作者/通訊作者"
                           />
                         </TableCell>
                         <TableCell>
@@ -1887,10 +1813,9 @@ export default function ScholarshipForm() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
+                        <FileUploadControl
+                          id={`document_researchExperiences_${index}`}
                           name={`document_researchExperiences_${index}`}
-                          type="file"
-                          accept=".pdf"
                         />
                       </TableCell>
                       <TableCell>
@@ -2004,10 +1929,9 @@ export default function ScholarshipForm() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
+                        <FileUploadControl
+                          id={`document_researchAwards_${index}`}
                           name={`document_researchAwards_${index}`}
-                          type="file"
-                          accept=".pdf"
                         />
                       </TableCell>
                       <TableCell>
@@ -2098,19 +2022,29 @@ export default function ScholarshipForm() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Input
+                          <Select
                             value={research.database}
-                            onChange={(event) =>
+                            onValueChange={(value) =>
                               updateRow(
                                 plannedResearch,
                                 setPlannedResearch,
                                 index,
                                 "database",
-                                event.target.value
+                                value ?? ""
                               )
                             }
-                            placeholder="SSCI/SCOPUS..."
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="選擇資料庫" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {databaseOptions.map((database) => (
+                                <SelectItem key={database} value={database}>
+                                  {database}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell>
                           <Input
@@ -2202,11 +2136,9 @@ export default function ScholarshipForm() {
                     label="有利資料上傳（請合併上傳成 1 件）"
                     htmlFor="document_otherReviewDocuments_0"
                   >
-                    <Input
+                    <FileUploadControl
                       id="document_otherReviewDocuments_0"
                       name="document_otherReviewDocuments_0"
-                      type="file"
-                      accept=".pdf"
                     />
                   </Field>
                 </div>
@@ -2234,11 +2166,9 @@ export default function ScholarshipForm() {
                         <Badge variant="outline">選繳</Badge>
                       )}
                     </div>
-                    <Input
+                    <FileUploadControl
                       id={`document_${document.key}`}
                       name={`document_${document.key}`}
-                      type="file"
-                      accept=".pdf"
                     />
                   </div>
                 ))}
@@ -2303,6 +2233,62 @@ function Field({
         {required ? <span className="ml-1 text-red-600">*</span> : null}
       </Label>
       {children}
+    </div>
+  );
+}
+
+function FileUploadControl({
+  id,
+  name,
+}: {
+  id: string;
+  name: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState("");
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        id={id}
+        name={name}
+        type="file"
+        accept=".pdf,application/pdf"
+        className="sr-only"
+        onChange={(event) =>
+          setFileName(event.currentTarget.files?.[0]?.name ?? "")
+        }
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="justify-start"
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload className="size-4" />
+          上傳 PDF
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="justify-start text-slate-600"
+          disabled={!fileName}
+          onClick={() => {
+            if (inputRef.current) {
+              inputRef.current.value = "";
+            }
+            setFileName("");
+          }}
+        >
+          <Trash2 className="size-4" />
+          刪除
+        </Button>
+      </div>
+      <p className="min-h-5 truncate text-sm text-slate-600">
+        {fileName || "尚未選擇檔案"}
+      </p>
     </div>
   );
 }
