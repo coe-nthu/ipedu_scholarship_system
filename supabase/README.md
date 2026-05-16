@@ -10,6 +10,22 @@
 -- 開啟 supabase/schema.sql，整份貼上後執行
 ```
 
+如果 Supabase 專案已經有舊 schema 或既有申請資料，請優先執行：
+
+```sql
+-- 開啟 supabase/sync_to_repo_schema.sql，整份貼上後執行
+```
+
+`sync_to_repo_schema.sql` 不會刪除申請資料，會把舊欄位 `status` 遷移成目前 repo 使用的 `submission_status`，並把英文審核狀態轉成 dashboard 使用的中文狀態。
+
+如果目前只是測試階段，測試資料可以清掉，請先執行：
+
+```sql
+-- 開啟 supabase/reset_test_schema.sql，整份貼上後執行
+```
+
+接著再執行 `supabase/schema.sql`。這樣會先刪掉舊表，避免出現 `relation "profiles" already exists`。
+
 這會建立：
 
 - `public.scholarship_applications`
