@@ -184,11 +184,13 @@ as $$
 begin
   new.updated_at = now();
   -- 學生填寫狀態變為 submitted 時自動記錄送出時間
-  if new.submission_status = 'submitted' and old.submission_status is distinct from 'submitted' then
-    new.submitted_at = now();
+  if new.submission_status = 'submitted' then
+    if tg_op = 'INSERT' or old.submission_status is distinct from 'submitted' then
+      new.submitted_at = coalesce(new.submitted_at, now());
+    end if;
   end if;
   -- 審核狀態變更時自動記錄審核時間
-  if new.review_status is distinct from old.review_status then
+  if tg_op = 'UPDATE' and new.review_status is distinct from old.review_status then
     new.reviewed_at = now();
   end if;
   return new;
@@ -198,7 +200,7 @@ $$;
 drop trigger if exists set_scholarship_applications_updated_at
   on public.scholarship_applications;
 create trigger set_scholarship_applications_updated_at
-  before update on public.scholarship_applications
+  before insert or update on public.scholarship_applications
   for each row
   execute function public.set_updated_at();
 

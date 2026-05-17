@@ -761,11 +761,31 @@ export default function ScholarshipForm() {
         }
       }
 
-      setSubmitMessage(
-        status === "draft"
-          ? `草稿已儲存，申請編號：${applicationId}`
-          : `申請已送出，申請編號：${applicationId}`
-      );
+      if (status === "submitted") {
+        setSubmitMessage("申請已送出，正在寄送確認信...");
+        const emailResponse = await fetch(
+          "/api/scholarships/confirmation-email",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ applicationId }),
+          }
+        );
+        const emailResult = (await emailResponse.json()) as {
+          error?: string;
+          success?: boolean;
+        };
+
+        setSubmitMessage(
+          emailResponse.ok && emailResult.success
+            ? `申請已送出，確認信已寄出。申請編號：${applicationId}`
+            : `申請已送出，申請編號：${applicationId}。但確認信寄送失敗：${
+                emailResult.error || "請聯絡承辦人確認。"
+              }`
+        );
+      } else {
+        setSubmitMessage(`草稿已儲存，申請編號：${applicationId}`);
+      }
     } catch (error) {
       setSubmitMessage(
         error instanceof Error ? error.message : "儲存失敗，請稍後再試。"

@@ -49,9 +49,15 @@ SUPABASE_SERVICE_ROLE_KEY=你的 service_role secret key
 # 目前後端串接不需要 public key；若之後要做前端 Supabase client 再啟用。
 NEXT_PUBLIC_SUPABASE_URL=https://rqbeqgpnwvufrcvjmtje.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_TUYFQeR6YRZZuhjsdsh_nA_cJFLDGGH
+
+# Resend 寄送申請確認信
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM_EMAIL="IPEDU Scholarship <onboarding@resend.dev>"
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` 請到 Supabase Dashboard 的 Project Settings > API 取得。這個 key 只能放在伺服器環境變數，不要寫進前端元件，也不要 commit。
+
+`RESEND_API_KEY` 請到 Resend Dashboard 建立。測試時可先用 Resend 提供的 `onboarding@resend.dev`；正式寄件請先在 Resend 驗證自己的網域，再把 `RESEND_FROM_EMAIL` 改成該網域的寄件地址。
 
 ## 3. 啟動專案
 
@@ -68,6 +74,7 @@ pnpm dev
 - Storage object name 由系統產生 UUID，例如 `<application-id>/transcript/<uuid>.pdf`
 - 原始檔名會保留在 `scholarship_applications.files[].name`
 - 檔案資訊會存入 `scholarship_applications.files`
+- 正式送出後會透過 Resend 寄送申請確認信給申請人 Email；儲存草稿不寄信。
 - 本 repo 不會用 SQL migration 修改 `storage.*` metadata rows 或 table schema；只管理 app-owned Storage RLS policies。
 - Storage signed upload URL 仍需要 `storage.objects` 的 insert policy 允許建立 object row。
 
