@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CheckCircle2,
   FileText,
+  Info,
   Plus,
   Save,
   Send,
@@ -281,6 +283,17 @@ export default function ScholarshipForm() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  // Existing application state
+  const [existingAppId, setExistingAppId] = useState<string | null>(null);
+  const [existingFiles, setExistingFiles] = useState<SupabaseFileRecord[]>([]);
+  const [existingUpdatedAt, setExistingUpdatedAt] = useState<string | null>(
+    null
+  );
+  const [existingSubmissionStatus, setExistingSubmissionStatus] = useState<
+    string | null
+  >(null);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+
   useEffect(() => {
     const supabase = createClient();
     let isMounted = true;
@@ -306,6 +319,60 @@ export default function ScholarshipForm() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Load existing application data when user is authenticated
+  const loadExistingApplication = useCallback(async () => {
+    setIsLoadingExisting(true);
+    try {
+      const response = await fetch("/api/scholarships");
+      const result = await response.json();
+
+      if (!response.ok || !result.success || !result.application) {
+        return;
+      }
+
+      const app = result.application as {
+        id: string;
+        payload: ScholarshipPayload;
+        files: SupabaseFileRecord[];
+        submission_status: string;
+        updated_at: string;
+      };
+
+      setExistingAppId(app.id);
+      setExistingFiles(app.files || []);
+      setExistingUpdatedAt(app.updated_at);
+      setExistingSubmissionStatus(app.submission_status);
+
+      // Pre-fill form from payload
+      const p = app.payload;
+      if (p.applicantInfo) setApplicantInfo(p.applicantInfo);
+      if (p.eligibility) setEligibility(p.eligibility);
+      if (p.academicPerformance) setAcademicPerformance(p.academicPerformance);
+      if (p.journals && p.journals.length > 0) setJournals(p.journals);
+      if (p.conferences && p.conferences.length > 0)
+        setConferences(p.conferences);
+      if (p.researchExperiences && p.researchExperiences.length > 0)
+        setResearchExperiences(p.researchExperiences);
+      if (p.researchAwards && p.researchAwards.length > 0)
+        setResearchAwards(p.researchAwards);
+      if (p.plannedResearch && p.plannedResearch.length > 0)
+        setPlannedResearch(p.plannedResearch);
+      if (p.otherAchievements) setOtherAchievements(p.otherAchievements);
+      if (p.otherReviewDocuments && p.otherReviewDocuments.length > 0)
+        setOtherReviewDocuments(p.otherReviewDocuments);
+    } catch {
+      // Silently fail — user can still fill a new form
+    } finally {
+      setIsLoadingExisting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadExistingApplication();
+    }
+  }, [currentUser, loadExistingApplication]);
 
   const eligibilitySummary = useMemo(() => {
     const masterGpa = Number(eligibility.masterGpa);
@@ -573,6 +640,14 @@ export default function ScholarshipForm() {
     }
   };
 
+  const getExistingFileName = useCallback(
+    (field: string) => {
+      const file = existingFiles.find((f) => f.field === field);
+      return file?.name || undefined;
+    },
+    [existingFiles]
+  );
+
   const buildPayload = (): ScholarshipPayload => ({
     applicantInfo,
     eligibility,
@@ -607,7 +682,11 @@ export default function ScholarshipForm() {
       .filter((document) => document.required)
       .filter((document) => {
         const file = formData.get(`${DOCUMENT_PREFIX}${document.key}`);
-        return !(file instanceof File) || file.size === 0;
+        const hasNewFile = file instanceof File && file.size > 0;
+        const hasExistingFile = existingFiles.some(
+          (f) => f.field === document.key
+        );
+        return !hasNewFile && !hasExistingFile;
       });
 
     if (status === "submitted" && missingRequiredDocuments.length > 0) {
@@ -634,7 +713,8 @@ export default function ScholarshipForm() {
     setIsSubmitting(true);
     try {
       const payload = buildPayload();
-      const applicationId = crypto.randomUUID();
+      // Use existing application ID if updating, otherwise generate new
+      const applicationId = existingAppId || crypto.randomUUID();
       const supabase = createClient();
       const {
         data: { session },
@@ -658,7 +738,7 @@ export default function ScholarshipForm() {
       }
 
       // Step 2: Upload files to Supabase Storage with signed upload URLs
-      const files: SupabaseFileRecord[] = [];
+      const newlyUploadedFiles: SupabaseFileRecord[] = [];
       const fileEntries: { field: string; file: File; label: string | null }[] =
         [];
 
@@ -737,7 +817,7 @@ export default function ScholarshipForm() {
             `正在上傳檔案（${i + 1}/${fileEntries.length}，完成）...`
           );
 
-          files.push({
+          newlyUploadedFiles.push({
             field,
             label,
             name: file.name,
@@ -746,13 +826,24 @@ export default function ScholarshipForm() {
             size: file.size,
           });
         }
+      }
 
-        // Step 3: Update DB record with file metadata
+      // Merge: keep existing files for fields not re-uploaded, replace those that are
+      const uploadedFieldSet = new Set(
+        newlyUploadedFiles.map((f) => f.field)
+      );
+      const retainedFiles = existingFiles.filter(
+        (f) => !uploadedFieldSet.has(f.field)
+      );
+      const mergedFiles = [...retainedFiles, ...newlyUploadedFiles];
+
+      // Step 3: Update DB record with merged file metadata
+      if (mergedFiles.length > 0) {
         setSubmitMessage("正在更新檔案資料...");
         const patchResponse = await fetch("/api/scholarships", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ applicationId, files }),
+          body: JSON.stringify({ applicationId, files: mergedFiles }),
         });
         const patchResult = await patchResponse.json();
 
@@ -760,6 +851,12 @@ export default function ScholarshipForm() {
           throw new Error(patchResult.error || "檔案資料更新失敗。");
         }
       }
+
+      // Update local state to reflect saved data
+      setExistingAppId(applicationId);
+      setExistingFiles(mergedFiles);
+      setExistingUpdatedAt(new Date().toISOString());
+      setExistingSubmissionStatus(status);
 
       if (status === "submitted") {
         setSubmitMessage("申請已送出，正在寄送確認信...");
@@ -832,6 +929,64 @@ export default function ScholarshipForm() {
                 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。
               </AlertDescription>
             </Alert>
+
+            {isLoadingExisting ? (
+              <Alert className="border-slate-200 bg-white">
+                <Info className="size-4" />
+                <AlertTitle>正在載入</AlertTitle>
+                <AlertDescription>
+                  正在查詢是否有先前填寫的資料...
+                </AlertDescription>
+              </Alert>
+            ) : existingAppId ? (
+              <Alert
+                className={
+                  existingSubmissionStatus === "submitted"
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-amber-200 bg-amber-50"
+                }
+              >
+                {existingSubmissionStatus === "submitted" ? (
+                  <CheckCircle2 className="size-4 text-emerald-700" />
+                ) : (
+                  <Info className="size-4 text-amber-700" />
+                )}
+                <AlertTitle>
+                  {existingSubmissionStatus === "submitted"
+                    ? "已送出的申請"
+                    : "草稿已載入"}
+                </AlertTitle>
+                <AlertDescription className="space-y-1">
+                  <p>
+                    系統偵測到你先前
+                    {existingSubmissionStatus === "submitted"
+                      ? "已送出"
+                      : "儲存的草稿"}
+                    的申請資料，已自動載入表單。
+                    {existingSubmissionStatus === "submitted"
+                      ? "再次送出將覆蓋原有資料。"
+                      : "你可以繼續編輯後送出。"}
+                  </p>
+                  {existingUpdatedAt ? (
+                    <p className="text-xs text-slate-500">
+                      最後更新時間：
+                      {new Date(existingUpdatedAt).toLocaleString("zh-TW", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  ) : null}
+                  {existingFiles.length > 0 ? (
+                    <p className="text-xs text-slate-500">
+                      已上傳 {existingFiles.length} 個檔案（重新上傳同欄位檔案將取代舊檔）
+                    </p>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+            ) : null}
           </>
         ) : null}
 
@@ -1836,6 +1991,7 @@ export default function ScholarshipForm() {
                         <FileUploadControl
                           id={`document_researchExperiences_${index}`}
                           name={`document_researchExperiences_${index}`}
+                          existingFileName={getExistingFileName(`researchExperiences_${index}`)}
                         />
                       </TableCell>
                       <TableCell>
@@ -1952,6 +2108,7 @@ export default function ScholarshipForm() {
                         <FileUploadControl
                           id={`document_researchAwards_${index}`}
                           name={`document_researchAwards_${index}`}
+                          existingFileName={getExistingFileName(`researchAwards_${index}`)}
                         />
                       </TableCell>
                       <TableCell>
@@ -2159,6 +2316,7 @@ export default function ScholarshipForm() {
                     <FileUploadControl
                       id="document_otherReviewDocuments_0"
                       name="document_otherReviewDocuments_0"
+                      existingFileName={getExistingFileName("otherReviewDocuments_0")}
                     />
                   </Field>
                 </div>
@@ -2189,6 +2347,7 @@ export default function ScholarshipForm() {
                     <FileUploadControl
                       id={`document_${document.key}`}
                       name={`document_${document.key}`}
+                      existingFileName={getExistingFileName(document.key)}
                     />
                   </div>
                 ))}
@@ -2260,9 +2419,11 @@ function Field({
 function FileUploadControl({
   id,
   name,
+  existingFileName,
 }: {
   id: string;
   name: string;
+  existingFileName?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
@@ -2306,9 +2467,20 @@ function FileUploadControl({
           刪除
         </Button>
       </div>
-      <p className="min-h-5 truncate text-sm text-slate-600">
-        {fileName || "尚未選擇檔案"}
-      </p>
+      {fileName ? (
+        <p className="min-h-5 truncate text-sm text-slate-600">
+          {fileName}
+        </p>
+      ) : existingFileName ? (
+        <p className="min-h-5 truncate text-sm text-emerald-600">
+          <CheckCircle2 className="mr-1 inline-block size-3.5" />
+          已上傳：{existingFileName}
+        </p>
+      ) : (
+        <p className="min-h-5 truncate text-sm text-slate-600">
+          尚未選擇檔案
+        </p>
+      )}
     </div>
   );
 }

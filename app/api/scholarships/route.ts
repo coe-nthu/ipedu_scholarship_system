@@ -47,7 +47,60 @@ function jsonError(message: string, status = 400) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  POST — Create application record (JSON only, no files)             */
+/*  GET — Fetch existing application for the current user              */
+/* ------------------------------------------------------------------ */
+
+export async function GET() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return jsonError("請先使用 Google 帳戶登入。", 401);
+    }
+
+    const { serviceRoleKey, url } = getSupabaseConfig();
+
+    const response = await fetch(
+      `${url}/rest/v1/scholarship_applications?user_id=eq.${user.id}&scholarship_program=eq.國科會-培育優秀博士生獎學金&select=id,payload,files,submission_status,updated_at,submitted_at&limit=1`,
+      {
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("資料查詢失敗。");
+    }
+
+    const records = (await response.json()) as {
+      id: string;
+      payload: ScholarshipPayload;
+      files: SupabaseFileRecord[];
+      submission_status: string;
+      updated_at: string;
+      submitted_at: string | null;
+    }[];
+
+    if (records.length === 0) {
+      return NextResponse.json({ success: true, application: null });
+    }
+
+    return NextResponse.json({ success: true, application: records[0] });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
+    return jsonError(message, 500);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  POST — Create or update application record (upsert, JSON only)     */
 /* ------------------------------------------------------------------ */
 
 export async function POST(request: Request) {
@@ -84,15 +137,16 @@ export async function POST(request: Request) {
       status === "submitted" ? "submitted" : "draft";
     const academic = payload.academicPerformance || {};
 
-    const insertResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications`,
+    // Use upsert: if same (user_id, scholarship_program) exists, update it
+    const upsertResponse = await fetch(
+      `${url}/rest/v1/scholarship_applications?on_conflict=user_id,scholarship_program`,
       {
         method: "POST",
         headers: {
           apikey: serviceRoleKey,
           authorization: `Bearer ${serviceRoleKey}`,
           "content-type": "application/json",
-          prefer: "return=representation",
+          prefer: "return=representation,resolution=merge-duplicates",
         },
         body: JSON.stringify({
           id: applicationId,
@@ -111,18 +165,22 @@ export async function POST(request: Request) {
           gpa_scale: academic.cumulativeGpaScale || null,
           submission_status: submissionStatus,
           payload,
-          files: [],
         }),
       }
     );
 
-    if (!insertResponse.ok) {
+    if (!upsertResponse.ok) {
+      const errorText = await upsertResponse.text();
+      console.error("Supabase upsert error:", errorText);
       throw new Error("Supabase 資料寫入失敗。");
     }
 
+    const [record] = (await upsertResponse.json()) as { id: string }[];
+    const resolvedId = record?.id || applicationId;
+
     return NextResponse.json({
       success: true,
-      applicationId,
+      applicationId: resolvedId,
     });
   } catch (error) {
     const message =
