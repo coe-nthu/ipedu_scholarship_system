@@ -9,7 +9,6 @@ import {
   FileText,
   Info,
   Plus,
-  Save,
   Send,
   Trash2,
   Upload,
@@ -2364,20 +2363,6 @@ export default function ScholarshipForm() {
           ) : null}
 
           <div className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-300 bg-[#f4f7f6]/95 py-4 backdrop-blur sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSubmitting}
-              onClick={(event) => {
-                const form = event.currentTarget.form;
-                if (form) {
-                  submitApplication(form, "draft");
-                }
-              }}
-            >
-              <Save className="size-4" />
-              儲存草稿
-            </Button>
             <Button
               type="submit"
               disabled={isSubmitting}

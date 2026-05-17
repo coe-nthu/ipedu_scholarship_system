@@ -164,6 +164,8 @@ export async function POST(request: Request) {
           gpa: academic.cumulativeGpa || null,
           gpa_scale: academic.cumulativeGpaScale || null,
           submission_status: submissionStatus,
+          review_status: "等待人工審核",
+          reviewer_remarks: "",
           payload,
         }),
       }
