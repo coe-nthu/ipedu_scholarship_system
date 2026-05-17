@@ -472,7 +472,7 @@ export function ApplicationDetail({
                               {f.name}
                             </p>
                             <p className="text-xs text-slate-400 truncate">
-                              {f.label || f.field} ({(f.size / 1024).toFixed(0)} KB)
+                              {(f.size / 1024).toFixed(0)} KB
                             </p>
                           </div>
                           <a
