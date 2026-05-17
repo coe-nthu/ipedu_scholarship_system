@@ -144,3 +144,14 @@ export type ScholarshipApplication = {
   created_at: string;
   updated_at: string;
 };
+
+export type DashboardRole = "teacher" | "admin";
+
+export type AuthorizedEmail = {
+  id: string;
+  email: string;
+  role: DashboardRole;
+  added_by: string | null;
+  created_at: string;
+  updated_at: string;
+};

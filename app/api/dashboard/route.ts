@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { checkDashboardAccess } from "@/lib/auth";
 
 function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -25,14 +25,12 @@ function jsonError(message: string, status = 400) {
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return jsonError("請先登入。", 401);
+    const auth = await checkDashboardAccess();
+    if (!auth.authorized) {
+      return jsonError(
+        auth.reason === "not_authenticated" ? "請先登入。" : "無權限存取。",
+        auth.reason === "not_authenticated" ? 401 : 403
+      );
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
@@ -67,14 +65,12 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return jsonError("請先登入。", 401);
+    const auth = await checkDashboardAccess();
+    if (!auth.authorized) {
+      return jsonError(
+        auth.reason === "not_authenticated" ? "請先登入。" : "無權限存取。",
+        auth.reason === "not_authenticated" ? 401 : 403
+      );
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
@@ -96,7 +92,7 @@ export async function PATCH(request: Request) {
 
     // Build update payload
     const updateFields: Record<string, unknown> = {
-      reviewed_by: user.id,
+      reviewed_by: auth.userId,
     };
     if (review_status !== undefined) {
       updateFields.review_status = review_status;
