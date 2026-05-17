@@ -137,8 +137,10 @@ export type ScholarshipApplication = {
   gpa_scale: number | null;
   submission_status: SubmissionStatus;
   review_status: ReviewStatus;
+  reviewer_remarks: string;
   payload: ScholarshipPayload;
   files: SupabaseFileRecord[];
   submitted_at: string | null;
   created_at: string;
+  updated_at: string;
 };

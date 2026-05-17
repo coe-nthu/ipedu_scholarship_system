@@ -11,6 +11,7 @@ import {
   Clock,
   FileText,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ type SortColumn =
   | "name"
   | "gpa"
   | "journalCount"
+  | "levelOneJournalCount"
   | "conferenceCount";
 
 type SortDirection = "asc" | "desc";
@@ -56,31 +58,10 @@ type DashboardRow = {
   gpa: number | null;
   completedCredits: string;
   journalCount: number;
+  levelOneJournalCount: number;
   conferenceCount: number;
   studyStatus: string;
 };
-
-/* ------------------------------------------------------------------ */
-/*  localStorage helpers                                               */
-/* ------------------------------------------------------------------ */
-
-const REMARKS_STORAGE_KEY = "dashboard_remarks";
-const REVIEW_STATUS_STORAGE_KEY = "dashboard_review_statuses";
-
-function loadJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveJson(key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
-}
 
 /* ------------------------------------------------------------------ */
 /*  Row builder                                                        */
@@ -97,6 +78,9 @@ function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
     completedCredits:
       app.payload.academicPerformance?.completedCredits ?? "",
     journalCount: app.payload.journals?.length ?? 0,
+    levelOneJournalCount: (app.payload.journals ?? []).filter(
+      (j) => j.journalLevel === "I級期刊"
+    ).length,
     conferenceCount: app.payload.conferences?.length ?? 0,
     studyStatus: app.payload.applicantInfo?.studyStatus ?? "",
   }));
@@ -299,29 +283,65 @@ export function DashboardTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
-  const [remarks, setRemarks] = useState<Record<string, string>>(() =>
-    loadJson<Record<string, string>>(REMARKS_STORAGE_KEY, {}),
-  );
+
+  // Initialize state from DB data (via server component props)
+  const [remarks, setRemarks] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const app of applications) {
+      map[app.id] = app.reviewer_remarks ?? "";
+    }
+    return map;
+  });
+
   const [reviewStatuses, setReviewStatuses] = useState<
     Record<string, ReviewStatus>
-  >(() =>
-    loadJson<Record<string, ReviewStatus>>(REVIEW_STATUS_STORAGE_KEY, {}),
-  );
+  >(() => {
+    const map: Record<string, ReviewStatus> = {};
+    for (const app of applications) {
+      map[app.id] = app.review_status;
+    }
+    return map;
+  });
 
+  // Optimistic remark update with API persistence
   const handleRemarkChange = useCallback((id: string, value: string) => {
-    setRemarks((prev) => {
-      const next = { ...prev, [id]: value };
-      saveJson(REMARKS_STORAGE_KEY, next);
-      return next;
-    });
+    setRemarks((prev) => ({ ...prev, [id]: value }));
+
+    fetch("/api/dashboard", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ applicationId: id, reviewer_remarks: value }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("儲存備註失敗");
+      })
+      .catch(() => {
+        toast.error("備註儲存失敗，請重試。");
+      });
   }, []);
 
+  // Optimistic review status update with API persistence
   const handleReviewStatusChange = useCallback(
     (id: string, status: ReviewStatus) => {
       setReviewStatuses((prev) => {
-        const next = { ...prev, [id]: status };
-        saveJson(REVIEW_STATUS_STORAGE_KEY, next);
-        return next;
+        const previousStatus = prev[id];
+
+        // Optimistic update
+        fetch("/api/dashboard", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ applicationId: id, review_status: status }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("更新審查狀態失敗");
+          })
+          .catch(() => {
+            // Revert on error
+            setReviewStatuses((p) => ({ ...p, [id]: previousStatus }));
+            toast.error("審查狀態更新失敗，請重試。");
+          });
+
+        return { ...prev, [id]: status };
       });
     },
     [],
@@ -346,6 +366,12 @@ export function DashboardTable({
           return comparePrimitive(
             a.journalCount,
             b.journalCount,
+            sortDirection,
+          );
+        case "levelOneJournalCount":
+          return comparePrimitive(
+            a.levelOneJournalCount,
+            b.levelOneJournalCount,
             sortDirection,
           );
         case "conferenceCount":
@@ -440,7 +466,7 @@ export function DashboardTable({
                   direction={sortDirection}
                 />
               </TableHead>
-              <TableHead colSpan={2} className="text-center border-b-0">
+              <TableHead colSpan={3} className="text-center border-b-0">
                 <div>學術表現</div>
                 <div className="text-[10px] font-normal text-slate-400 mt-0.5">
                   新生統計五年內、非新生過去一年內
@@ -459,6 +485,17 @@ export function DashboardTable({
                 期刊（累計）
                 <SortIcon
                   column="journalCount"
+                  current={sortColumn}
+                  direction={sortDirection}
+                />
+              </TableHead>
+              <TableHead
+                className={thClass}
+                onClick={() => handleSort("levelOneJournalCount")}
+              >
+                I級期刊
+                <SortIcon
+                  column="levelOneJournalCount"
                   current={sortColumn}
                   direction={sortDirection}
                 />
@@ -525,6 +562,15 @@ export function DashboardTable({
                       variant={row.journalCount > 0 ? "default" : "secondary"}
                     >
                       {row.journalCount}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={
+                        row.levelOneJournalCount > 0 ? "default" : "secondary"
+                      }
+                    >
+                      {row.levelOneJournalCount}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
