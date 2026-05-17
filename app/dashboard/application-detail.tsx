@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ScholarshipApplication } from "@/lib/types";
-import { FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Download, FileText } from "lucide-react";
 
 type ApplicationDetailProps = {
   application: ScholarshipApplication | null;
@@ -468,12 +469,25 @@ export function ApplicationDetail({
                           <FileText className="size-4 text-slate-400 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium text-slate-700 truncate">
-                              {f.label || f.field}
+                              {f.name}
                             </p>
                             <p className="text-xs text-slate-400 truncate">
-                              {f.name} ({(f.size / 1024).toFixed(0)} KB)
+                              {f.label || f.field} ({(f.size / 1024).toFixed(0)} KB)
                             </p>
                           </div>
+                          <a
+                            href={`/api/dashboard/download?path=${encodeURIComponent(f.path)}&name=${encodeURIComponent(f.name)}`}
+                            download
+                            className="shrink-0"
+                          >
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-slate-400 hover:text-emerald-600"
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                          </a>
                         </div>
                       ))}
                     </div>
