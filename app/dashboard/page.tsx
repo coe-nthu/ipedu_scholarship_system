@@ -78,7 +78,7 @@ function DashboardHeader({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-medium text-emerald-700">
-            國科會-培���優秀博士生獎學金
+            國科會-培育優秀博士生獎學金
           </p>
           <h1 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
             教師審查面板
@@ -120,8 +120,16 @@ export default async function DashboardPage() {
 
         {auth.role === "admin" ? (
           <DashboardTabs
-            reviewContent={<DashboardTable applications={applications} />}
-            adminContent={<AdminPanel />}
+            reviewContent={
+              <div className="mt-4">
+                <DashboardTable applications={applications} />
+              </div>
+            }
+            adminContent={
+              <div className="mt-4">
+                <AdminPanel />
+              </div>
+            }
           />
         ) : (
           <DashboardTable applications={applications} />

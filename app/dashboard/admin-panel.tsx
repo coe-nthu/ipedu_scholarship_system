@@ -176,19 +176,19 @@ function AddEmailDialog({ onAdd }: { onAdd: (email: string, role: DashboardRole)
             <label className="text-sm font-medium text-slate-700">角色</label>
             <div className="flex gap-2">
               <Button
-                variant={role === "teacher" ? "default" : "outline"}
+                variant="outline"
                 size="sm"
                 onClick={() => setRole("teacher")}
-                className="gap-1.5"
+                className={`gap-1.5 ${role === "teacher" ? "bg-emerald-100 border-emerald-400 text-emerald-800 hover:bg-emerald-200" : "text-slate-500"}`}
               >
                 <UserCheck className="size-3.5" />
                 教師
               </Button>
               <Button
-                variant={role === "admin" ? "default" : "outline"}
+                variant="outline"
                 size="sm"
                 onClick={() => setRole("admin")}
-                className="gap-1.5"
+                className={`gap-1.5 ${role === "admin" ? "bg-violet-100 border-violet-400 text-violet-800 hover:bg-violet-200" : "text-slate-500"}`}
               >
                 <Shield className="size-3.5" />
                 管理員
