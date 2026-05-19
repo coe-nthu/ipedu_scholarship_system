@@ -48,6 +48,11 @@ export type AcademicPerformance = {
   academicAchievementSummary: string;
   publicationList: string;
   specialPerformance: string;
+  admissionChannel: string;
+  masterThesisTitle: string;
+  doctoralResearchTopic: string;
+  professionalPerformanceStatement: string;
+  presidentialApplicationPreference: string;
 };
 
 export type Journal = {
