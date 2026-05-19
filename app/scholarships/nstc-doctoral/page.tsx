@@ -56,6 +56,7 @@ import type {
 } from "@/lib/types";
 
 type ScholarshipFormConfig = {
+  academicForm: "standard" | "doctoralResearchGrant";
   amount: string;
   applicationType: string;
   description: string;
@@ -70,6 +71,7 @@ const STUDY_STATUS_NEW = "新領";
 const STUDY_STATUS_RENEWAL = "續領";
 
 const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
+  academicForm: "standard",
   amount: "每月 4 萬元，至多 4 學年",
   applicationType: "培育優秀博士生獎學金",
   description: "適用 111-112 學年度學生申請表單",
@@ -83,6 +85,7 @@ const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
 
 const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
   "/scholarships/moe-doctoral": {
+    academicForm: "standard",
     amount: "每月 4 萬元，至多 3 學年",
     applicationType: "博士生獎學金",
     description: "適用 114 學年度博士班 1 至 3 年級學生申請表單",
@@ -95,6 +98,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
   },
   "/scholarships/nstc-doctoral": DEFAULT_SCHOLARSHIP_CONFIG,
   "/scholarships/nstc-research-grant": {
+    academicForm: "doctoralResearchGrant",
     amount: "每月 4 萬元，至多 3 學年",
     applicationType: "博士生研究獎助學金",
     description: "適用 114 學年度入學新生申請表單",
@@ -102,10 +106,11 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
       "本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
     period: "114 學年度入學新生",
     program: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
-    studyStatusOptions: [STUDY_STATUS_NEW],
+    studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
     title: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
   },
   "/scholarships/presidential-new-student": {
+    academicForm: "standard",
     amount: "每月 4 萬元，至多 4 學年",
     applicationType: "校長獎學金 (新生獎學金)",
     description: "新生獎學金申請表單",
@@ -318,12 +323,30 @@ export default function ScholarshipForm() {
   const [academicPerformance, setAcademicPerformance] =
     useState<AcademicPerformance>({
       cumulativeGpa: "",
-      cumulativeGpaScale: "4.3",
-      classRankPercent: "",
-      completedCredits: "",
-      conductScore: "",
-      transcriptNotes: "",
-    });
+    cumulativeGpaScale: "4.3",
+    classRankPercent: "",
+    completedCredits: "",
+    conductScore: "",
+    transcriptNotes: "",
+    bachelorDepartment: "",
+    bachelorGpa: "",
+    bachelorRankPercent: "",
+    bachelorSchool: "",
+    bachelorTotalCredits: "",
+    masterDepartment: "",
+    masterDirectSemesterCredits: "",
+    masterDirectSemesterGpas: "",
+    masterGraduateGpa: "",
+    masterGraduateRankPercent: "",
+    masterGraduateTotalCredits: "",
+    masterSchool: "",
+    doctoralSemesterCredits: "",
+    doctoralSemesterGpas: "",
+    previousAcademicAwards: "",
+    academicAchievementSummary: "",
+    publicationList: "",
+    specialPerformance: "",
+  });
   const [journals, setJournals] = useState<Journal[]>([emptyJournal()]);
   const [conferences, setConferences] = useState<Conference[]>([
     emptyConference(),
@@ -360,6 +383,16 @@ export default function ScholarshipForm() {
     string | null
   >(null);
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+
+  useEffect(() => {
+    setApplicantInfo((current) => ({
+      ...current,
+      applicationType: config.applicationType,
+      studyStatus: config.studyStatusOptions.includes(current.studyStatus)
+        ? current.studyStatus
+        : defaultStudyStatus,
+    }));
+  }, [config.applicationType, config.studyStatusOptions, defaultStudyStatus]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -426,7 +459,12 @@ export default function ScholarshipForm() {
         });
       }
       if (p.eligibility) setEligibility(p.eligibility);
-      if (p.academicPerformance) setAcademicPerformance(p.academicPerformance);
+      if (p.academicPerformance) {
+        setAcademicPerformance((current) => ({
+          ...current,
+          ...p.academicPerformance,
+        }));
+      }
       if (p.journals && p.journals.length > 0) setJournals(p.journals);
       if (p.conferences && p.conferences.length > 0)
         setConferences(p.conferences);
@@ -755,8 +793,23 @@ export default function ScholarshipForm() {
       return;
     }
 
-    if (status === "submitted" && !academicPerformance.cumulativeGpa) {
-      setSubmitMessage("送出前請填寫學業表現 GPA。");
+    const hasRequiredAcademicPerformance =
+      config.academicForm === "doctoralResearchGrant"
+        ? applicantInfo.studyStatus === STUDY_STATUS_NEW
+          ? Boolean(
+              academicPerformance.bachelorGpa ||
+                academicPerformance.masterGraduateGpa ||
+                academicPerformance.masterDirectSemesterGpas.trim()
+            )
+          : Boolean(academicPerformance.doctoralSemesterGpas.trim())
+        : Boolean(academicPerformance.cumulativeGpa);
+
+    if (status === "submitted" && !hasRequiredAcademicPerformance) {
+      setSubmitMessage(
+        config.academicForm === "doctoralResearchGrant"
+          ? "送出前請填寫學業成績資料。"
+          : "送出前請填寫學業表現 GPA。"
+      );
       return;
     }
 
@@ -1231,6 +1284,276 @@ export default function ScholarshipForm() {
               <CardTitle className="text-lg">二、請領資格與學業表現</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {config.academicForm === "doctoralResearchGrant" ? (
+                applicantInfo.studyStatus === STUDY_STATUS_NEW ? (
+                  <>
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                      <Field label="學士學校全稱" htmlFor="bachelorSchool">
+                        <Input
+                          id="bachelorSchool"
+                          value={academicPerformance.bachelorSchool}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "bachelorSchool",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：國立清華大學"
+                        />
+                      </Field>
+                      <Field label="學士科系全稱" htmlFor="bachelorDepartment">
+                        <Input
+                          id="bachelorDepartment"
+                          value={academicPerformance.bachelorDepartment}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "bachelorDepartment",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：教育心理與諮商學系"
+                        />
+                      </Field>
+                      <Field label="碩士學校全稱" htmlFor="masterSchool">
+                        <Input
+                          id="masterSchool"
+                          value={academicPerformance.masterSchool}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterSchool",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：國立清華大學"
+                        />
+                      </Field>
+                      <Field label="碩士科系全稱" htmlFor="masterDepartment">
+                        <Input
+                          id="masterDepartment"
+                          value={academicPerformance.masterDepartment}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterDepartment",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：教育與學習科技學系"
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                      <Field label="學士班總學分數" htmlFor="bachelorTotalCredits">
+                        <Input
+                          id="bachelorTotalCredits"
+                          type="number"
+                          min="0"
+                          value={academicPerformance.bachelorTotalCredits}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "bachelorTotalCredits",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：128"
+                        />
+                      </Field>
+                      <Field label="學士班 GPA" htmlFor="bachelorGpa">
+                        <Input
+                          id="bachelorGpa"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={academicPerformance.bachelorGpa}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "bachelorGpa",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：3.85"
+                        />
+                      </Field>
+                      <Field label="學士班排名百分比" htmlFor="newBachelorRankPercent">
+                        <Input
+                          id="newBachelorRankPercent"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={academicPerformance.bachelorRankPercent}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "bachelorRankPercent",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：15"
+                        />
+                      </Field>
+                      <Field label="碩士班畢業總學分數" htmlFor="masterGraduateTotalCredits">
+                        <Input
+                          id="masterGraduateTotalCredits"
+                          type="number"
+                          min="0"
+                          value={academicPerformance.masterGraduateTotalCredits}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterGraduateTotalCredits",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：32"
+                        />
+                      </Field>
+                      <Field label="碩士班畢業 GPA" htmlFor="masterGraduateGpa">
+                        <Input
+                          id="masterGraduateGpa"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={academicPerformance.masterGraduateGpa}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterGraduateGpa",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：3.92"
+                        />
+                      </Field>
+                      <Field label="碩士班畢業排名百分比" htmlFor="masterGraduateRankPercent">
+                        <Input
+                          id="masterGraduateRankPercent"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={academicPerformance.masterGraduateRankPercent}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterGraduateRankPercent",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：10"
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                      <Field label="碩士班逕讀各學期學分" htmlFor="masterDirectSemesterCredits">
+                        <Textarea
+                          id="masterDirectSemesterCredits"
+                          className="min-h-24"
+                          value={academicPerformance.masterDirectSemesterCredits}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterDirectSemesterCredits",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：第1學期 9 學分；第2學期 10 學分"
+                        />
+                      </Field>
+                      <Field label="碩士班逕讀各學期 GPA" htmlFor="masterDirectSemesterGpas">
+                        <Textarea
+                          id="masterDirectSemesterGpas"
+                          className="min-h-24"
+                          value={academicPerformance.masterDirectSemesterGpas}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "masterDirectSemesterGpas",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：第1學期 GPA 4.0；第2學期 GPA 3.9"
+                        />
+                      </Field>
+                    </div>
+
+                    <Textarea
+                      className="min-h-28"
+                      value={academicPerformance.specialPerformance}
+                      onChange={(event) =>
+                        updateAcademicPerformance(
+                          "specialPerformance",
+                          event.target.value
+                        )
+                      }
+                      placeholder="特殊表現、重要獎項或其他有利審查說明"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                      <Field label="博士班歷年修習學分數" htmlFor="doctoralSemesterCredits">
+                        <Textarea
+                          id="doctoralSemesterCredits"
+                          className="min-h-28"
+                          value={academicPerformance.doctoralSemesterCredits}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "doctoralSemesterCredits",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：第1學期 9 學分；第2學期 9 學分；第3學期 6 學分"
+                        />
+                      </Field>
+                      <Field label="博士班歷年 GPA" htmlFor="doctoralSemesterGpas">
+                        <Textarea
+                          id="doctoralSemesterGpas"
+                          className="min-h-28"
+                          value={academicPerformance.doctoralSemesterGpas}
+                          onChange={(event) =>
+                            updateAcademicPerformance(
+                              "doctoralSemesterGpas",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：第1學期 GPA 4.1；第2學期 GPA 4.0；第3學期 GPA 4.2"
+                        />
+                      </Field>
+                    </div>
+
+                    <Textarea
+                      className="min-h-24"
+                      value={academicPerformance.previousAcademicAwards}
+                      onChange={(event) =>
+                        updateAcademicPerformance(
+                          "previousAcademicAwards",
+                          event.target.value
+                        )
+                      }
+                      placeholder="曾獲學術獎勵情形"
+                    />
+                    <Textarea
+                      className="min-h-28"
+                      value={academicPerformance.academicAchievementSummary}
+                      onChange={(event) =>
+                        updateAcademicPerformance(
+                          "academicAchievementSummary",
+                          event.target.value
+                        )
+                      }
+                      placeholder="學術成就概述"
+                    />
+                    <Textarea
+                      className="min-h-32"
+                      value={academicPerformance.publicationList}
+                      onChange={(event) =>
+                        updateAcademicPerformance(
+                          "publicationList",
+                          event.target.value
+                        )
+                      }
+                      placeholder="著作目錄：請詳列過去 5 年內發表學術著作；ISI/WOS/JCR 期刊 Impact Factor 前 15% 可特別註記"
+                    />
+                  </>
+                )
+              ) : (
+                <>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
                 <Field label="學士班排名百分比" htmlFor="bachelorRankPercent">
                   <Input
@@ -1423,6 +1746,8 @@ export default function ScholarshipForm() {
                 }
                 placeholder="補充學業表現、成績排名或成績單備註"
               />
+                </>
+              )}
             </CardContent>
           </Card>
 

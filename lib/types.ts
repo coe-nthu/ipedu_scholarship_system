@@ -30,6 +30,24 @@ export type AcademicPerformance = {
   completedCredits: string;
   conductScore: string;
   transcriptNotes: string;
+  bachelorDepartment: string;
+  bachelorGpa: string;
+  bachelorRankPercent: string;
+  bachelorSchool: string;
+  bachelorTotalCredits: string;
+  masterDepartment: string;
+  masterDirectSemesterCredits: string;
+  masterDirectSemesterGpas: string;
+  masterGraduateGpa: string;
+  masterGraduateRankPercent: string;
+  masterGraduateTotalCredits: string;
+  masterSchool: string;
+  doctoralSemesterCredits: string;
+  doctoralSemesterGpas: string;
+  previousAcademicAwards: string;
+  academicAchievementSummary: string;
+  publicationList: string;
+  specialPerformance: string;
 };
 
 export type Journal = {
