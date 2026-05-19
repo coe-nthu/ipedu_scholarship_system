@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { checkDashboardAccess } from "@/lib/auth";
@@ -70,11 +69,9 @@ function AccessDeniedView() {
 function DashboardHeader({
   role,
   applicationCount,
-  sectionTabs,
 }: {
   role: DashboardRole;
   applicationCount: number;
-  sectionTabs?: ReactNode;
 }) {
   return (
     <header className="border-b border-slate-300 pb-6">
@@ -95,10 +92,7 @@ function DashboardHeader({
             )}
           </p>
         </div>
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
-          {sectionTabs}
-          <AuthButton />
-        </div>
+        <AuthButton />
       </div>
     </header>
   );
@@ -121,13 +115,8 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         {auth.role === "admin" ? (
           <DashboardTabs
-            headerContent={(sectionTabs) => (
-              <DashboardHeader
-                role={auth.role}
-                applicationCount={applications.length}
-                sectionTabs={sectionTabs}
-              />
-            )}
+            role={auth.role}
+            applicationCount={applications.length}
             reviewContent={
               <ScholarshipProgramSwitcher applications={applications} />
             }

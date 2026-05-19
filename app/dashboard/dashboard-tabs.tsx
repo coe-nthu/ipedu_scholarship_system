@@ -1,14 +1,18 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AuthButton } from "@/components/auth-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { DashboardRole } from "@/lib/types";
 
 export function DashboardTabs({
-  headerContent,
+  applicationCount,
+  role,
   reviewContent,
   adminContent,
 }: {
-  headerContent: (sectionTabs: ReactNode) => ReactNode;
+  applicationCount: number;
+  role: DashboardRole;
   reviewContent: ReactNode;
   adminContent: ReactNode;
 }) {
@@ -25,7 +29,30 @@ export function DashboardTabs({
 
   return (
     <Tabs defaultValue="review" className="space-y-6">
-      {headerContent(sectionTabs)}
+      <header className="border-b border-slate-300 pb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-emerald-700">
+              竹師教育學院獎學金
+            </p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+              教師審查面板
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              共 {applicationCount} 件已送出申請案
+              {role === "admin" && (
+                <span className="ml-2 inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+                  管理員
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
+            {sectionTabs}
+            <AuthButton />
+          </div>
+        </div>
+      </header>
       <TabsContent value="review" className="space-y-6">
         {reviewContent}
       </TabsContent>
