@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { checkDashboardAccess } from "@/lib/auth";
@@ -69,13 +70,15 @@ function AccessDeniedView() {
 function DashboardHeader({
   role,
   applicationCount,
+  sectionTabs,
 }: {
   role: DashboardRole;
   applicationCount: number;
+  sectionTabs?: ReactNode;
 }) {
   return (
     <header className="border-b border-slate-300 pb-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-emerald-700">
             竹師教育學院獎學金
@@ -92,7 +95,10 @@ function DashboardHeader({
             )}
           </p>
         </div>
-        <AuthButton />
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
+          {sectionTabs}
+          <AuthButton />
+        </div>
       </div>
     </header>
   );
@@ -113,26 +119,28 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <DashboardHeader
-          role={auth.role}
-          applicationCount={applications.length}
-        />
-
         {auth.role === "admin" ? (
           <DashboardTabs
+            headerContent={(sectionTabs) => (
+              <DashboardHeader
+                role={auth.role}
+                applicationCount={applications.length}
+                sectionTabs={sectionTabs}
+              />
+            )}
             reviewContent={
-              <div className="mt-4">
-                <ScholarshipProgramSwitcher applications={applications} />
-              </div>
+              <ScholarshipProgramSwitcher applications={applications} />
             }
-            adminContent={
-              <div className="mt-4">
-                <AdminPanel />
-              </div>
-            }
+            adminContent={<AdminPanel />}
           />
         ) : (
-          <ScholarshipProgramSwitcher applications={applications} />
+          <>
+            <DashboardHeader
+              role={auth.role}
+              applicationCount={applications.length}
+            />
+            <ScholarshipProgramSwitcher applications={applications} />
+          </>
         )}
       </div>
     </main>
