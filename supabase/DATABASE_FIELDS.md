@@ -63,7 +63,7 @@ public.scholarship_applications
 | `phone` | 手機 |
 | `advisorName` | 指導教授 |
 | `admissionAcademicYear` | 入學學年度 |
-| `studyStatus` | 新領或續領 |
+| `studyStatus` | 請領別，目前固定為續領 |
 | `applicationType` | 申請類別 |
 
 ## 請領資格：`payload.eligibility`

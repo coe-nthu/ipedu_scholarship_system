@@ -5,6 +5,7 @@ type SendScholarshipConfirmationEmailInput = {
   applicantName: string;
   department: string;
   recipientEmail: string;
+  scholarshipProgram: string;
   submittedAt: string | null;
 };
 
@@ -52,20 +53,26 @@ function buildConfirmationHtml({
   applicationId,
   applicantName,
   department,
+  scholarshipProgram,
   submittedAt,
 }: SendScholarshipConfirmationEmailInput) {
   const safeApplicantName = escapeHtml(applicantName || "同學");
   const safeDepartment = escapeHtml(department || "未填寫");
   const safeApplicationId = escapeHtml(applicationId);
+  const safeScholarshipProgram = escapeHtml(scholarshipProgram);
   const safeSubmittedAt = escapeHtml(formatSubmittedAt(submittedAt));
 
   return `
     <div style="font-family: Arial, 'Noto Sans TC', sans-serif; line-height: 1.7; color: #0f172a;">
       <h1 style="font-size: 20px; margin: 0 0 16px;">獎學金申請已送出</h1>
       <p>${safeApplicantName} 您好：</p>
-      <p>系統已收到您的「國科會-培育優秀博士生獎學金」申請資料。</p>
+      <p>系統已收到您的「${safeScholarshipProgram}」申請資料。</p>
       <table style="border-collapse: collapse; margin: 20px 0; width: 100%; max-width: 560px;">
         <tbody>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請項目</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeScholarshipProgram}</td>
+          </tr>
           <tr>
             <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請編號</th>
             <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeApplicationId}</td>
@@ -90,12 +97,14 @@ function buildConfirmationText({
   applicationId,
   applicantName,
   department,
+  scholarshipProgram,
   submittedAt,
 }: SendScholarshipConfirmationEmailInput) {
   return [
     `${applicantName || "同學"} 您好：`,
     "",
-    "系統已收到您的「國科會-培育優秀博士生獎學金」申請資料。",
+    `系統已收到您的「${scholarshipProgram}」申請資料。`,
+    `申請項目：${scholarshipProgram}`,
     `申請編號：${applicationId}`,
     `系所：${department || "未填寫"}`,
     `送出時間：${formatSubmittedAt(submittedAt)}`,

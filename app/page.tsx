@@ -29,24 +29,37 @@ const scholarships = [
     available: true,
   },
   {
-    id: "college-grant",
-    title: "院級研究獎助學金",
-    period: "申請期程待公告",
-    amount: "獎助內容待設定",
-    status: "規劃中",
-    href: "#",
-    description: "未來可在此加入院級研究、發表或其他獎助申請流程。",
-    available: false,
+    id: "nstc-research-grant",
+    title: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
+    period: "適用 114 學年度入學新生",
+    amount: "每月 4 萬元，至多 3 學年",
+    status: "測試中",
+    href: "/scholarships/nstc-research-grant",
+    description:
+      "填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。",
+    available: true,
   },
   {
-    id: "publication-award",
-    title: "研究發表獎補助",
-    period: "申請期程待公告",
-    amount: "獎補助項目待設定",
-    status: "規劃中",
-    href: "#",
-    description: "預留給期刊、研討會、研究成果等不同申請類型。",
-    available: false,
+    id: "presidential-new-student",
+    title: "校長獎學金 (新生獎學金)",
+    period: "新生獎學金",
+    amount: "每月 4 萬元，至多 4 學年",
+    status: "測試中",
+    href: "/scholarships/presidential-new-student",
+    description:
+      "填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。",
+    available: true,
+  },
+  {
+    id: "moe-doctoral",
+    title: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
+    period: "適用 114 學年度博士班 1 至 3 年級學生",
+    amount: "每月 4 萬元，至多 3 學年",
+    status: "測試中",
+    href: "/scholarships/moe-doctoral",
+    description:
+      "先沿用既有申請表樣式，提供博士班學生填寫資料與文件上傳。",
+    available: true,
   },
 ];
 
@@ -113,7 +126,7 @@ export default function ScholarshipSelectionPage() {
               </div>
             </header>
 
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {scholarships.map((scholarship) => (
                 <Card
                   key={scholarship.id}

@@ -95,7 +95,7 @@ export function ApplicationDetail({
                     label="入學學年度"
                     value={applicantInfo.admissionAcademicYear}
                   />
-                  <InfoRow label="新領/續領" value={applicantInfo.studyStatus} />
+                  <InfoRow label="請領別" value={applicantInfo.studyStatus} />
                   <InfoRow
                     label="申請類別"
                     value={applicantInfo.applicationType}

@@ -19,6 +19,8 @@ type ScholarshipPayload = {
   [key: string]: unknown;
 };
 
+const DEFAULT_SCHOLARSHIP_PROGRAM = "國科會-培育優秀博士生獎學金";
+
 type SupabaseFileRecord = {
   field: string;
   label: string | null;
@@ -46,11 +48,16 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
 }
 
+function normalizeScholarshipProgram(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || DEFAULT_SCHOLARSHIP_PROGRAM;
+}
+
 /* ------------------------------------------------------------------ */
 /*  GET — Fetch existing application for the current user              */
 /* ------------------------------------------------------------------ */
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const {
@@ -63,9 +70,19 @@ export async function GET() {
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
+    const scholarshipProgram = normalizeScholarshipProgram(
+      new URL(request.url).searchParams.get("scholarshipProgram")
+    );
+    const query = new URLSearchParams({
+      limit: "1",
+      scholarship_program: `eq.${scholarshipProgram}`,
+      select:
+        "id,payload,files,submission_status,updated_at,submitted_at",
+      user_id: `eq.${user.id}`,
+    });
 
     const response = await fetch(
-      `${url}/rest/v1/scholarship_applications?user_id=eq.${user.id}&scholarship_program=eq.國科會-培育優秀博士生獎學金&select=id,payload,files,submission_status,updated_at,submitted_at&limit=1`,
+      `${url}/rest/v1/scholarship_applications?${query}`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -119,10 +136,14 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       applicationId: string;
       payload: ScholarshipPayload;
+      scholarshipProgram?: string;
       status: string;
     };
 
     const { applicationId, payload, status } = body;
+    const scholarshipProgram = normalizeScholarshipProgram(
+      body.scholarshipProgram
+    );
 
     if (!applicationId || !payload) {
       return jsonError("缺少必要欄位。");
@@ -151,7 +172,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           id: applicationId,
           user_id: user.id,
-          scholarship_program: "國科會-培育優秀博士生獎學金",
+          scholarship_program: scholarshipProgram,
           applicant_name: applicantInfo.applicantName,
           student_id: applicantInfo.studentId || null,
           department: applicantInfo.department,

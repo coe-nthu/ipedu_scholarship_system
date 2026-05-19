@@ -11,6 +11,7 @@ type ScholarshipApplicationRecord = {
   applicant_name: string | null;
   department: string | null;
   email: string | null;
+  scholarship_program: string | null;
   submitted_at: string | null;
   submission_status: string;
 };
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
 
     const { serviceRoleKey, url } = getSupabaseConfig();
     const checkResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&user_id=eq.${user.id}&select=id,applicant_name,department,email,submitted_at,submission_status`,
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&user_id=eq.${user.id}&select=id,applicant_name,department,email,scholarship_program,submitted_at,submission_status`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -88,6 +89,8 @@ export async function POST(request: Request) {
       applicantName: application.applicant_name || "",
       department: application.department || "",
       recipientEmail,
+      scholarshipProgram:
+        application.scholarship_program || "獎學金申請",
       submittedAt: application.submitted_at,
     });
 

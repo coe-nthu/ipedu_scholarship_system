@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -53,6 +54,69 @@ import type {
   ScholarshipPayload,
   SupabaseFileRecord,
 } from "@/lib/types";
+
+type ScholarshipFormConfig = {
+  amount: string;
+  applicationType: string;
+  description: string;
+  eligibilityReminder: string;
+  period: string;
+  program: string;
+  studyStatusOptions: string[];
+  title: string;
+};
+
+const STUDY_STATUS_NEW = "新領";
+const STUDY_STATUS_RENEWAL = "續領";
+
+const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
+  amount: "每月 4 萬元，至多 4 學年",
+  applicationType: "培育優秀博士生獎學金",
+  description: "適用 111-112 學年度學生申請表單",
+  eligibilityReminder:
+    "學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
+  period: "每學年下學期依公告辦理",
+  program: "國科會-培育優秀博士生獎學金",
+  studyStatusOptions: [STUDY_STATUS_RENEWAL],
+  title: "國科會-培育優秀博士生獎學金",
+};
+
+const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
+  "/scholarships/moe-doctoral": {
+    amount: "每月 4 萬元，至多 3 學年",
+    applicationType: "博士生獎學金",
+    description: "適用 114 學年度博士班 1 至 3 年級學生申請表單",
+    eligibilityReminder:
+      "本項目適用 114 學年度博士班 1 至 3 年級學生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+    period: "114 學年度博士班 1 至 3 年級學生",
+    program: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
+    studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
+    title: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
+  },
+  "/scholarships/nstc-doctoral": DEFAULT_SCHOLARSHIP_CONFIG,
+  "/scholarships/nstc-research-grant": {
+    amount: "每月 4 萬元，至多 3 學年",
+    applicationType: "博士生研究獎助學金",
+    description: "適用 114 學年度入學新生申請表單",
+    eligibilityReminder:
+      "本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+    period: "114 學年度入學新生",
+    program: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
+    studyStatusOptions: [STUDY_STATUS_NEW],
+    title: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
+  },
+  "/scholarships/presidential-new-student": {
+    amount: "每月 4 萬元，至多 4 學年",
+    applicationType: "校長獎學金 (新生獎學金)",
+    description: "新生獎學金申請表單",
+    eligibilityReminder:
+      "本項目為校長獎學金新生獎學金。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+    period: "新生獎學金",
+    program: "校長獎學金 (新生獎學金)",
+    studyStatusOptions: [STUDY_STATUS_RENEWAL],
+    title: "校長獎學金 (新生獎學金)",
+  },
+};
 
 const DOCUMENT_PREFIX = "document_";
 const STORAGE_BUCKET = "scholarship-documents";
@@ -226,6 +290,10 @@ function createJournalLevelStats() {
 }
 
 export default function ScholarshipForm() {
+  const pathname = usePathname();
+  const config =
+    scholarshipConfigs[pathname] ?? DEFAULT_SCHOLARSHIP_CONFIG;
+  const defaultStudyStatus = config.studyStatusOptions[0] ?? STUDY_STATUS_RENEWAL;
   const [applicantInfo, setApplicantInfo] = useState<ApplicantInfo>({
     applicantName: "",
     studentId: "",
@@ -234,8 +302,8 @@ export default function ScholarshipForm() {
     phone: "",
     advisorName: "",
     admissionAcademicYear: "112",
-    studyStatus: "新領",
-    applicationType: "培育優秀博士生獎學金",
+    studyStatus: defaultStudyStatus,
+    applicationType: config.applicationType,
   });
   const [eligibility, setEligibility] = useState<Eligibility>({
     bachelorRankPercent: "",
@@ -323,7 +391,9 @@ export default function ScholarshipForm() {
   const loadExistingApplication = useCallback(async () => {
     setIsLoadingExisting(true);
     try {
-      const response = await fetch("/api/scholarships");
+      const response = await fetch(
+        `/api/scholarships?scholarshipProgram=${encodeURIComponent(config.program)}`
+      );
       const result = await response.json();
 
       if (!response.ok || !result.success || !result.application) {
@@ -345,7 +415,16 @@ export default function ScholarshipForm() {
 
       // Pre-fill form from payload
       const p = app.payload;
-      if (p.applicantInfo) setApplicantInfo(p.applicantInfo);
+      if (p.applicantInfo) {
+        const savedStudyStatus = p.applicantInfo.studyStatus;
+        setApplicantInfo({
+          ...p.applicantInfo,
+          applicationType: config.applicationType,
+          studyStatus: config.studyStatusOptions.includes(savedStudyStatus)
+            ? savedStudyStatus
+            : defaultStudyStatus,
+        });
+      }
       if (p.eligibility) setEligibility(p.eligibility);
       if (p.academicPerformance) setAcademicPerformance(p.academicPerformance);
       if (p.journals && p.journals.length > 0) setJournals(p.journals);
@@ -365,7 +444,12 @@ export default function ScholarshipForm() {
     } finally {
       setIsLoadingExisting(false);
     }
-  }, []);
+  }, [
+    config.applicationType,
+    config.program,
+    config.studyStatusOptions,
+    defaultStudyStatus,
+  ]);
 
   useEffect(() => {
     if (currentUser) {
@@ -728,7 +812,12 @@ export default function ScholarshipForm() {
       const createResponse = await fetch("/api/scholarships", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ applicationId, payload, status }),
+        body: JSON.stringify({
+          applicationId,
+          payload,
+          scholarshipProgram: config.program,
+          status,
+        }),
       });
       const createResult = await createResponse.json();
 
@@ -907,14 +996,14 @@ export default function ScholarshipForm() {
                     返回獎學金選擇
                   </Link>
                   <p className="text-sm font-medium text-emerald-700">
-                    國科會-培育優秀博士生獎學金
+                    {config.title}
                   </p>
                   <h1 className="mt-2 text-3xl font-bold text-slate-950">
-                    適用 111-112 學年度學生申請表單
+                    {config.description}
                   </h1>
                 </div>
                 <Badge className="w-fit bg-[#1f6f78] text-white">
-                  每月 4 萬元，至多 4 學年
+                  {config.amount}
                 </Badge>
                 <AuthButton />
               </div>
@@ -924,8 +1013,7 @@ export default function ScholarshipForm() {
               <FileText className="size-4" />
               <AlertTitle>請領資格提醒</AlertTitle>
               <AlertDescription>
-                學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85
-                分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。
+                {config.eligibilityReminder}
               </AlertDescription>
             </Alert>
 
@@ -1099,7 +1187,7 @@ export default function ScholarshipForm() {
                   placeholder="111 或 112"
                 />
               </Field>
-              <Field label="新/續領" htmlFor="studyStatus">
+              <Field label="請領別" htmlFor="studyStatus">
                 <Select
                   value={applicantInfo.studyStatus}
                   onValueChange={(value) =>
@@ -1110,8 +1198,11 @@ export default function ScholarshipForm() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="新領">新領</SelectItem>
-                    <SelectItem value="續領">續領</SelectItem>
+                    {config.studyStatusOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
@@ -1126,8 +1217,8 @@ export default function ScholarshipForm() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="培育優秀博士生獎學金">
-                      培育優秀博士生獎學金
+                    <SelectItem value={config.applicationType}>
+                      {config.applicationType}
                     </SelectItem>
                   </SelectContent>
                 </Select>
