@@ -64,7 +64,7 @@ export function ScholarshipProgramSwitcher({
   }, [applications]);
 
   return (
-    <Tabs defaultValue={ALL_PROGRAMS_VALUE} className="space-y-4">
+    <Tabs defaultValue={ALL_PROGRAMS_VALUE} className="w-full min-w-0 space-y-4">
       <TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
         <TabsTrigger
           value={ALL_PROGRAMS_VALUE}
@@ -85,7 +85,7 @@ export function ScholarshipProgramSwitcher({
         ))}
       </TabsList>
 
-      <TabsContent value={ALL_PROGRAMS_VALUE}>
+      <TabsContent value={ALL_PROGRAMS_VALUE} className="min-w-0">
         <DashboardTable applications={applications} />
       </TabsContent>
       {scholarshipPrograms.map((program) => {
@@ -94,7 +94,7 @@ export function ScholarshipProgramSwitcher({
         );
 
         return (
-          <TabsContent key={program} value={program}>
+          <TabsContent key={program} value={program} className="min-w-0">
             <DashboardTable
               key={program}
               applications={filteredApplications}

@@ -111,8 +111,8 @@ export default async function DashboardPage() {
   const applications = await fetchApplications();
 
   return (
-    <main className="min-h-screen bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <main className="min-h-screen overflow-x-hidden bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
         {auth.role === "admin" ? (
           <DashboardTabs
             role={auth.role}

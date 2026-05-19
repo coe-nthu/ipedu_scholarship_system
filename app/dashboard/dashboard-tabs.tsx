@@ -28,10 +28,10 @@ export function DashboardTabs({
   );
 
   return (
-    <Tabs defaultValue="review" className="space-y-6">
+    <Tabs defaultValue="review" className="w-full min-w-0 space-y-6">
       <header className="border-b border-slate-300 pb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-emerald-700">
               竹師教育學院獎學金
             </p>
@@ -47,7 +47,7 @@ export function DashboardTabs({
               )}
             </p>
           </div>
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
+          <div className="flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
             {sectionTabs}
             <AuthButton />
           </div>
