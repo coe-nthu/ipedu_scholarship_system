@@ -85,6 +85,10 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm">申請人資訊</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
+                  <InfoRow
+                    label="申請項目"
+                    value={application.scholarship_program}
+                  />
                   <InfoRow label="姓名" value={applicantInfo.applicantName} />
                   <InfoRow label="學號" value={applicantInfo.studentId} />
                   <InfoRow label="系所" value={applicantInfo.department} />

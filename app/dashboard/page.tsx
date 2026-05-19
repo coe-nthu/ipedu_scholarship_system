@@ -5,15 +5,15 @@ import { checkDashboardAccess } from "@/lib/auth";
 import type { DashboardRole } from "@/lib/types";
 import type { ScholarshipApplication } from "@/lib/types";
 import { AuthButton } from "@/components/auth-button";
-import { DashboardTable } from "./dashboard-table";
 import { AdminPanel } from "./admin-panel";
 import { DashboardTabs } from "./dashboard-tabs";
+import { ScholarshipProgramSwitcher } from "./scholarship-program-switcher";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "教師審查面板 — 培育優秀博士生獎學金",
-  description: "國科會培育優秀博士生獎學金申請案教師審查面板",
+  title: "教師審查面板 — 獎學金申請",
+  description: "竹師教育學院獎學金申請案教師審查面板",
 };
 
 async function fetchApplications(): Promise<ScholarshipApplication[]> {
@@ -28,7 +28,7 @@ async function fetchApplications(): Promise<ScholarshipApplication[]> {
 
   try {
     const response = await fetch(
-      `${url}/rest/v1/scholarship_applications?submission_status=eq.submitted&order=submitted_at.desc&select=id,applicant_name,student_id,department,advisor_name,gpa,gpa_scale,submission_status,review_status,reviewer_remarks,payload,files,submitted_at,created_at,updated_at`,
+      `${url}/rest/v1/scholarship_applications?submission_status=eq.submitted&order=submitted_at.desc&select=id,applicant_name,student_id,department,advisor_name,gpa,gpa_scale,scholarship_program,submission_status,review_status,reviewer_remarks,payload,files,submitted_at,created_at,updated_at`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -78,7 +78,7 @@ function DashboardHeader({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-medium text-emerald-700">
-            國科會-培育優秀博士生獎學金
+            竹師教育學院獎學金
           </p>
           <h1 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
             教師審查面板
@@ -122,7 +122,7 @@ export default async function DashboardPage() {
           <DashboardTabs
             reviewContent={
               <div className="mt-4">
-                <DashboardTable applications={applications} />
+                <ScholarshipProgramSwitcher applications={applications} />
               </div>
             }
             adminContent={
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
             }
           />
         ) : (
-          <DashboardTable applications={applications} />
+          <ScholarshipProgramSwitcher applications={applications} />
         )}
       </div>
     </main>

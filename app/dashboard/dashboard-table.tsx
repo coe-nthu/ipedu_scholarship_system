@@ -515,6 +515,16 @@ export function DashboardTable({
           </TableHeader>
 
           <TableBody>
+            {sortedRows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={11}
+                  className="h-28 text-center text-sm text-slate-500"
+                >
+                  目前沒有此獎學金項目的已送出申請案。
+                </TableCell>
+              </TableRow>
+            ) : null}
             {sortedRows.map((row) => {
               const appId = row.application.id;
               const effectiveStatus =
