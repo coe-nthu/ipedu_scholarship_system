@@ -459,6 +459,7 @@ export default function ScholarshipForm() {
   >(null);
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const hasLoadedExisting = useRef(false);
+  const formInitialized = useRef(false); // true after initial server/localStorage load completes
 
   useEffect(() => {
     setApplicantInfo((current) => ({
@@ -502,7 +503,6 @@ export default function ScholarshipForm() {
       doctoralSemesterRecords?: DoctoralSemesterRecord[];
       masterDirectSemesterRecords?: MasterDirectSemesterRecord[];
     }) => {
-      skipNextAutoSave.current = true; // don't immediately re-save what we just loaded
       if (p.applicantInfo) {
         const savedStudyStatus = p.applicantInfo.studyStatus;
         setApplicantInfo({
@@ -610,6 +610,7 @@ export default function ScholarshipForm() {
       // Silently fail — user can still fill a new form
     } finally {
       setIsLoadingExisting(false);
+      formInitialized.current = true;
     }
   }, [config.program, applyFormDraft]);
 
@@ -622,14 +623,10 @@ export default function ScholarshipForm() {
 
   // ── Auto-save form state to localStorage ──
   const DRAFT_KEY = `scholarship-draft-${config.program}`;
-  const skipNextAutoSave = useRef(true); // skip the first render (initial/empty state)
 
   useEffect(() => {
-    // Don't save the initial empty state or the state right after loading from server
-    if (skipNextAutoSave.current) {
-      skipNextAutoSave.current = false;
-      return;
-    }
+    // Don't save until initial data has been loaded from server/localStorage
+    if (!formInitialized.current) return;
     const timer = setTimeout(() => {
       try {
         const draft = {
