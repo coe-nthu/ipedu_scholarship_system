@@ -600,10 +600,14 @@ export default function ScholarshipForm() {
       setExistingUpdatedAt(app.updated_at);
       setExistingSubmissionStatus(app.submission_status);
 
-      // Compare: is localStorage draft newer than the server record?
+      // Compare: prefer localStorage only if it has real content AND is newer
       const serverTime = new Date(app.updated_at).getTime();
+      const localDraftHasContent =
+        !!localDraft?.applicantInfo?.applicantName?.trim();
       const useLocalDraft =
-        localDraft?.savedAt && localDraft.savedAt > serverTime;
+        localDraftHasContent &&
+        !!localDraft?.savedAt &&
+        localDraft.savedAt > serverTime;
 
       applyFormDraft(useLocalDraft ? localDraft! : app.payload);
     } catch {
