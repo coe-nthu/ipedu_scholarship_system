@@ -1,6 +1,7 @@
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isValidUUID } from "@/lib/validation";
 
 const STORAGE_BUCKET = "scholarship-documents";
 const PDF_MIME_TYPE = "application/pdf";
@@ -60,6 +61,10 @@ export async function POST(request: Request) {
       return jsonError("缺少必要欄位。");
     }
 
+    if (!isValidUUID(applicationId)) {
+      return jsonError("applicationId 格式不合法。");
+    }
+
     if (
       !isPdfFile(fileName, contentType) ||
       !path.toLowerCase().endsWith(".pdf")
@@ -115,8 +120,7 @@ export async function POST(request: Request) {
       token: data.token,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Upload URL error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }

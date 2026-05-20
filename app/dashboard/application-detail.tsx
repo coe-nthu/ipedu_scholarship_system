@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,15 +19,128 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ScholarshipApplication } from "@/lib/types";
+import type {
+  Journal,
+  PublicationVerification,
+  ScholarshipApplication,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  Clock,
+  Download,
+  FileText,
+  Loader2,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
+import { toast } from "sonner";
 
 type ApplicationDetailProps = {
   application: ScholarshipApplication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Verification status helpers                                        */
+/* ------------------------------------------------------------------ */
+
+const CHECK_ICONS = {
+  pass: <CheckCircle2 className="size-3.5 text-emerald-600" />,
+  fail: <XCircle className="size-3.5 text-red-600" />,
+  timeout: <Clock className="size-3.5 text-amber-500" />,
+  skipped: <Clock className="size-3.5 text-slate-400" />,
+} as const;
+
+const CHECK_LABELS: Record<string, string> = {
+  pass: "通過",
+  fail: "不通過",
+  timeout: "逾時",
+  skipped: "跳過",
+};
+
+function VerificationBadge({ v }: { v: PublicationVerification | undefined }) {
+  if (!v) return null;
+  const color =
+    v.status === "pass"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : v.status === "fail"
+        ? "bg-red-50 text-red-700 border-red-200"
+        : v.status === "timeout"
+          ? "bg-amber-50 text-amber-700 border-amber-200"
+          : "bg-slate-50 text-slate-500 border-slate-200";
+
+  const label =
+    v.status === "pass"
+      ? "自動驗證通過"
+      : v.status === "fail"
+        ? "驗證異常"
+        : v.status === "timeout"
+          ? "驗證逾時"
+          : "待驗證";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium ${color}`}
+    >
+      {v.status === "pass" ? (
+        <CheckCircle2 className="size-3" />
+      ) : v.status === "fail" ? (
+        <CircleAlert className="size-3" />
+      ) : (
+        <Clock className="size-3" />
+      )}
+      {label}
+    </span>
+  );
+}
+
+function VerificationChecks({ v }: { v: PublicationVerification }) {
+  return (
+    <div className="mt-2 space-y-1 rounded-md bg-slate-50 p-2">
+      <div className="flex items-center gap-1.5 text-xs">
+        {CHECK_ICONS[v.doiExists]}
+        <span className="text-slate-600">DOI 存在性：</span>
+        <span className="font-medium">{CHECK_LABELS[v.doiExists]}</span>
+      </div>
+      <div className="flex items-center gap-1.5 text-xs">
+        {CHECK_ICONS[v.authorFound]}
+        <span className="text-slate-600">作者比對：</span>
+        <span className="font-medium">{CHECK_LABELS[v.authorFound]}</span>
+      </div>
+      <div className="flex items-center gap-1.5 text-xs">
+        {CHECK_ICONS[v.authorOrderCorrect]}
+        <span className="text-slate-600">作者順序：</span>
+        <span className="font-medium">
+          {CHECK_LABELS[v.authorOrderCorrect]}
+          {v.actualAuthorPosition &&
+            ` (實際第 ${v.actualAuthorPosition}/${v.totalAuthors} 位)`}
+        </span>
+      </div>
+      {v.citedByCount !== null && (
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="size-3.5 text-center text-blue-600 font-bold">
+            #
+          </span>
+          <span className="text-slate-600">被引用次數：</span>
+          <span className="font-medium">{v.citedByCount}</span>
+        </div>
+      )}
+      {v.message && (
+        <p
+          className={`text-xs mt-1 ${v.status === "fail" ? "text-red-600" : "text-slate-500"}`}
+        >
+          {v.message}
+        </p>
+      )}
+      <p className="text-xs text-slate-400 mt-1">
+        驗證時間：{new Date(v.verifiedAt).toLocaleString("zh-TW")}
+      </p>
+    </div>
+  );
+}
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -42,11 +156,66 @@ export function ApplicationDetail({
   open,
   onOpenChange,
 }: ApplicationDetailProps) {
+  const [verifyingAll, setVerifyingAll] = useState(false);
+  const [verifyingIdx, setVerifyingIdx] = useState<number | null>(null);
+  const [liveJournals, setLiveJournals] = useState<Journal[] | null>(null);
+
+  const triggerVerify = useCallback(
+    async (journalIndex?: number) => {
+      if (!application) return;
+      if (journalIndex !== undefined) {
+        setVerifyingIdx(journalIndex);
+      } else {
+        setVerifyingAll(true);
+      }
+      try {
+        const res = await fetch("/api/dashboard/verify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            applicationId: application.id,
+            ...(journalIndex !== undefined ? { journalIndex } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.journals) {
+          // Update local journal state with verification results
+          const newJournals = [...(liveJournals ?? application.payload.journals ?? [])];
+          for (const item of data.journals as {
+            index: number;
+            verification: PublicationVerification;
+          }[]) {
+            if (newJournals[item.index]) {
+              newJournals[item.index] = {
+                ...newJournals[item.index],
+                verification: item.verification,
+              };
+            }
+          }
+          setLiveJournals(newJournals);
+          toast.success(
+            journalIndex !== undefined
+              ? "單篇驗證完成"
+              : "全部驗證完成"
+          );
+        } else {
+          toast.error(data.error || "驗證失敗");
+        }
+      } catch {
+        toast.error("驗證請求失敗");
+      } finally {
+        setVerifyingAll(false);
+        setVerifyingIdx(null);
+      }
+    },
+    [application, liveJournals]
+  );
+
   if (!application) return null;
 
   const { payload, files } = application;
   const { applicantInfo, eligibility, academicPerformance } = payload;
-  const journals = payload.journals ?? [];
+  const journals = liveJournals ?? payload.journals ?? [];
   const conferences = payload.conferences ?? [];
   const researchExperiences = payload.researchExperiences ?? [];
   const researchAwards = payload.researchAwards ?? [];
@@ -195,8 +364,26 @@ export function ApplicationDetail({
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center justify-between">
-                    期刊發表
-                    <Badge variant="secondary">{journals.length} 篇</Badge>
+                    <span className="flex items-center gap-2">
+                      期刊發表
+                      <Badge variant="secondary">{journals.length} 篇</Badge>
+                    </span>
+                    {journals.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs h-7"
+                        disabled={verifyingAll}
+                        onClick={() => triggerVerify()}
+                      >
+                        {verifyingAll ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="size-3" />
+                        )}
+                        全部重新驗證
+                      </Button>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -207,11 +394,36 @@ export function ApplicationDetail({
                       {journals.map((j, idx) => (
                         <div
                           key={j.doi || idx}
-                          className="rounded-md border border-slate-200 p-3 space-y-1.5"
+                          className={`rounded-md border p-3 space-y-1.5 ${
+                            j.verification?.status === "fail"
+                              ? "border-red-300 bg-red-50/30"
+                              : j.verification?.status === "pass"
+                                ? "border-emerald-200"
+                                : "border-slate-200"
+                          }`}
                         >
-                          <p className="text-sm font-medium text-slate-900">
-                            {j.title}
-                          </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium text-slate-900 flex-1">
+                              {j.title}
+                            </p>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <VerificationBadge v={j.verification} />
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="size-6"
+                                disabled={verifyingIdx === idx}
+                                onClick={() => triggerVerify(idx)}
+                                title="重新驗證此篇"
+                              >
+                                {verifyingIdx === idx ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="size-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
                           <p className="text-xs text-slate-500">{j.journal}</p>
                           <p className="text-xs text-slate-500">
                             作者：{j.author}
@@ -259,6 +471,10 @@ export function ApplicationDetail({
                             <p className="text-xs text-amber-600">
                               作者順位變更：{j.authorOrderChangeNote}
                             </p>
+                          )}
+                          {/* ── Verification details ── */}
+                          {j.verification && (
+                            <VerificationChecks v={j.verification} />
                           )}
                         </div>
                       ))}

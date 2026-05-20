@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { checkDashboardAccess } from "@/lib/auth";
+import { isValidStoragePath } from "@/lib/validation";
 
 const STORAGE_BUCKET = "scholarship-documents";
 
@@ -38,8 +39,11 @@ export async function GET(request: NextRequest) {
     const filePath = searchParams.get("path");
     const fileName = searchParams.get("name");
 
-    if (!filePath) {
-      return NextResponse.json({ error: "缺少 path 參數。" }, { status: 400 });
+    if (!filePath || !isValidStoragePath(filePath)) {
+      return NextResponse.json(
+        { error: "檔案路徑不合法。" },
+        { status: 400 }
+      );
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
@@ -74,8 +78,10 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Download error:", error);
+    return NextResponse.json(
+      { error: "伺服器處理時發生錯誤。" },
+      { status: 500 }
+    );
   }
 }

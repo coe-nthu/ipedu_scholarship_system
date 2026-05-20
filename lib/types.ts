@@ -75,6 +75,7 @@ export type Journal = {
   authorOrderModified: boolean;
   authorOrderChangeNote: string;
   attachmentNote: string;
+  verification?: PublicationVerification;
 };
 
 export type Conference = {
@@ -126,6 +127,7 @@ export type ScholarshipPayload = {
   plannedResearch: PlannedResearch[];
   otherAchievements: string;
   otherReviewDocuments: OtherReviewDocument[];
+  verificationSummary?: VerificationSummary;
 };
 
 export type ReviewStatus =
@@ -167,6 +169,38 @@ export type ScholarshipApplication = {
   submitted_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Publication verification types                                     */
+/* ------------------------------------------------------------------ */
+
+export type VerificationCheckStatus =
+  | "pass"
+  | "fail"
+  | "timeout"
+  | "skipped";
+
+/** Per-publication verification result stored in Journal.verification */
+export type PublicationVerification = {
+  status: "pass" | "fail" | "timeout" | "skipped";
+  doiExists: VerificationCheckStatus;
+  authorFound: VerificationCheckStatus;
+  authorOrderCorrect: VerificationCheckStatus;
+  actualAuthorPosition: number | null;
+  totalAuthors: number | null;
+  citedByCount: number | null;
+  crossrefTitle: string | null;
+  crossrefJournal: string | null;
+  crossrefAuthors: string[] | null;
+  message: string;
+  verifiedAt: string;
+};
+
+/** Top-level verification summary stored in ScholarshipPayload */
+export type VerificationSummary = {
+  status: "all_passed" | "has_issues" | "timeout" | "pending";
+  verifiedAt: string;
 };
 
 export type DashboardRole = "teacher" | "admin";

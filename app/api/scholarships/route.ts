@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isValidUUID } from "@/lib/validation";
+import { verifyAllPublications } from "@/lib/verification";
 
 type ScholarshipPayload = {
   applicantInfo?: {
@@ -110,9 +112,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, application: records[0] });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Scholarships API error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
 
@@ -147,6 +148,10 @@ export async function POST(request: Request) {
 
     if (!applicationId || !payload) {
       return jsonError("缺少必要欄位。");
+    }
+
+    if (!isValidUUID(applicationId)) {
+      return jsonError("applicationId 格式不合法。");
     }
 
     const applicantInfo = payload.applicantInfo || {};
@@ -201,14 +206,53 @@ export async function POST(request: Request) {
     const [record] = (await upsertResponse.json()) as { id: string }[];
     const resolvedId = record?.id || applicationId;
 
+    // ── Run publication verification on submission ──
+    let verificationSummary = null;
+    if (submissionStatus === "submitted") {
+      try {
+        const journals = (payload as Record<string, unknown>).journals as
+          | import("@/lib/types").Journal[]
+          | undefined;
+        if (journals && journals.length > 0) {
+          const vResult = await verifyAllPublications(journals);
+
+          // Update the application with enriched payload + review_status
+          const enrichedPayload = {
+            ...(payload as Record<string, unknown>),
+            journals: vResult.journals,
+            verificationSummary: vResult.summary,
+          };
+          await fetch(
+            `${url}/rest/v1/scholarship_applications?id=eq.${resolvedId}`,
+            {
+              method: "PATCH",
+              headers: {
+                apikey: serviceRoleKey,
+                authorization: `Bearer ${serviceRoleKey}`,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                payload: enrichedPayload,
+                review_status: vResult.reviewStatus,
+              }),
+            }
+          );
+          verificationSummary = vResult.summary;
+        }
+      } catch (verifyErr) {
+        // Verification failure should not block the submission
+        console.error("Publication verification error:", verifyErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       applicationId: resolvedId,
+      verificationSummary,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Scholarships API error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
 
@@ -238,6 +282,10 @@ export async function PATCH(request: Request) {
 
     if (!applicationId || !Array.isArray(files)) {
       return jsonError("缺少必要欄位。");
+    }
+
+    if (!isValidUUID(applicationId)) {
+      return jsonError("applicationId 格式不合法。");
     }
 
     // Verify the application belongs to this user
@@ -285,8 +333,7 @@ export async function PATCH(request: Request) {
       files,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Scholarships API error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }

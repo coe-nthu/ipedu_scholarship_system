@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkDashboardAccess } from "@/lib/auth";
+import { isValidUUID } from "@/lib/validation";
 
 function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -52,9 +53,8 @@ export async function GET() {
     const entries = await response.json();
     return NextResponse.json({ success: true, entries });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Authorized-emails error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
 
@@ -135,9 +135,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, entry });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Authorized-emails error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
 
@@ -169,6 +168,10 @@ export async function PATCH(request: Request) {
 
     if (!id) {
       return jsonError("缺少 id。");
+    }
+
+    if (!isValidUUID(id)) {
+      return jsonError("id 格式不合法。");
     }
 
     if (role !== "teacher" && role !== "admin") {
@@ -243,9 +246,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Authorized-emails error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
 
@@ -273,6 +275,10 @@ export async function DELETE(request: Request) {
 
     if (!id) {
       return jsonError("缺少 id。");
+    }
+
+    if (!isValidUUID(id)) {
+      return jsonError("id 格式不合法。");
     }
 
     // Fetch the entry to validate
@@ -355,8 +361,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Authorized-emails error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }

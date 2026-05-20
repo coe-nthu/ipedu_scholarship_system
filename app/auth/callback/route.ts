@@ -6,7 +6,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   let next = searchParams.get("next") ?? "/";
 
-  if (!next.startsWith("/")) {
+  // Prevent open redirect: reject protocol-relative URLs and non-path values
+  if (!next.startsWith("/") || next.startsWith("//")) {
     next = "/";
   }
 

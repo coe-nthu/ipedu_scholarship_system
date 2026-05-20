@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkDashboardAccess } from "@/lib/auth";
+import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 
 function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -53,9 +54,8 @@ export async function GET() {
 
     return NextResponse.json({ success: true, applications });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Dashboard GET error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
 
@@ -86,8 +86,16 @@ export async function PATCH(request: Request) {
       return jsonError("缺少 applicationId。");
     }
 
+    if (!isValidUUID(applicationId)) {
+      return jsonError("applicationId 格式不合法。");
+    }
+
     if (review_status === undefined && reviewer_remarks === undefined) {
       return jsonError("請提供要更新的欄位。");
+    }
+
+    if (review_status !== undefined && !isValidReviewStatus(review_status)) {
+      return jsonError("不合法的審查狀態。");
     }
 
     // Build update payload
@@ -121,8 +129,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Dashboard PATCH error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }

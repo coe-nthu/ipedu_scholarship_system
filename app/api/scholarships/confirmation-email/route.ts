@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendScholarshipConfirmationEmail } from "@/lib/email/resend";
 import { createClient } from "@/lib/supabase/server";
+import { isValidUUID } from "@/lib/validation";
 
 type ConfirmationEmailRequest = {
   applicationId?: string;
@@ -53,6 +54,10 @@ export async function POST(request: Request) {
       return jsonError("缺少申請編號。");
     }
 
+    if (!isValidUUID(applicationId)) {
+      return jsonError("applicationId 格式不合法。");
+    }
+
     const { serviceRoleKey, url } = getSupabaseConfig();
     const checkResponse = await fetch(
       `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&user_id=eq.${user.id}&select=id,applicant_name,department,email,scholarship_program,submitted_at,submission_status`,
@@ -99,8 +104,7 @@ export async function POST(request: Request) {
       emailId,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "伺服器處理時發生錯誤。";
-    return jsonError(message, 500);
+    console.error("Confirmation email error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
