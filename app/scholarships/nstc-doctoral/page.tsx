@@ -458,6 +458,7 @@ export default function ScholarshipForm() {
     string | null
   >(null);
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+  const hasLoadedExisting = useRef(false);
 
   useEffect(() => {
     setApplicantInfo((current) => ({
@@ -495,34 +496,13 @@ export default function ScholarshipForm() {
     };
   }, []);
 
-  // Load existing application data when user is authenticated
-  const loadExistingApplication = useCallback(async () => {
-    setIsLoadingExisting(true);
-    try {
-      const response = await fetch(
-        `/api/scholarships?scholarshipProgram=${encodeURIComponent(config.program)}`
-      );
-      const result = await response.json();
-
-      if (!response.ok || !result.success || !result.application) {
-        return;
-      }
-
-      const app = result.application as {
-        id: string;
-        payload: ScholarshipPayload;
-        files: SupabaseFileRecord[];
-        submission_status: string;
-        updated_at: string;
-      };
-
-      setExistingAppId(app.id);
-      setExistingFiles(app.files || []);
-      setExistingUpdatedAt(app.updated_at);
-      setExistingSubmissionStatus(app.submission_status);
-
-      // Pre-fill form from payload
-      const p = app.payload;
+  // Restore form fields from a draft object (server payload or localStorage)
+  const applyFormDraft = useCallback(
+    (p: ScholarshipPayload & {
+      doctoralSemesterRecords?: DoctoralSemesterRecord[];
+      masterDirectSemesterRecords?: MasterDirectSemesterRecord[];
+    }) => {
+      skipNextAutoSave.current = true; // don't immediately re-save what we just loaded
       if (p.applicantInfo) {
         const savedStudyStatus = p.applicantInfo.studyStatus;
         setApplicantInfo({
@@ -543,18 +523,26 @@ export default function ScholarshipForm() {
           ...current,
           ...p.academicPerformance,
         }));
-        setDoctoralSemesterRecords(
-          parseDoctoralSemesterRecords(
-            savedAcademicPerformance.doctoralSemesterCredits,
-            savedAcademicPerformance.doctoralSemesterGpas
-          )
-        );
-        setMasterDirectSemesterRecords(
-          parseMasterDirectSemesterRecords(
-            savedAcademicPerformance.masterDirectSemesterCredits,
-            savedAcademicPerformance.masterDirectSemesterGpas
-          )
-        );
+        if (p.doctoralSemesterRecords) {
+          setDoctoralSemesterRecords(p.doctoralSemesterRecords);
+        } else {
+          setDoctoralSemesterRecords(
+            parseDoctoralSemesterRecords(
+              savedAcademicPerformance.doctoralSemesterCredits,
+              savedAcademicPerformance.doctoralSemesterGpas
+            )
+          );
+        }
+        if (p.masterDirectSemesterRecords) {
+          setMasterDirectSemesterRecords(p.masterDirectSemesterRecords);
+        } else {
+          setMasterDirectSemesterRecords(
+            parseMasterDirectSemesterRecords(
+              savedAcademicPerformance.masterDirectSemesterCredits,
+              savedAcademicPerformance.masterDirectSemesterGpas
+            )
+          );
+        }
       }
       if (p.journals && p.journals.length > 0) setJournals(p.journals);
       if (p.conferences && p.conferences.length > 0)
@@ -568,23 +556,118 @@ export default function ScholarshipForm() {
       if (p.otherAchievements) setOtherAchievements(p.otherAchievements);
       if (p.otherReviewDocuments && p.otherReviewDocuments.length > 0)
         setOtherReviewDocuments(p.otherReviewDocuments);
+    },
+    [config.applicationType, config.studyStatusOptions, defaultStudyStatus]
+  );
+
+  // Load existing application data when user is authenticated
+  const loadExistingApplication = useCallback(async () => {
+    const draftKey = `scholarship-draft-${config.program}`;
+    setIsLoadingExisting(true);
+    try {
+      const response = await fetch(
+        `/api/scholarships?scholarshipProgram=${encodeURIComponent(config.program)}`
+      );
+      const result = await response.json();
+
+      // Try reading localStorage draft
+      let localDraft: (ScholarshipPayload & { savedAt?: number; doctoralSemesterRecords?: DoctoralSemesterRecord[]; masterDirectSemesterRecords?: MasterDirectSemesterRecord[] }) | null = null;
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (raw) localDraft = JSON.parse(raw);
+      } catch {
+        // ignore parse errors
+      }
+
+      if (!response.ok || !result.success || !result.application) {
+        // No server data — restore from localStorage if available
+        if (localDraft) {
+          applyFormDraft(localDraft);
+        }
+        return;
+      }
+
+      const app = result.application as {
+        id: string;
+        payload: ScholarshipPayload;
+        files: SupabaseFileRecord[];
+        submission_status: string;
+        updated_at: string;
+      };
+
+      setExistingAppId(app.id);
+      setExistingFiles(app.files || []);
+      setExistingUpdatedAt(app.updated_at);
+      setExistingSubmissionStatus(app.submission_status);
+
+      // Compare: is localStorage draft newer than the server record?
+      const serverTime = new Date(app.updated_at).getTime();
+      const useLocalDraft =
+        localDraft?.savedAt && localDraft.savedAt > serverTime;
+
+      applyFormDraft(useLocalDraft ? localDraft! : app.payload);
     } catch {
       // Silently fail — user can still fill a new form
     } finally {
       setIsLoadingExisting(false);
     }
-  }, [
-    config.applicationType,
-    config.program,
-    config.studyStatusOptions,
-    defaultStudyStatus,
-  ]);
+  }, [config.program, applyFormDraft]);
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && !hasLoadedExisting.current) {
+      hasLoadedExisting.current = true;
       loadExistingApplication();
     }
   }, [currentUser, loadExistingApplication]);
+
+  // ── Auto-save form state to localStorage ──
+  const DRAFT_KEY = `scholarship-draft-${config.program}`;
+  const skipNextAutoSave = useRef(true); // skip the first render (initial/empty state)
+
+  useEffect(() => {
+    // Don't save the initial empty state or the state right after loading from server
+    if (skipNextAutoSave.current) {
+      skipNextAutoSave.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        const draft = {
+          applicantInfo,
+          eligibility,
+          academicPerformance,
+          journals,
+          conferences,
+          researchExperiences,
+          researchAwards,
+          plannedResearch,
+          otherAchievements,
+          otherReviewDocuments,
+          doctoralSemesterRecords,
+          masterDirectSemesterRecords,
+          savedAt: Date.now(),
+        };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch {
+        // localStorage full or unavailable — ignore
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    DRAFT_KEY,
+    applicantInfo,
+    eligibility,
+    academicPerformance,
+    journals,
+    conferences,
+    researchExperiences,
+    researchAwards,
+    plannedResearch,
+    otherAchievements,
+    otherReviewDocuments,
+    doctoralSemesterRecords,
+    masterDirectSemesterRecords,
+  ]);
 
   const eligibilitySummary = useMemo(() => {
     const masterGpa = Number(eligibility.masterGpa);
@@ -1174,6 +1257,13 @@ export default function ScholarshipForm() {
       setExistingFiles(mergedFiles);
       setExistingUpdatedAt(new Date().toISOString());
       setExistingSubmissionStatus(status);
+
+      // Clear localStorage draft — data is now safely on the server
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // ignore
+      }
 
       if (status === "submitted") {
         setSubmitMessage("申請已送出，正在寄送確認信...");
