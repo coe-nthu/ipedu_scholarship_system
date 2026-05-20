@@ -111,6 +111,7 @@ export async function verifyPublication(
   const base: PublicationVerification = {
     status: "skipped",
     doiExists: "skipped",
+    doiRegistrationAgency: null,
     authorFound: "skipped",
     authorOrderCorrect: "skipped",
     actualAuthorPosition: null,
@@ -128,85 +129,123 @@ export async function verifyPublication(
     return base;
   }
 
-  /* ---- Crossref ---- */
+  /* ---- Step 1: Check DOI existence via doi.org Registration Agency API ---- */
+  let doiRA: string | null = null;
   try {
-    const crUrl = `https://api.crossref.org/works/${encodeURIComponent(journal.doi)}`;
-    const crRes = await fetchWithTimeout(crUrl, {}, 8000);
-
-    if (!crRes.ok) {
-      return {
-        ...base,
-        doiExists: "fail",
-        status: "fail",
-        message:
-          crRes.status === 404
-            ? `DOI「${journal.doi}」在 Crossref 中不存在`
-            : `Crossref 回傳 HTTP ${crRes.status}`,
-      };
-    }
-
-    base.doiExists = "pass";
-    const data = (await crRes.json()).message;
-    base.crossrefTitle = data.title?.[0] ?? null;
-    base.crossrefJournal = data["container-title"]?.[0] ?? null;
-
-    const authors: string[] = (
-      data.author as { given?: string; family?: string }[] | undefined
-    )?.map((a) => [a.given, a.family].filter(Boolean).join(" ").trim()) ?? [];
-
-    base.crossrefAuthors = authors;
-    base.totalAuthors = authors.length;
-
-    /* ---- Author match ---- */
-    if (journal.applicantAuthorName && authors.length > 0) {
-      const idx = authors.findIndex((n) =>
-        authorNamesMatch(journal.applicantAuthorName, n)
-      );
-
-      if (idx >= 0) {
-        base.authorFound = "pass";
-        base.actualAuthorPosition = idx + 1;
-
-        /* ---- Author order match ---- */
-        const claimed = parseAuthorOrder(journal.authorOrder);
-        if (claimed === "corresponding") {
-          // Crossref doesn't reliably expose corresponding-author info.
-          // Accept if the field + checkbox are consistent.
-          base.authorOrderCorrect = journal.isCorrespondingAuthor
-            ? "pass"
-            : "fail";
-          base.message = journal.isCorrespondingAuthor
-            ? "通訊作者身分需人工確認（Crossref 無法完全驗證）"
-            : "宣稱為通訊作者但未勾選通訊作者欄位";
-        } else if (claimed !== null) {
-          if (claimed === base.actualAuthorPosition) {
-            base.authorOrderCorrect = "pass";
-          } else {
-            base.authorOrderCorrect = "fail";
-            base.message = `宣稱第 ${claimed} 作者，實際排序為第 ${base.actualAuthorPosition} 作者（共 ${base.totalAuthors} 位）`;
-          }
-        } else {
-          base.authorOrderCorrect = "skipped";
-          base.message = `無法解析作者順序「${journal.authorOrder}」，需人工確認`;
-        }
+    const raUrl = `https://doi.org/doiRA/${encodeURIComponent(journal.doi)}`;
+    const raRes = await fetchWithTimeout(raUrl, {}, 5000);
+    if (raRes.ok) {
+      const raData = (await raRes.json()) as { RA?: string; status?: string }[];
+      if (raData?.[0]?.RA) {
+        doiRA = raData[0].RA;
+        base.doiExists = "pass";
+        base.doiRegistrationAgency = doiRA;
       } else {
-        base.authorFound = "fail";
-        base.message = `申請者署名「${journal.applicantAuthorName}」未在 DOI 作者列表中找到`;
+        // DOI does not exist
+        return {
+          ...base,
+          doiExists: "fail",
+          status: "fail",
+          message: `DOI「${journal.doi}」不存在`,
+        };
       }
-    } else if (!journal.applicantAuthorName) {
-      base.authorFound = "skipped";
-      base.message = "未填寫申請者署名，跳過作者比對";
     }
-  } catch (err: unknown) {
-    const isAbort =
-      err instanceof DOMException ||
-      (err instanceof Error && err.name === "AbortError");
-    return {
-      ...base,
-      doiExists: "timeout",
-      status: "timeout",
-      message: isAbort ? "Crossref API 逾時" : "Crossref API 查詢失敗",
-    };
+  } catch {
+    // doiRA check failed — continue and try Crossref directly
+  }
+
+  /* ---- Step 2: Crossref lookup (author verification) ---- */
+  const isCrossref = doiRA === "Crossref" || doiRA === null; // null = doiRA check failed, try anyway
+  if (isCrossref) {
+    try {
+      const crUrl = `https://api.crossref.org/works/${encodeURIComponent(journal.doi)}`;
+      const crRes = await fetchWithTimeout(crUrl, {}, 8000);
+
+      if (!crRes.ok) {
+        if (base.doiExists !== "pass") {
+          // doiRA check also didn't confirm — DOI likely doesn't exist
+          return {
+            ...base,
+            doiExists: "fail",
+            status: "fail",
+            message:
+              crRes.status === 404
+                ? `DOI「${journal.doi}」在 Crossref 中不存在`
+                : `Crossref 回傳 HTTP ${crRes.status}`,
+          };
+        }
+        // doiRA confirmed it exists but Crossref doesn't have it — unusual, skip author check
+      } else {
+        base.doiExists = "pass";
+        const data = (await crRes.json()).message;
+        base.crossrefTitle = data.title?.[0] ?? null;
+        base.crossrefJournal = data["container-title"]?.[0] ?? null;
+
+        const authors: string[] = (
+          data.author as { given?: string; family?: string }[] | undefined
+        )?.map((a) => [a.given, a.family].filter(Boolean).join(" ").trim()) ?? [];
+
+        base.crossrefAuthors = authors;
+        base.totalAuthors = authors.length;
+
+        /* ---- Author match ---- */
+        if (journal.applicantAuthorName && authors.length > 0) {
+          const idx = authors.findIndex((n) =>
+            authorNamesMatch(journal.applicantAuthorName, n)
+          );
+
+          if (idx >= 0) {
+            base.authorFound = "pass";
+            base.actualAuthorPosition = idx + 1;
+
+            /* ---- Author order match ---- */
+            const claimed = parseAuthorOrder(journal.authorOrder);
+            if (claimed === "corresponding") {
+              base.authorOrderCorrect = journal.isCorrespondingAuthor
+                ? "pass"
+                : "fail";
+              base.message = journal.isCorrespondingAuthor
+                ? "通訊作者身分需人工確認（Crossref 無法完全驗證）"
+                : "宣稱為通訊作者但未勾選通訊作者欄位";
+            } else if (claimed !== null) {
+              if (claimed === base.actualAuthorPosition) {
+                base.authorOrderCorrect = "pass";
+              } else {
+                base.authorOrderCorrect = "fail";
+                base.message = `宣稱第 ${claimed} 作者，實際排序為第 ${base.actualAuthorPosition} 作者（共 ${base.totalAuthors} 位）`;
+              }
+            } else {
+              base.authorOrderCorrect = "skipped";
+              base.message = `無法解析作者順序「${journal.authorOrder}」，需人工確認`;
+            }
+          } else {
+            base.authorFound = "fail";
+            base.message = `申請者署名「${journal.applicantAuthorName}」未在 DOI 作者列表中找到`;
+          }
+        } else if (!journal.applicantAuthorName) {
+          base.authorFound = "skipped";
+          base.message = "未填寫申請者署名，跳過作者比對";
+        }
+      }
+    } catch (err: unknown) {
+      const isAbort =
+        err instanceof DOMException ||
+        (err instanceof Error && err.name === "AbortError");
+      if (base.doiExists !== "pass") {
+        return {
+          ...base,
+          doiExists: "timeout",
+          status: "timeout",
+          message: isAbort ? "Crossref API 逾時" : "Crossref API 查詢失敗",
+        };
+      }
+      // doiRA confirmed existence; Crossref timed out — skip author check
+    }
+  }
+
+  /* ---- Non-Crossref DOI: DOI exists but no author data available ---- */
+  if (doiRA && doiRA !== "Crossref") {
+    base.message = `DOI 存在（註冊機構：${doiRA}），非 Crossref 來源，作者資訊需人工確認`;
   }
 
   /* ---- OpenAlex (non-blocking) ---- */

@@ -185,6 +185,7 @@ export type VerificationCheckStatus =
 export type PublicationVerification = {
   status: "pass" | "fail" | "timeout" | "skipped";
   doiExists: VerificationCheckStatus;
+  doiRegistrationAgency: string | null;
   authorFound: VerificationCheckStatus;
   authorOrderCorrect: VerificationCheckStatus;
   actualAuthorPosition: number | null;

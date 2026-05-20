@@ -103,7 +103,10 @@ function VerificationChecks({ v }: { v: PublicationVerification }) {
       <div className="flex items-center gap-1.5 text-xs">
         {CHECK_ICONS[v.doiExists]}
         <span className="text-slate-600">DOI 存在性：</span>
-        <span className="font-medium">{CHECK_LABELS[v.doiExists]}</span>
+        <span className="font-medium">
+          {CHECK_LABELS[v.doiExists]}
+          {v.doiRegistrationAgency && ` (${v.doiRegistrationAgency})`}
+        </span>
       </div>
       <div className="flex items-center gap-1.5 text-xs">
         {CHECK_ICONS[v.authorFound]}
