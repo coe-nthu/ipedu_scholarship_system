@@ -95,40 +95,47 @@ export async function GET(request: Request) {
       );
     }
 
-    const csl = (await cslRes.json()) as {
-      DOI?: string;
-      title?: string;
-      "container-title"?: string;
-      volume?: string;
-      issue?: string;
-      ISSN?: string[];
-      publisher?: string;
-      issued?: { "date-parts"?: number[][] };
-      author?: { literal?: string; given?: string; family?: string; sequence?: string }[];
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const csl = (await cslRes.json()) as Record<string, any>;
 
     // Parse authors — CSL may use "literal" (single string) or given+family
-    const cslAuthors: Author[] = (csl.author || []).map((a) => {
-      if (a.literal) {
-        // For Chinese names like "黃寶園", put the full name in family
-        return { given: "", family: a.literal.trim(), sequence: "additional" };
+    const cslAuthors: Author[] = (
+      Array.isArray(csl.author) ? csl.author : []
+    ).map(
+      (a: { literal?: string; given?: string; family?: string; sequence?: string }) => {
+        if (a.literal) {
+          // For Chinese names like "黃寶園", put the full name in family
+          return { given: "", family: a.literal.trim(), sequence: "additional" };
+        }
+        return {
+          given: a.given || "",
+          family: a.family || "",
+          sequence: a.sequence || "additional",
+        };
       }
-      return {
-        given: a.given || "",
-        family: a.family || "",
-        sequence: a.sequence || "additional",
-      };
-    });
+    );
 
     // Mark first author
     if (cslAuthors.length > 0) {
       cslAuthors[0].sequence = "first";
     }
 
-    const cslDateParts = csl.issued?.["date-parts"]?.[0] || [];
+    // date-parts may contain strings (Airiti) or numbers (DataCite) — normalise
+    const rawDateParts: (string | number)[] =
+      csl.issued?.["date-parts"]?.[0] || [];
+    const cslDateParts = rawDateParts.map(Number);
+
     const cslVolume = csl.volume ? `Vol. ${csl.volume}` : "";
     const cslIssue = csl.issue ? `Issue ${csl.issue}` : "";
     const cslVolumeIssue = [cslVolume, cslIssue].filter(Boolean).join(", ");
+
+    // ISSN may be a string or array — normalise to array
+    const rawIssn = csl.ISSN;
+    const issns: string[] = Array.isArray(rawIssn)
+      ? rawIssn
+      : typeof rawIssn === "string" && rawIssn
+        ? [rawIssn]
+        : [];
 
     // Format author string for Chinese names (no abbreviation)
     let authorString = "";
@@ -151,7 +158,7 @@ export async function GET(request: Request) {
         journalName: csl["container-title"] || "未提供期刊名稱",
         publishDate: formatDate(cslDateParts),
         volumeIssue: cslVolumeIssue,
-        issns: csl.ISSN || [],
+        issns,
         authors: cslAuthors,
         authorString,
         publisher: csl.publisher || "",
