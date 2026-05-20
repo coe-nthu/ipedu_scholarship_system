@@ -75,8 +75,8 @@ function DashboardHeader({
 }) {
   return (
     <header className="border-b border-slate-300 pb-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-emerald-700">
             竹師教育學院獎學金
           </p>
@@ -92,7 +92,9 @@ function DashboardHeader({
             )}
           </p>
         </div>
-        <AuthButton />
+        <div className="min-w-0 lg:justify-self-end">
+          <AuthButton />
+        </div>
       </div>
     </header>
   );
@@ -112,7 +114,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
+      <div className="mx-auto w-full max-w-7xl min-w-0 space-y-6">
         {auth.role === "admin" ? (
           <DashboardTabs
             role={auth.role}

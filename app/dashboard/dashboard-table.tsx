@@ -400,7 +400,7 @@ export function DashboardTable({
 
   return (
     <>
-      <div className="w-full overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <Table className="min-w-[1180px]">
           <TableHeader>
             {/* ── Row 1: grouped header ── */}

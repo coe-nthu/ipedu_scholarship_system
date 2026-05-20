@@ -28,9 +28,9 @@ export function DashboardTabs({
   );
 
   return (
-    <Tabs defaultValue="review" className="w-full min-w-0 space-y-6">
+    <Tabs defaultValue="review" className="w-full min-w-0 max-w-full space-y-6">
       <header className="border-b border-slate-300 pb-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0">
             <p className="text-sm font-medium text-emerald-700">
               竹師教育學院獎學金
@@ -47,16 +47,16 @@ export function DashboardTabs({
               )}
             </p>
           </div>
-          <div className="flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
+          <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
             {sectionTabs}
             <AuthButton />
           </div>
         </div>
       </header>
-      <TabsContent value="review" className="space-y-6">
+      <TabsContent value="review" className="min-w-0 max-w-full space-y-6 overflow-hidden">
         {reviewContent}
       </TabsContent>
-      <TabsContent value="admin" className="space-y-6">
+      <TabsContent value="admin" className="min-w-0 max-w-full space-y-6 overflow-hidden">
         {adminContent}
       </TabsContent>
     </Tabs>
