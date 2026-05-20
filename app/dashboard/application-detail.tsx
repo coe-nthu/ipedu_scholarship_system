@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -159,6 +159,11 @@ export function ApplicationDetail({
   const [verifyingAll, setVerifyingAll] = useState(false);
   const [verifyingIdx, setVerifyingIdx] = useState<number | null>(null);
   const [liveJournals, setLiveJournals] = useState<Journal[] | null>(null);
+
+  // Reset local journal state when switching to a different application
+  useEffect(() => {
+    setLiveJournals(null);
+  }, [application?.id]);
 
   const triggerVerify = useCallback(
     async (journalIndex?: number) => {
