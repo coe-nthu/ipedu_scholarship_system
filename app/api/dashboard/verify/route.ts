@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       verificationSummary: summary,
     };
 
-    await fetch(
+    const updateRes = await fetch(
       `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}`,
       {
         method: "PATCH",
@@ -159,6 +159,11 @@ export async function POST(request: Request) {
         }),
       }
     );
+
+    if (!updateRes.ok) {
+      console.error("Verify PATCH failed:", await updateRes.text());
+      return jsonError("驗證結果儲存失敗。", 500);
+    }
 
     return NextResponse.json({
       success: true,

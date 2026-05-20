@@ -234,8 +234,7 @@ export async function verifyPublication(
       }
     } catch (err: unknown) {
       const isAbort =
-        err instanceof DOMException ||
-        (err instanceof Error && err.name === "AbortError");
+        err instanceof Error && err.name === "AbortError";
       if (base.doiExists !== "pass") {
         return {
           ...base,

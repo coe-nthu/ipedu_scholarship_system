@@ -944,13 +944,17 @@ export default function ScholarshipForm() {
     );
   };
 
+  const [fetchingDoiIndex, setFetchingDoiIndex] = useState<number | null>(null);
+
   const fetchPaperData = async (index: number) => {
     const doiValue = journals[index].doi.trim();
     if (!doiValue) {
       alert("請先輸入 DOI 碼");
       return;
     }
+    if (fetchingDoiIndex !== null) return; // prevent concurrent fetches
 
+    setFetchingDoiIndex(index);
     try {
       const response = await fetch(
         `/api/publications/fetch?doi=${encodeURIComponent(doiValue)}`
@@ -1009,6 +1013,8 @@ export default function ScholarshipForm() {
       );
     } catch {
       alert("連線發生錯誤，請稍後再試。");
+    } finally {
+      setFetchingDoiIndex(null);
     }
   };
 
@@ -2558,9 +2564,12 @@ export default function ScholarshipForm() {
                               type="button"
                               variant="secondary"
                               size="sm"
+                              disabled={fetchingDoiIndex !== null}
                               onClick={() => fetchPaperData(index)}
                             >
-                              自動帶入
+                              {fetchingDoiIndex === index
+                                ? "查詢中..."
+                                : "自動帶入"}
                             </Button>
                             <p className="text-xs leading-5 text-slate-500">
                               DOI 查無資料時，右側欄位可自行補登。

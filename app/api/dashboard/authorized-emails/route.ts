@@ -89,6 +89,10 @@ export async function POST(request: Request) {
       return jsonError("請提供 Email。");
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return jsonError("Email 格式不合法。");
+    }
+
     if (role !== "teacher" && role !== "admin") {
       return jsonError("角色必須是 teacher 或 admin。");
     }

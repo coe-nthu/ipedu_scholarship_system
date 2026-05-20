@@ -49,7 +49,7 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
       return {
         authorized: true,
         email: user.email,
-        role,
+        role: role as DashboardRole,
         userId: user.id,
       };
     }

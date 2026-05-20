@@ -21,7 +21,11 @@ function formatAuthorString(authors: Author[]): string {
 /** Format date-parts [YYYY, MM, DD] → "YYYY-MM-DD" */
 function formatDate(dateParts: number[]): string {
   if (dateParts.length === 0) return "";
-  return `${dateParts[0]}-${String(dateParts[1] || 1).padStart(2, "0")}-${String(dateParts[2] || 1).padStart(2, "0")}`;
+  const year = dateParts[0];
+  if (!year || isNaN(year)) return "";
+  const month = String(dateParts[1] || 1).padStart(2, "0");
+  const day = String(dateParts[2] || 1).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export async function GET(request: Request) {
