@@ -3,22 +3,16 @@ import { createHmac, randomBytes } from "node:crypto";
 const accounts = [
   { username: "college", displayName: "學院端", role: "admin", scope: "all" },
   {
+    username: "ipedu-phd",
+    displayName: "竹師教育學院博士班",
+    role: "teacher",
+    scope: ["竹師教育學院博士班", "竹師教育學院博士生班"],
+  },
+  {
     username: "edtech",
     displayName: "教育與學習科技學系",
     role: "teacher",
     scope: ["教育與學習科技學系", "教育與學習科技系", "教科系"],
-  },
-  {
-    username: "ece",
-    displayName: "幼兒教育學系",
-    role: "teacher",
-    scope: ["幼兒教育學系", "幼教系"],
-  },
-  {
-    username: "spe",
-    displayName: "特殊教育學系",
-    role: "teacher",
-    scope: ["特殊教育學系", "特教系"],
   },
   {
     username: "psy",
@@ -27,34 +21,15 @@ const accounts = [
     scope: ["教育心理與諮商學系", "心諮系", "教育心理與諮商系"],
   },
   {
-    username: "pe",
-    displayName: "體育學系",
+    username: "taiwanese",
+    displayName: "臺灣語言研究與教學研究所",
     role: "teacher",
-    scope: ["體育學系", "體育系"],
-  },
-  {
-    username: "sports",
-    displayName: "運動科學系",
-    role: "teacher",
-    scope: ["運動科學系", "運科系"],
-  },
-  {
-    username: "lst",
-    displayName: "學習科學與科技研究所",
-    role: "teacher",
-    scope: ["學習科學與科技研究所", "學科所"],
-  },
-  {
-    username: "math",
-    displayName: "數理教育研究所",
-    role: "teacher",
-    scope: ["數理教育研究所", "數理所"],
-  },
-  {
-    username: "ipedu-ms",
-    displayName: "竹師教育學院學士班",
-    role: "teacher",
-    scope: ["竹師教育學院學士班"],
+    scope: [
+      "臺灣語言研究與教學研究所",
+      "台灣語言研究與教學研究所",
+      "臺語所",
+      "台語所",
+    ],
   },
 ];
 

@@ -38,15 +38,15 @@ const DASHBOARD_SESSION_COOKIE = "dashboard_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
 
 export const DEPARTMENT_ALIAS_GROUPS = {
+  "ipedu-phd": ["竹師教育學院博士班", "竹師教育學院博士生班"],
   edtech: ["教育與學習科技學系", "教育與學習科技系", "教科系"],
-  ece: ["幼兒教育學系", "幼教系"],
-  spe: ["特殊教育學系", "特教系"],
   psy: ["教育心理與諮商學系", "心諮系", "教育心理與諮商系"],
-  pe: ["體育學系", "體育系"],
-  sports: ["運動科學系", "運科系"],
-  lst: ["學習科學與科技研究所", "學科所"],
-  math: ["數理教育研究所", "數理所"],
-  "ipedu-ms": ["竹師教育學院學士班"],
+  taiwanese: [
+    "臺灣語言研究與教學研究所",
+    "台灣語言研究與教學研究所",
+    "臺語所",
+    "台語所",
+  ],
 } as const;
 
 const DEFAULT_DASHBOARD_ACCOUNTS: Omit<DashboardAccount, "passwordHash">[] = [
@@ -57,22 +57,16 @@ const DEFAULT_DASHBOARD_ACCOUNTS: Omit<DashboardAccount, "passwordHash">[] = [
     username: "college",
   },
   {
+    displayName: "竹師教育學院博士班",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS["ipedu-phd"]],
+    username: "ipedu-phd",
+  },
+  {
     displayName: "教育與學習科技學系",
     role: "teacher",
     scope: [...DEPARTMENT_ALIAS_GROUPS.edtech],
     username: "edtech",
-  },
-  {
-    displayName: "幼兒教育學系",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.ece],
-    username: "ece",
-  },
-  {
-    displayName: "特殊教育學系",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.spe],
-    username: "spe",
   },
   {
     displayName: "教育心理與諮商學系",
@@ -81,34 +75,10 @@ const DEFAULT_DASHBOARD_ACCOUNTS: Omit<DashboardAccount, "passwordHash">[] = [
     username: "psy",
   },
   {
-    displayName: "體育學系",
+    displayName: "臺灣語言研究與教學研究所",
     role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.pe],
-    username: "pe",
-  },
-  {
-    displayName: "運動科學系",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.sports],
-    username: "sports",
-  },
-  {
-    displayName: "學習科學與科技研究所",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.lst],
-    username: "lst",
-  },
-  {
-    displayName: "數理教育研究所",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.math],
-    username: "math",
-  },
-  {
-    displayName: "竹師教育學院學士班",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS["ipedu-ms"]],
-    username: "ipedu-ms",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.taiwanese],
+    username: "taiwanese",
   },
 ];
 

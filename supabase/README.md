@@ -56,7 +56,7 @@ RESEND_FROM_EMAIL="IPEDU Scholarship <onboarding@resend.dev>"
 
 # Dashboard 固定帳密登入
 DASHBOARD_SESSION_SECRET=請使用至少32字元的隨機字串
-DASHBOARD_ACCOUNTS_JSON='{"college":{"displayName":"學院端","role":"admin","scope":"all","passwordHash":"sha256:..."},"edtech":{"displayName":"教育與學習科技學系","role":"teacher","scope":["教育與學習科技學系","教育與學習科技系","教科系"],"passwordHash":"sha256:..."}}'
+DASHBOARD_ACCOUNTS_JSON='{"college":{"displayName":"學院端","role":"admin","scope":"all","passwordHash":"sha256:..."},"ipedu-phd":{"displayName":"竹師教育學院博士班","role":"teacher","scope":["竹師教育學院博士班","竹師教育學院博士生班"],"passwordHash":"sha256:..."},"edtech":{"displayName":"教育與學習科技學系","role":"teacher","scope":["教育與學習科技學系","教育與學習科技系","教科系"],"passwordHash":"sha256:..."},"psy":{"displayName":"教育心理與諮商學系","role":"teacher","scope":["教育心理與諮商學系","心諮系","教育心理與諮商系"],"passwordHash":"sha256:..."},"taiwanese":{"displayName":"臺灣語言研究與教學研究所","role":"teacher","scope":["臺灣語言研究與教學研究所","台灣語言研究與教學研究所","臺語所","台語所"],"passwordHash":"sha256:..."}}'
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` 請到 Supabase Dashboard 的 Project Settings > API 取得。這個 key 只能放在伺服器環境變數，不要寫進前端元件，也不要 commit。
