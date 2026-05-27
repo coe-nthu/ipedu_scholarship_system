@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { checkDashboardAccess } from "@/lib/auth";
+import {
+  canAccessDepartment,
+  checkDashboardAccess,
+  filterApplicationsByScope,
+} from "@/lib/auth";
 import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 
 function getSupabaseConfig() {
@@ -50,7 +54,10 @@ export async function GET() {
       throw new Error("資料查詢失敗。");
     }
 
-    const applications = await response.json();
+    const applications = filterApplicationsByScope(
+      await response.json(),
+      auth.departmentScope
+    );
 
     return NextResponse.json({ success: true, applications });
   } catch (error) {
@@ -98,10 +105,39 @@ export async function PATCH(request: Request) {
       return jsonError("不合法的審查狀態。");
     }
 
+    const existingResponse = await fetch(
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department`,
+      {
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+
+    if (!existingResponse.ok) {
+      throw new Error("查詢申請案失敗。");
+    }
+
+    const existingRecords = (await existingResponse.json()) as {
+      department: string | null;
+      id: string;
+    }[];
+    const existingApplication = existingRecords[0];
+    if (!existingApplication) {
+      return jsonError("找不到該申請案。", 404);
+    }
+    if (
+      !canAccessDepartment(auth.departmentScope, existingApplication.department)
+    ) {
+      return jsonError("無權限修改此系所申請案。", 403);
+    }
+
     // Build update payload
-    const updateFields: Record<string, unknown> = {
-      reviewed_by: auth.userId,
-    };
+    const updateFields: Record<string, unknown> = {};
+    if (auth.userId) {
+      updateFields.reviewed_by = auth.userId;
+    }
     if (review_status !== undefined) {
       updateFields.review_status = review_status;
     }

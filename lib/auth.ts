@@ -1,16 +1,336 @@
+import { createHmac, timingSafeEqual } from "crypto";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export type DashboardRole = "teacher" | "admin";
+export type DashboardDepartmentScope = "all" | string[];
+export type DashboardAuthProvider = "google" | "password";
 
 export type AuthResult =
-  | { authorized: true; email: string; role: DashboardRole; userId: string }
+  | {
+      authorized: true;
+      authProvider: DashboardAuthProvider;
+      departmentScope: DashboardDepartmentScope;
+      displayName: string;
+      email: string;
+      role: DashboardRole;
+      userId: string | null;
+    }
   | { authorized: false; reason: "not_authenticated" | "not_authorized" };
 
+type DashboardAccount = {
+  departmentAliases?: string[];
+  displayName: string;
+  passwordHash: string;
+  role: DashboardRole;
+  scope: DashboardDepartmentScope;
+  username: string;
+};
+
+type DashboardSessionPayload = {
+  displayName: string;
+  role: DashboardRole;
+  scope: DashboardDepartmentScope;
+  username: string;
+};
+
+const DASHBOARD_SESSION_COOKIE = "dashboard_session";
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
+
+export const DEPARTMENT_ALIAS_GROUPS = {
+  edtech: ["教育與學習科技學系", "教育與學習科技系", "教科系"],
+  ece: ["幼兒教育學系", "幼教系"],
+  spe: ["特殊教育學系", "特教系"],
+  psy: ["教育心理與諮商學系", "心諮系", "教育心理與諮商系"],
+  pe: ["體育學系", "體育系"],
+  sports: ["運動科學系", "運科系"],
+  lst: ["學習科學與科技研究所", "學科所"],
+  math: ["數理教育研究所", "數理所"],
+  "ipedu-ms": ["竹師教育學院學士班"],
+} as const;
+
+const DEFAULT_DASHBOARD_ACCOUNTS: Omit<DashboardAccount, "passwordHash">[] = [
+  {
+    displayName: "學院端",
+    role: "admin",
+    scope: "all",
+    username: "college",
+  },
+  {
+    displayName: "教育與學習科技學系",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.edtech],
+    username: "edtech",
+  },
+  {
+    displayName: "幼兒教育學系",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.ece],
+    username: "ece",
+  },
+  {
+    displayName: "特殊教育學系",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.spe],
+    username: "spe",
+  },
+  {
+    displayName: "教育心理與諮商學系",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.psy],
+    username: "psy",
+  },
+  {
+    displayName: "體育學系",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.pe],
+    username: "pe",
+  },
+  {
+    displayName: "運動科學系",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.sports],
+    username: "sports",
+  },
+  {
+    displayName: "學習科學與科技研究所",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.lst],
+    username: "lst",
+  },
+  {
+    displayName: "數理教育研究所",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS.math],
+    username: "math",
+  },
+  {
+    displayName: "竹師教育學院學士班",
+    role: "teacher",
+    scope: [...DEPARTMENT_ALIAS_GROUPS["ipedu-ms"]],
+    username: "ipedu-ms",
+  },
+];
+
+function normalizeDepartment(value: string) {
+  return value.trim().replace(/\s+/g, "");
+}
+
+function base64UrlEncode(value: string) {
+  return Buffer.from(value, "utf8").toString("base64url");
+}
+
+function base64UrlDecode(value: string) {
+  return Buffer.from(value, "base64url").toString("utf8");
+}
+
+function getSessionSecret() {
+  return process.env.DASHBOARD_SESSION_SECRET || "";
+}
+
+function signPayload(payload: string) {
+  return createHmac("sha256", getSessionSecret())
+    .update(payload)
+    .digest("base64url");
+}
+
+function safeEqual(a: string, b: string) {
+  const aBuffer = Buffer.from(a);
+  const bBuffer = Buffer.from(b);
+  return (
+    aBuffer.length === bBuffer.length && timingSafeEqual(aBuffer, bBuffer)
+  );
+}
+
+function isSha256PasswordHash(hash: string) {
+  return /^sha256:[a-f0-9]{64}$/i.test(hash);
+}
+
+function hashPassword(password: string) {
+  return createHmac("sha256", getSessionSecret())
+    .update(password)
+    .digest("hex");
+}
+
+function isDashboardAccount(value: unknown): value is DashboardAccount {
+  if (!value || typeof value !== "object") return false;
+  const account = value as Partial<DashboardAccount>;
+  const validScope =
+    account.scope === "all" ||
+    (Array.isArray(account.scope) &&
+      account.scope.every((item) => typeof item === "string"));
+
+  return (
+    typeof account.username === "string" &&
+    typeof account.displayName === "string" &&
+    typeof account.passwordHash === "string" &&
+    (account.role === "teacher" || account.role === "admin") &&
+    validScope
+  );
+}
+
+function parseDashboardAccounts(): DashboardAccount[] {
+  const raw = process.env.DASHBOARD_ACCOUNTS_JSON;
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter(isDashboardAccount);
+    }
+
+    if (parsed && typeof parsed === "object") {
+      return Object.entries(parsed).flatMap(([username, value]) => {
+        if (!value || typeof value !== "object") return [];
+        const defaultAccount = DEFAULT_DASHBOARD_ACCOUNTS.find(
+          (account) => account.username === username
+        );
+        const accountValue = value as Partial<DashboardAccount>;
+        const account = {
+          ...defaultAccount,
+          ...accountValue,
+          username,
+        };
+        return isDashboardAccount(account) ? [account] : [];
+      });
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
+}
+
+function getDashboardAccount(username: string) {
+  const normalizedUsername = username.trim().toLowerCase();
+  return parseDashboardAccounts().find(
+    (account) => account.username.toLowerCase() === normalizedUsername
+  );
+}
+
+function createSessionValue(payload: DashboardSessionPayload) {
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  return `${encodedPayload}.${signPayload(encodedPayload)}`;
+}
+
+function parseSessionValue(value: string): DashboardSessionPayload | null {
+  const [encodedPayload, signature] = value.split(".");
+  if (!encodedPayload || !signature || !getSessionSecret()) return null;
+  if (!safeEqual(signature, signPayload(encodedPayload))) return null;
+
+  try {
+    const parsed = JSON.parse(base64UrlDecode(encodedPayload)) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const payload = parsed as Partial<DashboardSessionPayload>;
+    const validScope =
+      payload.scope === "all" ||
+      (Array.isArray(payload.scope) &&
+        payload.scope.every((item) => typeof item === "string"));
+
+    if (
+      typeof payload.username === "string" &&
+      typeof payload.displayName === "string" &&
+      (payload.role === "teacher" || payload.role === "admin") &&
+      validScope
+    ) {
+      return payload as DashboardSessionPayload;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+async function getPasswordSession(): Promise<DashboardSessionPayload | null> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get(DASHBOARD_SESSION_COOKIE)?.value;
+  return session ? parseSessionValue(session) : null;
+}
+
+export function canAccessDepartment(
+  scope: DashboardDepartmentScope,
+  department: string | null | undefined
+) {
+  if (scope === "all") return true;
+  if (!department) return false;
+  const normalizedDepartment = normalizeDepartment(department);
+  return scope.some(
+    (candidate) => normalizeDepartment(candidate) === normalizedDepartment
+  );
+}
+
+export function filterApplicationsByScope<
+  T extends { department: string | null | undefined },
+>(applications: T[], scope: DashboardDepartmentScope) {
+  return applications.filter((application) =>
+    canAccessDepartment(scope, application.department)
+  );
+}
+
+export async function verifyDashboardPassword(
+  username: string,
+  password: string
+) {
+  if (!getSessionSecret()) return null;
+  const account = getDashboardAccount(username);
+  if (!account || !isSha256PasswordHash(account.passwordHash)) return null;
+
+  const expectedHash = account.passwordHash.replace(/^sha256:/i, "");
+  if (!safeEqual(expectedHash, hashPassword(password))) return null;
+
+  return account;
+}
+
+export async function setDashboardPasswordSession(account: DashboardAccount) {
+  const cookieStore = await cookies();
+  const value = createSessionValue({
+    displayName: account.displayName,
+    role: account.role,
+    scope: account.scope,
+    username: account.username,
+  });
+
+  cookieStore.set(DASHBOARD_SESSION_COOKIE, value, {
+    httpOnly: true,
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
+export async function clearDashboardPasswordSession() {
+  const cookieStore = await cookies();
+  cookieStore.delete(DASHBOARD_SESSION_COOKIE);
+}
+
+export function createDashboardPasswordHash(password: string) {
+  if (!getSessionSecret()) {
+    throw new Error("DASHBOARD_SESSION_SECRET is required.");
+  }
+  return `sha256:${hashPassword(password)}`;
+}
+
 /**
- * Check if the current user has dashboard access (teacher or admin role).
- * Uses the profiles table which is synced with the authorized_emails whitelist.
+ * Check if the current user has dashboard access.
+ * Password sessions are checked first, then the existing Google/Supabase
+ * whitelist flow is used as a fallback.
  */
 export async function checkDashboardAccess(): Promise<AuthResult> {
+  const passwordSession = await getPasswordSession();
+  if (passwordSession) {
+    return {
+      authorized: true,
+      authProvider: "password",
+      departmentScope: passwordSession.scope,
+      displayName: passwordSession.displayName,
+      email: `${passwordSession.username}@dashboard.local`,
+      role: passwordSession.role,
+      userId: null,
+    };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,7 +353,7 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
   }
 
   const res = await fetch(
-    `${url}/rest/v1/profiles?id=eq.${user.id}&select=role`,
+    `${url}/rest/v1/profiles?id=eq.${user.id}&select=role,full_name`,
     {
       headers: {
         apikey: serviceRoleKey,
@@ -43,11 +363,18 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
   );
 
   if (res.ok) {
-    const profiles = (await res.json()) as { role: string }[];
-    const role = profiles[0]?.role;
+    const profiles = (await res.json()) as {
+      full_name: string | null;
+      role: string;
+    }[];
+    const profile = profiles[0];
+    const role = profile?.role;
     if (role === "teacher" || role === "admin") {
       return {
         authorized: true,
+        authProvider: "google",
+        departmentScope: "all",
+        displayName: profile.full_name || user.email,
         email: user.email,
         role: role as DashboardRole,
         userId: user.id,

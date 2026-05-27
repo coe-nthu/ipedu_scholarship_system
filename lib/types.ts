@@ -205,6 +205,8 @@ export type VerificationSummary = {
 };
 
 export type DashboardRole = "teacher" | "admin";
+export type DashboardAuthProvider = "google" | "password";
+export type DashboardDepartmentScope = "all" | string[];
 
 export type AuthorizedEmail = {
   id: string;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkDashboardAccess } from "@/lib/auth";
+import { canAccessDepartment, checkDashboardAccess } from "@/lib/auth";
 import { isValidUUID } from "@/lib/validation";
 import { verifyPublication, verifyAllPublications } from "@/lib/verification";
 import type { Journal, ScholarshipPayload } from "@/lib/types";
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     // Fetch the application
     const fetchRes = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,payload,review_status`,
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department,payload,review_status`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -73,6 +73,7 @@ export async function POST(request: Request) {
 
     const records = (await fetchRes.json()) as {
       id: string;
+      department: string | null;
       payload: ScholarshipPayload;
       review_status: string;
     }[];
@@ -82,6 +83,9 @@ export async function POST(request: Request) {
     }
 
     const app = records[0];
+    if (!canAccessDepartment(auth.departmentScope, app.department)) {
+      return jsonError("無權限驗證此系所申請案。", 403);
+    }
     const journals: Journal[] = app.payload.journals ?? [];
 
     if (journals.length === 0) {

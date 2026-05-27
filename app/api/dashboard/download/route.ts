@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { checkDashboardAccess } from "@/lib/auth";
+import { canAccessDepartment, checkDashboardAccess } from "@/lib/auth";
 import { isValidStoragePath } from "@/lib/validation";
 
 const STORAGE_BUCKET = "scholarship-documents";
@@ -47,6 +47,38 @@ export async function GET(request: NextRequest) {
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
+    const applicationId = filePath.split("/")[0];
+    const appResponse = await fetch(
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department`,
+      {
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+
+    if (!appResponse.ok) {
+      throw new Error("查詢申請案失敗。");
+    }
+
+    const applications = (await appResponse.json()) as {
+      department: string | null;
+      id: string;
+    }[];
+    const application = applications[0];
+    if (!application) {
+      return NextResponse.json(
+        { error: "找不到該申請案。" },
+        { status: 404 }
+      );
+    }
+    if (!canAccessDepartment(auth.departmentScope, application.department)) {
+      return NextResponse.json(
+        { error: "無權限下載此系所附件。" },
+        { status: 403 }
+      );
+    }
 
     // Fetch the file from Supabase Storage
     const storageUrl = `${url}/storage/v1/object/${STORAGE_BUCKET}/${filePath}`;

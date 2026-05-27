@@ -3,15 +3,19 @@
 import type { ReactNode } from "react";
 import { AuthButton } from "@/components/auth-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { DashboardRole } from "@/lib/types";
+import type { DashboardAuthProvider, DashboardRole } from "@/lib/types";
 
 export function DashboardTabs({
+  authProvider,
   applicationCount,
+  displayName,
   role,
   reviewContent,
   adminContent,
 }: {
+  authProvider: DashboardAuthProvider;
   applicationCount: number;
+  displayName: string;
   role: DashboardRole;
   reviewContent: ReactNode;
   adminContent: ReactNode;
@@ -40,6 +44,9 @@ export function DashboardTabs({
             </h1>
             <p className="mt-1 text-sm text-slate-500">
               共 {applicationCount} 件已送出申請案
+              <span className="ml-2 inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                {displayName}
+              </span>
               {role === "admin" && (
                 <span className="ml-2 inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
                   管理員
@@ -49,7 +56,11 @@ export function DashboardTabs({
           </div>
           <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
             {sectionTabs}
-            <AuthButton />
+            <AuthButton
+              dashboardIdentity={
+                authProvider === "password" ? { displayName } : undefined
+              }
+            />
           </div>
         </div>
       </header>

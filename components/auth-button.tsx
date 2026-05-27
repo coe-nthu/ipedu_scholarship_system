@@ -14,7 +14,11 @@ function getSiteOrigin() {
   );
 }
 
-export function AuthButton() {
+export function AuthButton({
+  dashboardIdentity,
+}: {
+  dashboardIdentity?: { displayName: string };
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -60,6 +64,21 @@ export function AuthButton() {
   const signOut = () => {
     setErrorMessage("");
     startTransition(async () => {
+      if (dashboardIdentity) {
+        const response = await fetch("/api/dashboard/logout", {
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          setErrorMessage("登出失敗，請稍後再試。");
+          return;
+        }
+
+        router.push("/dashboard/login");
+        router.refresh();
+        return;
+      }
+
       const supabase = createClient();
       const { error } = await supabase.auth.signOut();
 
@@ -75,7 +94,26 @@ export function AuthButton() {
 
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
-      {user ? (
+      {dashboardIdentity ? (
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <UserCircle className="size-4" />
+            <span className="max-w-56 truncate">
+              {dashboardIdentity.displayName}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={signOut}
+            disabled={isPending}
+          >
+            <LogOut className="size-4" />
+            登出
+          </Button>
+        </div>
+      ) : user ? (
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <UserCircle className="size-4" />

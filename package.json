@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "dashboard:generate-accounts": "node scripts/generate-dashboard-accounts.mjs",
+    "dashboard:hash-password": "node scripts/hash-dashboard-password.mjs",
     "start": "next start",
     "lint": "eslint"
   },

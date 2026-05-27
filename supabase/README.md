@@ -53,11 +53,31 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_TUYFQeR6YRZZuhjsdsh_nA_cJFLD
 # Resend 寄送申請確認信
 RESEND_API_KEY=re_xxxxxxxxx
 RESEND_FROM_EMAIL="IPEDU Scholarship <onboarding@resend.dev>"
+
+# Dashboard 固定帳密登入
+DASHBOARD_SESSION_SECRET=請使用至少32字元的隨機字串
+DASHBOARD_ACCOUNTS_JSON='{"college":{"displayName":"學院端","role":"admin","scope":"all","passwordHash":"sha256:..."},"edtech":{"displayName":"教育與學習科技學系","role":"teacher","scope":["教育與學習科技學系","教育與學習科技系","教科系"],"passwordHash":"sha256:..."}}'
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` 請到 Supabase Dashboard 的 Project Settings > API 取得。這個 key 只能放在伺服器環境變數，不要寫進前端元件，也不要 commit。
 
 `RESEND_API_KEY` 請到 Resend Dashboard 建立。測試時可先用 Resend 提供的 `onboarding@resend.dev`；正式寄件請先在 Resend 驗證自己的網域，再把 `RESEND_FROM_EMAIL` 改成該網域的寄件地址。
+
+Dashboard 固定帳密的密碼不要以明文放進環境變數。先設定同一組 `DASHBOARD_SESSION_SECRET`，再執行：
+
+```bash
+pnpm dashboard:hash-password <密碼>
+```
+
+把輸出的 `sha256:...` 放入 `DASHBOARD_ACCOUNTS_JSON` 對應帳號的 `passwordHash`。
+
+若要一次產生學院端與各系所的初始密碼、session secret、以及完整 `DASHBOARD_ACCOUNTS_JSON`，可執行：
+
+```bash
+pnpm dashboard:generate-accounts
+```
+
+執行結果中的 `Initial passwords` 只提供給各單位登入使用，不要 commit 到 repo。
 
 ## 3. 啟動專案
 

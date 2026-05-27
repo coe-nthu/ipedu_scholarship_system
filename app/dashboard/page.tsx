@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
-import { checkDashboardAccess } from "@/lib/auth";
-import type { DashboardRole } from "@/lib/types";
+import {
+  checkDashboardAccess,
+  filterApplicationsByScope,
+  type AuthResult,
+} from "@/lib/auth";
+import type { DashboardAuthProvider, DashboardRole } from "@/lib/types";
 import type { ScholarshipApplication } from "@/lib/types";
 import { AuthButton } from "@/components/auth-button";
 import { AdminPanel } from "./admin-panel";
@@ -16,7 +20,9 @@ export const metadata: Metadata = {
   description: "竹師教育學院獎學金申請案教師審查面板",
 };
 
-async function fetchApplications(): Promise<ScholarshipApplication[]> {
+async function fetchApplications(
+  auth: Extract<AuthResult, { authorized: true }>
+): Promise<ScholarshipApplication[]> {
   const url = (
     process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   ).replace(/\/$/, "");
@@ -39,7 +45,8 @@ async function fetchApplications(): Promise<ScholarshipApplication[]> {
     );
 
     if (!response.ok) return [];
-    return (await response.json()) as ScholarshipApplication[];
+    const applications = (await response.json()) as ScholarshipApplication[];
+    return filterApplicationsByScope(applications, auth.departmentScope);
   } catch {
     return [];
   }
@@ -67,9 +74,13 @@ function AccessDeniedView() {
 }
 
 function DashboardHeader({
+  authProvider,
+  displayName,
   role,
   applicationCount,
 }: {
+  authProvider: DashboardAuthProvider;
+  displayName: string;
   role: DashboardRole;
   applicationCount: number;
 }) {
@@ -85,6 +96,9 @@ function DashboardHeader({
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             共 {applicationCount} 件已送出申請案
+            <span className="ml-2 inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+              {displayName}
+            </span>
             {role === "admin" && (
               <span className="ml-2 inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
                 管理員
@@ -93,7 +107,11 @@ function DashboardHeader({
           </p>
         </div>
         <div className="min-w-0 lg:justify-self-end">
-          <AuthButton />
+          <AuthButton
+            dashboardIdentity={
+              authProvider === "password" ? { displayName } : undefined
+            }
+          />
         </div>
       </div>
     </header>
@@ -105,18 +123,20 @@ export default async function DashboardPage() {
 
   if (!auth.authorized) {
     if (auth.reason === "not_authenticated") {
-      redirect("/");
+      redirect("/dashboard/login");
     }
     return <AccessDeniedView />;
   }
 
-  const applications = await fetchApplications();
+  const applications = await fetchApplications(auth);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
       <div className="mx-auto w-full max-w-7xl min-w-0 space-y-6">
         {auth.role === "admin" ? (
           <DashboardTabs
+            authProvider={auth.authProvider}
+            displayName={auth.displayName}
             role={auth.role}
             applicationCount={applications.length}
             reviewContent={
@@ -127,6 +147,8 @@ export default async function DashboardPage() {
         ) : (
           <>
             <DashboardHeader
+              authProvider={auth.authProvider}
+              displayName={auth.displayName}
               role={auth.role}
               applicationCount={applications.length}
             />
