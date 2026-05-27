@@ -81,6 +81,7 @@ type MasterDirectSemesterRecord = {
 
 const STUDY_STATUS_NEW = "新領";
 const STUDY_STATUS_RENEWAL = "續領";
+const PENDING_ADVISOR_NAME = "找尋中，待定";
 
 const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
   academicForm: "standard",
@@ -399,7 +400,8 @@ export default function ScholarshipForm() {
     department: "",
     email: "",
     phone: "",
-    advisorName: "",
+    advisorName:
+      defaultStudyStatus === STUDY_STATUS_NEW ? PENDING_ADVISOR_NAME : "",
     admissionAcademicYear: "112",
     studyStatus: defaultStudyStatus,
     applicationType: config.applicationType,
@@ -468,6 +470,12 @@ export default function ScholarshipForm() {
       studyStatus: config.studyStatusOptions.includes(current.studyStatus)
         ? current.studyStatus
         : defaultStudyStatus,
+      advisorName:
+        (config.studyStatusOptions.includes(current.studyStatus)
+          ? current.studyStatus
+          : defaultStudyStatus) === STUDY_STATUS_NEW && !current.advisorName
+          ? PENDING_ADVISOR_NAME
+          : current.advisorName,
     }));
   }, [config.applicationType, config.studyStatusOptions, defaultStudyStatus]);
 
@@ -505,12 +513,20 @@ export default function ScholarshipForm() {
     }) => {
       if (p.applicantInfo) {
         const savedStudyStatus = p.applicantInfo.studyStatus;
+        const normalizedStudyStatus = config.studyStatusOptions.includes(
+          savedStudyStatus
+        )
+          ? savedStudyStatus
+          : defaultStudyStatus;
         setApplicantInfo({
           ...p.applicantInfo,
           applicationType: config.applicationType,
-          studyStatus: config.studyStatusOptions.includes(savedStudyStatus)
-            ? savedStudyStatus
-            : defaultStudyStatus,
+          studyStatus: normalizedStudyStatus,
+          advisorName:
+            normalizedStudyStatus === STUDY_STATUS_NEW &&
+            !p.applicantInfo.advisorName
+              ? PENDING_ADVISOR_NAME
+              : p.applicantInfo.advisorName,
         });
       }
       if (p.eligibility) setEligibility(p.eligibility);
@@ -710,8 +726,34 @@ export default function ScholarshipForm() {
     return { levelStats, databaseStats };
   }, [journals]);
 
+  const isAdvisorPending =
+    applicantInfo.advisorName.trim() === PENDING_ADVISOR_NAME;
+  const effectiveDocumentFields = useMemo(
+    () =>
+      documentFields.map((document) =>
+        document.key === "advisorRecommendation" && isAdvisorPending
+          ? { ...document, required: false }
+          : document
+      ),
+    [isAdvisorPending]
+  );
+
   const updateApplicant = (field: keyof ApplicantInfo, value: string) => {
-    setApplicantInfo((current) => ({ ...current, [field]: value }));
+    setApplicantInfo((current) => {
+      if (
+        field === "studyStatus" &&
+        value === STUDY_STATUS_NEW &&
+        !current.advisorName
+      ) {
+        return {
+          ...current,
+          [field]: value,
+          advisorName: PENDING_ADVISOR_NAME,
+        };
+      }
+
+      return { ...current, [field]: value };
+    });
   };
 
   const updateEligibility = (
@@ -1080,7 +1122,7 @@ export default function ScholarshipForm() {
     }
 
     const formData = new FormData(form);
-    const missingRequiredDocuments = documentFields
+    const missingRequiredDocuments = effectiveDocumentFields
       .filter((document) => document.required)
       .filter((document) => {
         const file = formData.get(`${DOCUMENT_PREFIX}${document.key}`);
@@ -2102,6 +2144,7 @@ export default function ScholarshipForm() {
                         ])
                       }
                       title="碩士班逕讀各學期學分與 GPA"
+                      description="碩逕博學生請填寫；如無，則免填。"
                     >
                       <TableHeader className="bg-slate-50">
                         <TableRow>
@@ -3511,7 +3554,7 @@ export default function ScholarshipForm() {
                 上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {documentFields.map((document) => (
+                {effectiveDocumentFields.map((document) => (
                   <div
                     key={document.key}
                     className="rounded-md border border-slate-200 bg-white p-4"
@@ -3529,6 +3572,12 @@ export default function ScholarshipForm() {
                         <Badge variant="outline">選繳</Badge>
                       )}
                     </div>
+                    {document.key === "advisorRecommendation" &&
+                    isAdvisorPending ? (
+                      <p className="mb-3 text-xs leading-5 text-slate-500">
+                        指導教授暫填「找尋中，待定」時，本項可免繳。
+                      </p>
+                    ) : null}
                     <FileUploadControl
                       id={`document_${document.key}`}
                       name={`document_${document.key}`}
@@ -3712,12 +3761,14 @@ function DeleteButton({
 function EditableTable({
   actionLabel,
   children,
+  description,
   minWidth,
   onAdd,
   title,
 }: {
   actionLabel: string;
   children: React.ReactNode;
+  description?: string;
   minWidth: string;
   onAdd: () => void;
   title: string;
@@ -3725,7 +3776,12 @@ function EditableTable({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">{title}</h2>
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">{title}</h2>
+          {description ? (
+            <p className="text-sm text-slate-500">{description}</p>
+          ) : null}
+        </div>
         <Button type="button" variant="outline" size="sm" onClick={onAdd}>
           <Plus className="size-4" />
           {actionLabel}
