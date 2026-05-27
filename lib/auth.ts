@@ -156,11 +156,15 @@ function parseDashboardAccounts(): DashboardAccount[] {
           (account) => account.username === username
         );
         const accountValue = value as Partial<DashboardAccount>;
-        const account = {
-          ...defaultAccount,
-          ...accountValue,
-          username,
-        };
+        const account = defaultAccount
+          ? {
+              ...defaultAccount,
+              passwordHash: accountValue.passwordHash,
+            }
+          : {
+              ...accountValue,
+              username,
+            };
         return isDashboardAccount(account) ? [account] : [];
       });
     }
