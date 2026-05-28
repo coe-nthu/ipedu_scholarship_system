@@ -15,7 +15,8 @@ public.scholarship_applications
 | 欄位 | 型別 | 定義 |
 |---|---|---|
 | `id` | `uuid` | 申請案唯一識別碼 |
-| `scholarship_program` | `text` | 獎學金名稱，固定為「國科會-培育優秀博士生獎學金」 |
+| `program_key` | `text` | 穩定獎學金代碼，用於改名後維持草稿與申請案關聯 |
+| `scholarship_program` | `text` | 申請當下的獎學金顯示名稱，作為歷史快照保留 |
 | `applicant_name` | `text` | 申請人姓名 |
 | `student_id` | `text` | 學號 |
 | `department` | `text` | 所屬學系所 |

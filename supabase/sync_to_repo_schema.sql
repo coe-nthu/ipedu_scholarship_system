@@ -131,12 +131,190 @@ create trigger on_auth_user_created
   execute function public.handle_new_user();
 
 -- ============================================================
--- 2. scholarship_applications
+-- 2. scholarship_program_settings
+-- ============================================================
+
+create table if not exists public.scholarship_program_settings (
+  program_key text primary key,
+  route_path text not null,
+  title text not null,
+  description text not null,
+  period text not null,
+  amount text not null,
+  status_label text not null,
+  eligibility_reminder text not null,
+  is_visible boolean not null default true,
+  is_open boolean not null default true,
+  display_order integer not null default 0,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.scholarship_program_settings
+  add column if not exists route_path text,
+  add column if not exists title text,
+  add column if not exists description text,
+  add column if not exists period text,
+  add column if not exists amount text,
+  add column if not exists status_label text,
+  add column if not exists eligibility_reminder text,
+  add column if not exists is_visible boolean not null default true,
+  add column if not exists is_open boolean not null default true,
+  add column if not exists display_order integer not null default 0,
+  add column if not exists updated_by uuid references auth.users(id) on delete set null,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+insert into public.scholarship_program_settings (
+  program_key,
+  route_path,
+  title,
+  description,
+  period,
+  amount,
+  status_label,
+  eligibility_reminder,
+  is_visible,
+  is_open,
+  display_order
+)
+values
+  (
+    'nstc-doctoral',
+    '/scholarships/nstc-doctoral',
+    '國科會-培育優秀博士生獎學金',
+    '填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。',
+    '適用 111-112 學年度學生申請',
+    '每月 4 萬元，至多 4 學年',
+    '已開放',
+    '學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。',
+    true,
+    true,
+    10
+  ),
+  (
+    'nstc-research-grant',
+    '/scholarships/nstc-research-grant',
+    '國科會-博士生研究獎助學金(適用114學年度入學新生)',
+    '填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。',
+    '適用 114 學年度入學新生',
+    '每月 4 萬元，至多 3 學年',
+    '測試中',
+    '本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。',
+    true,
+    true,
+    20
+  ),
+  (
+    'presidential-new-student',
+    '/scholarships/presidential-new-student',
+    '校長獎學金 (新生獎學金)',
+    '填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。',
+    '新生獎學金',
+    '每月 4 萬元，至多 4 學年',
+    '測試中',
+    '本項目為校長獎學金新生獎學金。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。',
+    true,
+    true,
+    30
+  ),
+  (
+    'moe-doctoral',
+    '/scholarships/moe-doctoral',
+    '教育部-博士生獎學金(適用114學年度博士班1至3年級學生)',
+    '先沿用既有申請表樣式，提供博士班學生填寫資料與文件上傳。',
+    '適用 114 學年度博士班 1 至 3 年級學生',
+    '每月 4 萬元，至多 3 學年',
+    '測試中',
+    '本項目適用 114 學年度博士班 1 至 3 年級學生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。',
+    true,
+    true,
+    40
+  )
+on conflict (program_key) do nothing;
+
+alter table public.scholarship_program_settings
+  alter column route_path set not null,
+  alter column title set not null,
+  alter column description set not null,
+  alter column period set not null,
+  alter column amount set not null,
+  alter column status_label set not null,
+  alter column eligibility_reminder set not null,
+  alter column is_visible set not null,
+  alter column is_visible set default true,
+  alter column is_open set not null,
+  alter column is_open set default true,
+  alter column display_order set not null,
+  alter column display_order set default 0,
+  alter column created_at set not null,
+  alter column created_at set default now(),
+  alter column updated_at set not null,
+  alter column updated_at set default now(),
+  drop constraint if exists scholarship_program_settings_program_key_check,
+  add constraint scholarship_program_settings_program_key_check
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+  drop constraint if exists scholarship_program_settings_display_order_check,
+  add constraint scholarship_program_settings_display_order_check
+    check (display_order between 0 and 9999);
+
+comment on table public.scholarship_program_settings is '獎學金前台與表單顯示設定';
+
+drop trigger if exists handle_scholarship_program_settings_updated_at
+  on public.scholarship_program_settings;
+create trigger handle_scholarship_program_settings_updated_at
+  before update on public.scholarship_program_settings
+  for each row
+  execute function moddatetime(updated_at);
+
+alter table public.scholarship_program_settings enable row level security;
+
+drop policy if exists "Anyone can view scholarship program settings"
+  on public.scholarship_program_settings;
+create policy "Anyone can view scholarship program settings"
+  on public.scholarship_program_settings for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "Admins can update scholarship program settings"
+  on public.scholarship_program_settings;
+create policy "Admins can update scholarship program settings"
+  on public.scholarship_program_settings for update
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'admin'
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'admin'
+    )
+  );
+
+drop policy if exists "Service role can manage scholarship program settings"
+  on public.scholarship_program_settings;
+create policy "Service role can manage scholarship program settings"
+  on public.scholarship_program_settings for all
+  to service_role
+  using (true)
+  with check (true);
+
+-- ============================================================
+-- 3. scholarship_applications
 -- ============================================================
 
 create table if not exists public.scholarship_applications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,
+  program_key text not null default 'nstc-doctoral',
   scholarship_program text not null,
   applicant_name text not null,
   student_id text,
@@ -162,6 +340,7 @@ create table if not exists public.scholarship_applications (
 
 alter table public.scholarship_applications
   add column if not exists user_id uuid references auth.users(id) on delete set null,
+  add column if not exists program_key text,
   add column if not exists scholarship_program text,
   add column if not exists applicant_name text,
   add column if not exists student_id text,
@@ -229,8 +408,23 @@ set submission_status = 'draft'
 where submission_status is null
   or submission_status not in ('draft', 'submitted');
 
+update public.scholarship_applications
+set program_key = case scholarship_program
+  when '國科會-博士生研究獎助學金(適用114學年度入學新生)' then 'nstc-research-grant'
+  when '校長獎學金 (新生獎學金)' then 'presidential-new-student'
+  when '教育部-博士生獎學金(適用114學年度博士班1至3年級學生)' then 'moe-doctoral'
+  else 'nstc-doctoral'
+end
+where program_key is null
+  or program_key not in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral');
+
 alter table public.scholarship_applications
+  drop constraint if exists unique_user_per_program,
+  drop constraint if exists unique_user_per_program_key,
+  drop constraint if exists scholarship_applications_program_key_check,
   alter column scholarship_program set not null,
+  alter column program_key set not null,
+  alter column program_key set default 'nstc-doctoral',
   alter column applicant_name set not null,
   alter column department set not null,
   alter column submission_status set not null,
@@ -250,10 +444,14 @@ alter table public.scholarship_applications
   add constraint scholarship_applications_submission_status_check
     check (submission_status in ('draft', 'submitted')),
   add constraint scholarship_applications_review_status_check
-    check (review_status in ('自動審核完成', '等待人工審核', '人工審核完成', '資料錯誤'));
+    check (review_status in ('自動審核完成', '等待人工審核', '人工審核完成', '資料錯誤')),
+  add constraint scholarship_applications_program_key_check
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+  add constraint unique_user_per_program_key unique (user_id, program_key);
 
 comment on table public.scholarship_applications is '獎學金申請案';
 comment on column public.scholarship_applications.user_id is '申請人的 auth.users ID';
+comment on column public.scholarship_applications.program_key is '穩定獎學金代碼，用於改名後維持草稿與申請案關聯';
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
 comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：自動審核完成、等待人工審核、人工審核完成、資料錯誤';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
@@ -264,6 +462,8 @@ comment on column public.scholarship_applications.files is '上傳檔案 metadat
 
 create index if not exists idx_applications_user_id
   on public.scholarship_applications(user_id);
+create index if not exists idx_applications_program_key
+  on public.scholarship_applications(program_key);
 create index if not exists idx_applications_submission_status
   on public.scholarship_applications(submission_status);
 create index if not exists idx_applications_review_status
@@ -365,7 +565,7 @@ create policy "Service role can manage scholarship applications"
   with check (true);
 
 -- ============================================================
--- 3. review_logs
+-- 4. review_logs
 -- ============================================================
 
 create table if not exists public.review_logs (
@@ -450,7 +650,7 @@ create trigger log_review_changes_trigger
   execute function public.log_review_changes();
 
 -- ============================================================
--- 4. Storage setup
+-- 5. Storage setup
 -- ============================================================
 -- Supabase documents the `storage` schema as Storage-managed metadata.
 -- This migration intentionally does not insert/update/delete rows or alter/drop
@@ -515,13 +715,14 @@ create policy "Teachers can view all documents"
   );
 
 -- ============================================================
--- 5. View and helper functions
+-- 6. View and helper functions
 -- ============================================================
 
 create or replace view public.application_summary as
 select
   a.id,
   a.user_id,
+  a.program_key,
   a.applicant_name,
   a.student_id,
   a.department,
@@ -567,6 +768,7 @@ as $$
 $$;
 
 grant usage on schema public to authenticated;
+grant select on public.scholarship_program_settings to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.scholarship_applications to authenticated;
 grant select on public.review_logs to authenticated;

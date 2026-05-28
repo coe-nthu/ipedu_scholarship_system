@@ -9,6 +9,7 @@ import {
 import type { DashboardAuthProvider, DashboardRole } from "@/lib/types";
 import type { ScholarshipApplication } from "@/lib/types";
 import { AuthButton } from "@/components/auth-button";
+import { fetchScholarshipProgramSettings } from "@/lib/scholarship-settings-server";
 import { AdminPanel } from "./admin-panel";
 import { DashboardTabs } from "./dashboard-tabs";
 import { ScholarshipProgramSwitcher } from "./scholarship-program-switcher";
@@ -34,7 +35,7 @@ async function fetchApplications(
 
   try {
     const response = await fetch(
-      `${url}/rest/v1/scholarship_applications?submission_status=eq.submitted&order=submitted_at.desc&select=id,applicant_name,student_id,department,advisor_name,gpa,gpa_scale,scholarship_program,submission_status,review_status,reviewer_remarks,payload,files,submitted_at,created_at,updated_at`,
+      `${url}/rest/v1/scholarship_applications?submission_status=eq.submitted&order=submitted_at.desc&select=id,applicant_name,student_id,department,advisor_name,gpa,gpa_scale,program_key,scholarship_program,submission_status,review_status,reviewer_remarks,payload,files,submitted_at,created_at,updated_at`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -128,7 +129,10 @@ export default async function DashboardPage() {
     return <AccessDeniedView />;
   }
 
-  const applications = await fetchApplications(auth);
+  const [applications, programs] = await Promise.all([
+    fetchApplications(auth),
+    fetchScholarshipProgramSettings(),
+  ]);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
@@ -140,7 +144,10 @@ export default async function DashboardPage() {
             role={auth.role}
             applicationCount={applications.length}
             reviewContent={
-              <ScholarshipProgramSwitcher applications={applications} />
+              <ScholarshipProgramSwitcher
+                applications={applications}
+                programs={programs}
+              />
             }
             adminContent={<AdminPanel />}
           />
@@ -152,7 +159,10 @@ export default async function DashboardPage() {
               role={auth.role}
               applicationCount={applications.length}
             />
-            <ScholarshipProgramSwitcher applications={applications} />
+            <ScholarshipProgramSwitcher
+              applications={applications}
+              programs={programs}
+            />
           </>
         )}
       </div>

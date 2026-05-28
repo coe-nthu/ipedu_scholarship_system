@@ -160,6 +160,7 @@ export type ScholarshipApplication = {
   advisor_name: string | null;
   gpa: number | null;
   gpa_scale: number | null;
+  program_key: string | null;
   scholarship_program: string;
   submission_status: SubmissionStatus;
   review_status: ReviewStatus;

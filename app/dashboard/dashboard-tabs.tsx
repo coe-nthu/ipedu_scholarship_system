@@ -26,7 +26,7 @@ export function DashboardTabs({
         審查列表
       </TabsTrigger>
       <TabsTrigger value="admin" className="text-sm px-4">
-        權限管理
+        管理設定
       </TabsTrigger>
     </TabsList>
   );

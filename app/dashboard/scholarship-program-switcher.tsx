@@ -3,30 +3,19 @@
 import { useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ScholarshipApplication } from "@/lib/types";
+import {
+  DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS,
+  getProgramKeyByLegacyTitle,
+  type ScholarshipProgramSetting,
+} from "@/lib/scholarship-settings";
 import { DashboardTable } from "./dashboard-table";
 
 const ALL_PROGRAMS_VALUE = "all";
 
-const scholarshipPrograms = [
-  "國科會-培育優秀博士生獎學金",
-  "國科會-博士生研究獎助學金(適用114學年度入學新生)",
-  "校長獎學金 (新生獎學金)",
-  "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
-] as const;
-
-function getProgramLabel(program: string) {
-  switch (program) {
-    case "國科會-培育優秀博士生獎學金":
-      return "國科會培優";
-    case "國科會-博士生研究獎助學金(適用114學年度入學新生)":
-      return "國科會研究獎助";
-    case "校長獎學金 (新生獎學金)":
-      return "校長獎學金";
-    case "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)":
-      return "教育部博士生";
-    default:
-      return program;
-  }
+function getProgramLabel(program: ScholarshipProgramSetting) {
+  return program.title.length > 12
+    ? `${program.title.slice(0, 12)}...`
+    : program.title;
 }
 
 function ProgramCount({
@@ -51,13 +40,17 @@ function ProgramCount({
 
 export function ScholarshipProgramSwitcher({
   applications,
+  programs = DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS,
 }: {
   applications: ScholarshipApplication[];
+  programs?: ScholarshipProgramSetting[];
 }) {
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const application of applications) {
-      const program = application.scholarship_program || "";
+      const program =
+        application.program_key ||
+        getProgramKeyByLegacyTitle(application.scholarship_program);
       map.set(program, (map.get(program) ?? 0) + 1);
     }
     return map;
@@ -76,14 +69,14 @@ export function ScholarshipProgramSwitcher({
           全部
           <ProgramCount count={applications.length} />
         </TabsTrigger>
-        {scholarshipPrograms.map((program) => (
+        {programs.map((program) => (
           <TabsTrigger
-            key={program}
-            value={program}
+            key={program.program_key}
+            value={program.program_key}
             className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm data-[state=active]:border-[#1f6f78] data-[state=active]:bg-[#1f6f78] data-[state=active]:text-white"
           >
             {getProgramLabel(program)}
-            <ProgramCount count={counts.get(program) ?? 0} />
+            <ProgramCount count={counts.get(program.program_key) ?? 0} />
           </TabsTrigger>
         ))}
       </TabsList>
@@ -94,19 +87,22 @@ export function ScholarshipProgramSwitcher({
       >
         <DashboardTable applications={applications} />
       </TabsContent>
-      {scholarshipPrograms.map((program) => {
+      {programs.map((program) => {
         const filteredApplications = applications.filter(
-          (application) => application.scholarship_program === program
+          (application) =>
+            (application.program_key ||
+              getProgramKeyByLegacyTitle(application.scholarship_program)) ===
+            program.program_key
         );
 
         return (
           <TabsContent
-            key={program}
-            value={program}
+            key={program.program_key}
+            value={program.program_key}
             className="min-w-0 max-w-full overflow-hidden"
           >
             <DashboardTable
-              key={program}
+              key={program.program_key}
               applications={filteredApplications}
             />
           </TabsContent>

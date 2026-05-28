@@ -117,12 +117,149 @@ create trigger on_auth_user_created
   execute function public.handle_new_user();
 
 -- ============================================================
--- 2. 獎學金申請表 (scholarship_applications)
+-- 2. 獎學金設定表 (scholarship_program_settings)
+-- ============================================================
+
+create table public.scholarship_program_settings (
+  program_key text primary key
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+  route_path text not null,
+  title text not null,
+  description text not null,
+  period text not null,
+  amount text not null,
+  status_label text not null,
+  eligibility_reminder text not null,
+  is_visible boolean not null default true,
+  is_open boolean not null default true,
+  display_order integer not null default 0 check (display_order between 0 and 9999),
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.scholarship_program_settings is '獎學金前台與表單顯示設定';
+
+insert into public.scholarship_program_settings (
+  program_key,
+  route_path,
+  title,
+  description,
+  period,
+  amount,
+  status_label,
+  eligibility_reminder,
+  is_visible,
+  is_open,
+  display_order
+)
+values
+  (
+    'nstc-doctoral',
+    '/scholarships/nstc-doctoral',
+    '國科會-培育優秀博士生獎學金',
+    '填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。',
+    '適用 111-112 學年度學生申請',
+    '每月 4 萬元，至多 4 學年',
+    '已開放',
+    '學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。',
+    true,
+    true,
+    10
+  ),
+  (
+    'nstc-research-grant',
+    '/scholarships/nstc-research-grant',
+    '國科會-博士生研究獎助學金(適用114學年度入學新生)',
+    '填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。',
+    '適用 114 學年度入學新生',
+    '每月 4 萬元，至多 3 學年',
+    '測試中',
+    '本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。',
+    true,
+    true,
+    20
+  ),
+  (
+    'presidential-new-student',
+    '/scholarships/presidential-new-student',
+    '校長獎學金 (新生獎學金)',
+    '填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。',
+    '新生獎學金',
+    '每月 4 萬元，至多 4 學年',
+    '測試中',
+    '本項目為校長獎學金新生獎學金。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。',
+    true,
+    true,
+    30
+  ),
+  (
+    'moe-doctoral',
+    '/scholarships/moe-doctoral',
+    '教育部-博士生獎學金(適用114學年度博士班1至3年級學生)',
+    '先沿用既有申請表樣式，提供博士班學生填寫資料與文件上傳。',
+    '適用 114 學年度博士班 1 至 3 年級學生',
+    '每月 4 萬元，至多 3 學年',
+    '測試中',
+    '本項目適用 114 學年度博士班 1 至 3 年級學生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。',
+    true,
+    true,
+    40
+  );
+
+drop trigger if exists handle_scholarship_program_settings_updated_at
+  on public.scholarship_program_settings;
+create trigger handle_scholarship_program_settings_updated_at
+  before update on public.scholarship_program_settings
+  for each row
+  execute function moddatetime(updated_at);
+
+alter table public.scholarship_program_settings enable row level security;
+
+drop policy if exists "Anyone can view scholarship program settings"
+  on public.scholarship_program_settings;
+create policy "Anyone can view scholarship program settings"
+  on public.scholarship_program_settings for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "Admins can update scholarship program settings"
+  on public.scholarship_program_settings;
+create policy "Admins can update scholarship program settings"
+  on public.scholarship_program_settings for update
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'admin'
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'admin'
+    )
+  );
+
+drop policy if exists "Service role can manage scholarship program settings"
+  on public.scholarship_program_settings;
+create policy "Service role can manage scholarship program settings"
+  on public.scholarship_program_settings for all
+  to service_role
+  using (true)
+  with check (true);
+
+-- ============================================================
+-- 3. 獎學金申請表 (scholarship_applications)
 -- ============================================================
 
 create table public.scholarship_applications (
   id                       uuid primary key default gen_random_uuid(),
   user_id                  uuid references auth.users(id) on delete set null,
+  program_key              text not null default 'nstc-doctoral'
+                             check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
   scholarship_program      text not null,
   applicant_name           text not null,
   student_id               text,
@@ -155,6 +292,7 @@ create table public.scholarship_applications (
 
 comment on table  public.scholarship_applications is '獎學金申請案';
 comment on column public.scholarship_applications.user_id is '申請人的 auth.users ID';
+comment on column public.scholarship_applications.program_key is '穩定獎學金代碼，用於改名後維持草稿與申請案關聯';
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
 comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：自動審核完成、等待人工審核、人工審核完成、資料錯誤';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
@@ -165,11 +303,13 @@ comment on column public.scholarship_applications.files is '上傳檔案 metadat
 
 -- 唯一約束：同一使用者對同一獎學金只能有一筆申請（upsert 用）
 alter table public.scholarship_applications
-  add constraint unique_user_per_program unique (user_id, scholarship_program);
+  add constraint unique_user_per_program_key unique (user_id, program_key);
 
 -- 索引：常用查詢欄位
 create index if not exists idx_applications_user_id
   on public.scholarship_applications(user_id);
+create index if not exists idx_applications_program_key
+  on public.scholarship_applications(program_key);
 create index if not exists idx_applications_submission_status
   on public.scholarship_applications(submission_status);
 create index if not exists idx_applications_review_status
@@ -277,7 +417,7 @@ create policy "Service role can manage scholarship applications"
   with check (true);
 
 -- ============================================================
--- 3. 審核紀錄表 (review_logs) — 審計軌跡
+-- 4. 審核紀錄表 (review_logs) — 審計軌跡
 -- ============================================================
 -- 每次教師修改 review_status 或 reviewer_remarks 時自動記錄。
 
@@ -353,7 +493,7 @@ create trigger log_review_changes_trigger
   execute function public.log_review_changes();
 
 -- ============================================================
--- 4. Storage setup
+-- 5. Storage setup
 -- ============================================================
 -- Supabase documents the `storage` schema as Storage-managed metadata.
 -- This migration intentionally does not insert/update/delete rows or alter/drop
@@ -418,7 +558,7 @@ create policy "Teachers can view all documents"
   );
 
 -- ============================================================
--- 5. 常用 Views（方便查詢）
+-- 6. 常用 Views（方便查詢）
 -- ============================================================
 
 -- 教師 Dashboard 用的申請案摘要 view
@@ -426,6 +566,7 @@ create or replace view public.application_summary as
 select
   a.id,
   a.user_id,
+  a.program_key,
   a.applicant_name,
   a.student_id,
   a.department,
@@ -455,7 +596,7 @@ left join public.profiles p on p.id = a.reviewed_by;
 comment on view public.application_summary is '教師 Dashboard 用的申請案摘要，包含從 payload 提取的常用欄位';
 
 -- ============================================================
--- 6. Helper Functions
+-- 7. Helper Functions
 -- ============================================================
 
 -- 取得指定申請案的期刊列表
@@ -485,10 +626,11 @@ $$;
 -- ============================================================
 -- 執行完畢後，請確認：
 -- 1. profiles 表已建立 → 新用戶登入時會自動建立 profile
--- 2. scholarship_applications 表已更新 → 含 review_status、reviewer_remarks 等新欄位
--- 3. review_logs 表已建立 → 審核操作會自動記錄
--- 4. Storage bucket 已建立 → scholarship-documents
--- 5. 所有 RLS policies 已啟用
+-- 2. scholarship_program_settings 表已建立 → 管理獎學金顯示設定
+-- 3. scholarship_applications 表已更新 → 含 program_key、review_status、reviewer_remarks 等欄位
+-- 4. review_logs 表已建立 → 審核操作會自動記錄
+-- 5. Storage bucket 已建立 → scholarship-documents
+-- 6. 所有 RLS policies 已啟用
 --
 -- 設定教師帳號（用 SQL Editor 執行）：
 --   update public.profiles

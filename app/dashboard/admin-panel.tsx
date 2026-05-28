@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Shield, Trash2, UserCheck } from "lucide-react";
+import { Eye, EyeOff, Plus, Save, Settings, Shield, Trash2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -41,6 +43,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
 import type { AuthorizedEmail, DashboardRole } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
@@ -206,6 +210,254 @@ function AddEmailDialog({ onAdd }: { onAdd: (email: string, role: DashboardRole)
 }
 
 /* ------------------------------------------------------------------ */
+/*  Scholarship program settings                                       */
+/* ------------------------------------------------------------------ */
+
+function ScholarshipProgramsPanel() {
+  const [programs, setPrograms] = useState<ScholarshipProgramSetting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/dashboard/scholarship-programs")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setPrograms(data.programs);
+        } else {
+          toast.error(data.error || "載入獎學金設定失敗。");
+        }
+      })
+      .catch(() => toast.error("載入獎學金設定失敗。"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const updateProgram = useCallback(
+    (
+      programKey: string,
+      patch: Partial<ScholarshipProgramSetting>
+    ) => {
+      setPrograms((prev) =>
+        prev.map((program) =>
+          program.program_key === programKey ? { ...program, ...patch } : program
+        )
+      );
+    },
+    []
+  );
+
+  const handleSave = useCallback((program: ScholarshipProgramSetting) => {
+    setSavingKey(program.program_key);
+    fetch("/api/dashboard/scholarship-programs", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(program),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setPrograms((prev) =>
+            prev.map((item) =>
+              item.program_key === data.program.program_key
+                ? data.program
+                : item
+            )
+          );
+          toast.success("獎學金設定已更新。");
+        } else {
+          toast.error(data.error || "更新獎學金設定失敗。");
+        }
+      })
+      .catch(() => toast.error("更新獎學金設定失敗。"))
+      .finally(() => setSavingKey(null));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">
+          獎學金介面設定
+        </h2>
+        <p className="text-sm text-slate-500">
+          調整首頁卡片與表單頁文字；名稱異動不會批次改寫既有申請資料。
+        </p>
+      </div>
+
+      <div className="grid gap-4">
+        {programs.map((program) => (
+          <div
+            key={program.program_key}
+            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {program.title}
+                  </h3>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-500">
+                    {program.program_key}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {program.route_path}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="gap-1.5"
+                disabled={savingKey === program.program_key}
+                onClick={() => handleSave(program)}
+              >
+                <Save className="size-4" />
+                {savingKey === program.program_key ? "儲存中" : "儲存"}
+              </Button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">
+                  獎學金名稱
+                </span>
+                <Input
+                  value={program.title}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      title: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">
+                  狀態標籤
+                </span>
+                <Input
+                  value={program.status_label}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      status_label: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">
+                  適用對象
+                </span>
+                <Input
+                  value={program.period}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      period: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">
+                  金額
+                </span>
+                <Input
+                  value={program.amount}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      amount: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="space-y-1.5 lg:col-span-2">
+                <span className="text-sm font-medium text-slate-700">
+                  首頁卡片說明
+                </span>
+                <Textarea
+                  value={program.description}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      description: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="space-y-1.5 lg:col-span-2">
+                <span className="text-sm font-medium text-slate-700">
+                  表單請領資格提醒
+                </span>
+                <Textarea
+                  value={program.eligibility_reminder}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      eligibility_reminder: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700">
+                  排序
+                </span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={9999}
+                  value={program.display_order}
+                  onChange={(event) =>
+                    updateProgram(program.program_key, {
+                      display_order: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <div className="grid gap-3 rounded-md border border-slate-200 p-3 sm:grid-cols-2">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                    {program.is_visible ? (
+                      <Eye className="size-4 text-emerald-600" />
+                    ) : (
+                      <EyeOff className="size-4 text-slate-400" />
+                    )}
+                    顯示於首頁
+                  </span>
+                  <Switch
+                    checked={program.is_visible}
+                    onCheckedChange={(checked) =>
+                      updateProgram(program.program_key, {
+                        is_visible: checked,
+                      })
+                    }
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-slate-700">
+                    開放填寫
+                  </span>
+                  <Switch
+                    checked={program.is_open}
+                    onCheckedChange={(checked) =>
+                      updateProgram(program.program_key, { is_open: checked })
+                    }
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -323,7 +575,7 @@ export function AdminPanel() {
     );
   }
 
-  return (
+  const emailPanel = (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
@@ -412,5 +664,26 @@ export function AdminPanel() {
         </Table>
       </div>
     </div>
+  );
+
+  return (
+    <Tabs defaultValue="programs" className="space-y-4">
+      <TabsList className="h-10 w-fit">
+        <TabsTrigger value="programs" className="gap-1.5 text-sm">
+          <Settings className="size-4" />
+          獎學金設定
+        </TabsTrigger>
+        <TabsTrigger value="emails" className="gap-1.5 text-sm">
+          <Shield className="size-4" />
+          授權名單
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="programs" className="space-y-4">
+        <ScholarshipProgramsPanel />
+      </TabsContent>
+      <TabsContent value="emails" className="space-y-4">
+        {emailPanel}
+      </TabsContent>
+    </Tabs>
   );
 }

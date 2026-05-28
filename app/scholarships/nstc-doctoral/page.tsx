@@ -39,6 +39,12 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { findJournalIndexMatch } from "@/lib/journal-indexes";
+import {
+  getDefaultScholarshipProgramSetting,
+  getProgramKeyByRoutePath,
+  type ScholarshipProgramKey,
+  type ScholarshipProgramSetting,
+} from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/client";
 import type {
   SubmissionStatus,
@@ -62,6 +68,7 @@ type ScholarshipFormConfig = {
   description: string;
   eligibilityReminder: string;
   period: string;
+  programKey: ScholarshipProgramKey;
   program: string;
   studyStatusOptions: string[];
   title: string;
@@ -91,6 +98,7 @@ const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
   eligibilityReminder:
     "學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
   period: "每學年下學期依公告辦理",
+  programKey: "nstc-doctoral",
   program: "國科會-培育優秀博士生獎學金",
   studyStatusOptions: [STUDY_STATUS_RENEWAL],
   title: "國科會-培育優秀博士生獎學金",
@@ -105,6 +113,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     eligibilityReminder:
       "本項目適用 114 學年度博士班 1 至 3 年級學生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
     period: "114 學年度博士班 1 至 3 年級學生",
+    programKey: "moe-doctoral",
     program: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
     studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
     title: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
@@ -118,6 +127,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     eligibilityReminder:
       "本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
     period: "114 學年度入學新生",
+    programKey: "nstc-research-grant",
     program: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
     studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
     title: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
@@ -130,11 +140,27 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     eligibilityReminder:
       "本項目為校長獎學金新生獎學金。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
     period: "新生獎學金",
+    programKey: "presidential-new-student",
     program: "校長獎學金 (新生獎學金)",
     studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
     title: "校長獎學金 (新生獎學金)",
   },
 };
+
+function applyProgramSetting(
+  config: ScholarshipFormConfig,
+  setting: ScholarshipProgramSetting
+): ScholarshipFormConfig {
+  return {
+    ...config,
+    amount: setting.amount,
+    description: setting.description,
+    eligibilityReminder: setting.eligibility_reminder,
+    period: setting.period,
+    program: setting.title,
+    title: setting.title,
+  };
+}
 
 const DOCUMENT_PREFIX = "document_";
 const STORAGE_BUCKET = "scholarship-documents";
@@ -391,8 +417,14 @@ function parseMasterDirectSemesterRecords(
 
 export default function ScholarshipForm() {
   const pathname = usePathname();
-  const config =
+  const routeProgramKey = getProgramKeyByRoutePath(pathname);
+  const baseConfig =
     scholarshipConfigs[pathname] ?? DEFAULT_SCHOLARSHIP_CONFIG;
+  const [programSetting, setProgramSetting] =
+    useState<ScholarshipProgramSetting>(() =>
+      getDefaultScholarshipProgramSetting(routeProgramKey)
+    );
+  const config = applyProgramSetting(baseConfig, programSetting);
   const defaultStudyStatus = config.studyStatusOptions[0] ?? STUDY_STATUS_RENEWAL;
   const [applicantInfo, setApplicantInfo] = useState<ApplicantInfo>({
     applicantName: "",
@@ -462,6 +494,44 @@ export default function ScholarshipForm() {
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const hasLoadedExisting = useRef(false);
   const formInitialized = useRef(false); // true after initial server/localStorage load completes
+
+  useEffect(() => {
+    hasLoadedExisting.current = false;
+    formInitialized.current = false;
+    setExistingAppId(null);
+    setExistingFiles([]);
+    setExistingUpdatedAt(null);
+    setExistingSubmissionStatus(null);
+  }, [routeProgramKey]);
+
+  useEffect(() => {
+    setProgramSetting(getDefaultScholarshipProgramSetting(routeProgramKey));
+
+    let isMounted = true;
+    fetch("/api/scholarship-programs")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted || !data.success || !Array.isArray(data.programs)) {
+          return;
+        }
+
+        const setting = (data.programs as ScholarshipProgramSetting[]).find(
+          (program) => program.program_key === routeProgramKey
+        );
+        if (setting) {
+          setProgramSetting(setting);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setProgramSetting(getDefaultScholarshipProgramSetting(routeProgramKey));
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [routeProgramKey]);
 
   useEffect(() => {
     setApplicantInfo((current) => ({
@@ -578,18 +648,20 @@ export default function ScholarshipForm() {
 
   // Load existing application data when user is authenticated
   const loadExistingApplication = useCallback(async () => {
-    const draftKey = `scholarship-draft-${config.program}`;
+    const draftKey = `scholarship-draft-${config.programKey}`;
+    const legacyDraftKey = `scholarship-draft-${baseConfig.program}`;
     setIsLoadingExisting(true);
     try {
       const response = await fetch(
-        `/api/scholarships?scholarshipProgram=${encodeURIComponent(config.program)}`
+        `/api/scholarships?programKey=${encodeURIComponent(config.programKey)}`
       );
       const result = await response.json();
 
       // Try reading localStorage draft
       let localDraft: (ScholarshipPayload & { savedAt?: number; doctoralSemesterRecords?: DoctoralSemesterRecord[]; masterDirectSemesterRecords?: MasterDirectSemesterRecord[] }) | null = null;
       try {
-        const raw = localStorage.getItem(draftKey);
+        const raw =
+          localStorage.getItem(draftKey) ?? localStorage.getItem(legacyDraftKey);
         if (raw) localDraft = JSON.parse(raw);
       } catch {
         // ignore parse errors
@@ -632,7 +704,7 @@ export default function ScholarshipForm() {
       setIsLoadingExisting(false);
       formInitialized.current = true;
     }
-  }, [config.program, applyFormDraft]);
+  }, [applyFormDraft, baseConfig.program, config.programKey]);
 
   useEffect(() => {
     if (currentUser && !hasLoadedExisting.current) {
@@ -642,7 +714,7 @@ export default function ScholarshipForm() {
   }, [currentUser, loadExistingApplication]);
 
   // ── Auto-save form state to localStorage ──
-  const DRAFT_KEY = `scholarship-draft-${config.program}`;
+  const DRAFT_KEY = `scholarship-draft-${config.programKey}`;
 
   useEffect(() => {
     // Don't save until initial data has been loaded from server/localStorage
@@ -1176,6 +1248,7 @@ export default function ScholarshipForm() {
         body: JSON.stringify({
           applicationId,
           payload,
+          programKey: config.programKey,
           scholarshipProgram: config.program,
           status,
         }),
