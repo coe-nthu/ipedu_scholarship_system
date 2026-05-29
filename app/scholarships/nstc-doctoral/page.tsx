@@ -46,6 +46,7 @@ import {
   type ScholarshipProgramSetting,
 } from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type {
   SubmissionStatus,
   ApplicantInfo,
@@ -86,9 +87,72 @@ type MasterDirectSemesterRecord = {
   gpa: string;
 };
 
+type RepeatableSection =
+  | "journals"
+  | "conferences"
+  | "researchExperiences"
+  | "researchAwards"
+  | "plannedResearch";
+
+type RowValidationErrors = Partial<
+  Record<RepeatableSection, Record<number, Record<string, string>>>
+>;
+
+const ROW_FIELD_LABELS: Record<RepeatableSection, Record<string, string>> = {
+  conferences: {
+    author: "作者",
+    authorOrder: "順位",
+    conference: "研討會名稱",
+    database: "資料庫",
+    date: "發表日期",
+    organizer: "主辦單位",
+    title: "論文名稱",
+    type: "發表類別",
+  },
+  journals: {
+    applicantAuthorName: "申請人作者姓名",
+    author: "DOI 作者清單",
+    authorOrder: "作者順位",
+    database: "資料庫",
+    date: "發表日期",
+    doi: "DOI",
+    journal: "期刊名稱",
+    journalLevel: "期刊等級",
+    title: "論文名稱",
+  },
+  plannedResearch: {
+    advisor: "指導教授",
+    database: "資料庫名稱",
+    expectedDate: "預計發表時間",
+    targetVenue: "預計投稿期刊/研討會",
+    title: "論文名稱",
+  },
+  researchAwards: {
+    amountOrItem: "獎助金額/項目",
+    contribution: "主要參與部分",
+    name: "名稱",
+    projectNumber: "計畫/成果編號",
+  },
+  researchExperiences: {
+    duration: "起訖日期",
+    institution: "機構/主持人",
+    nature: "研究案性質",
+    role: "職稱",
+  },
+};
+
+const INVALID_FIELD_CLASS =
+  "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";
+
 const STUDY_STATUS_NEW = "新領";
 const STUDY_STATUS_RENEWAL = "續領";
 const PENDING_ADVISOR_NAME = "找尋中，待定";
+const DEPARTMENT_OPTIONS = [
+  "竹師教育學院博士班",
+  "教育與學習科技學系",
+  "教育心理與諮商學系",
+  "臺灣語言研究與教學研究所",
+] as const;
 
 const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
   academicForm: "standard",
@@ -481,6 +545,8 @@ export default function ScholarshipForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [rowValidationErrors, setRowValidationErrors] =
+    useState<RowValidationErrors>({});
 
   // Existing application state
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
@@ -937,49 +1003,145 @@ export default function ScholarshipForm() {
     );
   };
 
+  const getMissingFields = <T extends Record<string, unknown>>(
+    row: T,
+    requiredFields: (keyof T)[]
+  ) => requiredFields.filter((field) => !isFilled(row[field]));
+
+  const setRowValidationErrorFields = <T extends Record<string, unknown>>(
+    section: RepeatableSection,
+    rowIndex: number,
+    fields: (keyof T)[]
+  ) => {
+    const fieldErrors = Object.fromEntries(
+      fields.map((field) => {
+        const fieldName = String(field);
+        const label = ROW_FIELD_LABELS[section][fieldName] ?? fieldName;
+        return [fieldName, `請填寫${label}`];
+      })
+    );
+
+    setRowValidationErrors((current) => ({
+      ...current,
+      [section]: {
+        ...(current[section] ?? {}),
+        [rowIndex]: fieldErrors,
+      },
+    }));
+  };
+
+  const clearRowValidationSection = (section: RepeatableSection) => {
+    setRowValidationErrors((current) => {
+      const next = { ...current };
+      delete next[section];
+      return next;
+    });
+  };
+
+  const clearRowFieldError = (
+    section: RepeatableSection,
+    rowIndex: number,
+    field: string
+  ) => {
+    setRowValidationErrors((current) => {
+      const sectionErrors = current[section];
+      const rowErrors = sectionErrors?.[rowIndex];
+      if (!sectionErrors || !rowErrors?.[field]) {
+        return current;
+      }
+
+      const nextRowErrors = { ...rowErrors };
+      delete nextRowErrors[field];
+      const nextSectionErrors = { ...sectionErrors };
+
+      if (Object.keys(nextRowErrors).length > 0) {
+        nextSectionErrors[rowIndex] = nextRowErrors;
+      } else {
+        delete nextSectionErrors[rowIndex];
+      }
+
+      const next = { ...current };
+      if (Object.keys(nextSectionErrors).length > 0) {
+        next[section] = nextSectionErrors;
+      } else {
+        delete next[section];
+      }
+
+      return next;
+    });
+  };
+
+  const getRowFieldError = (
+    section: RepeatableSection,
+    rowIndex: number,
+    field: string
+  ) => rowValidationErrors[section]?.[rowIndex]?.[field] ?? "";
+
+  const getRowFieldClassName = (
+    section: RepeatableSection,
+    rowIndex: number,
+    field: string
+  ) => (getRowFieldError(section, rowIndex, field) ? INVALID_FIELD_CLASS : "");
+
   const updateRow = <T,>(
     rows: T[],
     setRows: (rows: T[]) => void,
     index: number,
     field: keyof T,
-    value: T[keyof T]
+    value: T[keyof T],
+    validation?: {
+      section: RepeatableSection;
+    }
   ) => {
     setRows(
       rows.map((row, rowIndex) =>
         rowIndex === index ? { ...row, [field]: value } : row
       )
     );
+
+    if (validation && isFilled(value)) {
+      clearRowFieldError(validation.section, index, String(field));
+    }
   };
 
   const removeRow = <T,>(
     rows: T[],
     setRows: (rows: T[]) => void,
     index: number,
-    fallback: () => T
+    fallback: () => T,
+    section?: RepeatableSection
   ) => {
     const nextRows = rows.filter((_, rowIndex) => rowIndex !== index);
     setRows(nextRows.length > 0 ? nextRows : [fallback()]);
+    if (section) {
+      clearRowValidationSection(section);
+    }
   };
 
   const addRowWhenComplete = <T extends Record<string, unknown>>(
+    section: RepeatableSection,
     rows: T[],
     setRows: (rows: T[]) => void,
     fallback: () => T,
-    requiredFields: (keyof T)[],
-    message: string
+    requiredFields: (keyof T)[]
   ) => {
     const lastRow = rows[rows.length - 1];
-    const isComplete = requiredFields.every((field) => isFilled(lastRow[field]));
+    const missingFields = getMissingFields(lastRow, requiredFields);
 
-    if (!isComplete) {
-      alert(message);
+    if (missingFields.length > 0) {
+      setRowValidationErrorFields(section, rows.length - 1, missingFields);
       return;
     }
 
+    clearRowValidationSection(section);
     setRows([...rows, fallback()]);
   };
 
   const updateJournalApplicantAuthorName = (index: number, value: string) => {
+    if (isFilled(value)) {
+      clearRowFieldError("journals", index, "applicantAuthorName");
+    }
+
     setJournals((current) =>
       current.map((journal, rowIndex) => {
         if (rowIndex !== index) {
@@ -1036,6 +1198,10 @@ export default function ScholarshipForm() {
   };
 
   const updateJournalAuthorOrder = (index: number, value: string) => {
+    if (isFilled(value)) {
+      clearRowFieldError("journals", index, "authorOrder");
+    }
+
     setJournals((current) =>
       current.map((journal, rowIndex) => {
         if (rowIndex !== index) {
@@ -1577,15 +1743,23 @@ export default function ScholarshipForm() {
                 />
               </Field>
               <Field label="所屬學系所" htmlFor="department" required>
-                <Input
-                  id="department"
+                <Select
                   value={applicantInfo.department}
-                  onChange={(event) =>
-                    updateApplicant("department", event.target.value)
+                  onValueChange={(value) =>
+                    updateApplicant("department", value ?? "")
                   }
-                  placeholder="例：教育心理與諮商學系"
-                  required
-                />
+                >
+                  <SelectTrigger id="department">
+                    <SelectValue placeholder="請選擇所屬學系所" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENT_OPTIONS.map((department) => (
+                      <SelectItem key={department} value={department}>
+                        {department}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field label="Email" htmlFor="email">
                 <Input
@@ -2664,6 +2838,11 @@ export default function ScholarshipForm() {
                         <TableCell className="align-top">
                           <div className="flex flex-col gap-2">
                             <Input
+                              className={getRowFieldClassName(
+                                "journals",
+                                index,
+                                "doi"
+                              )}
                               value={journal.doi}
                               onChange={(event) =>
                                 updateRow(
@@ -2671,10 +2850,18 @@ export default function ScholarshipForm() {
                                   setJournals,
                                   index,
                                   "doi",
-                                  event.target.value
+                                  event.target.value,
+                                  { section: "journals" }
                                 )
                               }
                               placeholder="10.10xx/..."
+                            />
+                            <ValidationMessage
+                              message={getRowFieldError(
+                                "journals",
+                                index,
+                                "doi"
+                              )}
                             />
                             <Button
                               type="button"
@@ -2694,6 +2881,11 @@ export default function ScholarshipForm() {
                         </TableCell>
                         <TableCell className="align-top">
                           <Input
+                            className={getRowFieldClassName(
+                              "journals",
+                              index,
+                              "date"
+                            )}
                             type="date"
                             value={journal.date}
                             onChange={(event) =>
@@ -2702,13 +2894,26 @@ export default function ScholarshipForm() {
                                 setJournals,
                                 index,
                                 "date",
-                                event.target.value
+                                event.target.value,
+                                { section: "journals" }
                               )
                             }
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "journals",
+                              index,
+                              "date"
+                            )}
                           />
                         </TableCell>
                         <TableCell className="align-top">
                           <Input
+                            className={getRowFieldClassName(
+                              "journals",
+                              index,
+                              "applicantAuthorName"
+                            )}
                             value={journal.applicantAuthorName}
                             onChange={(event) =>
                               updateJournalApplicantAuthorName(
@@ -2718,10 +2923,20 @@ export default function ScholarshipForm() {
                             }
                             placeholder="請填自己在論文中的姓名"
                           />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "journals",
+                              index,
+                              "applicantAuthorName"
+                            )}
+                          />
                         </TableCell>
                         <TableCell className="align-top">
                           <Textarea
-                            className="min-h-20 resize-y"
+                            className={cn(
+                              "min-h-20 resize-y",
+                              getRowFieldClassName("journals", index, "author")
+                            )}
                             value={journal.author}
                             onChange={(event) =>
                               updateRow(
@@ -2729,15 +2944,28 @@ export default function ScholarshipForm() {
                                 setJournals,
                                 index,
                                 "author",
-                                event.target.value
+                                event.target.value,
+                                { section: "journals" }
                               )
                             }
                             placeholder="DOI 會自動帶入作者清單"
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "journals",
+                              index,
+                              "author"
+                            )}
                           />
                         </TableCell>
                         <TableCell className="align-top">
                           <div className="flex flex-col gap-2">
                             <Input
+                              className={getRowFieldClassName(
+                                "journals",
+                                index,
+                                "title"
+                              )}
                               value={journal.title}
                               onChange={(event) =>
                                 updateRow(
@@ -2745,12 +2973,25 @@ export default function ScholarshipForm() {
                                   setJournals,
                                   index,
                                   "title",
-                                  event.target.value
+                                  event.target.value,
+                                  { section: "journals" }
                                 )
                               }
                               placeholder="論文名稱"
                             />
+                            <ValidationMessage
+                              message={getRowFieldError(
+                                "journals",
+                                index,
+                                "title"
+                              )}
+                            />
                             <Input
+                              className={getRowFieldClassName(
+                                "journals",
+                                index,
+                                "journal"
+                              )}
                               value={journal.journal}
                               onChange={(event) =>
                                 updateRow(
@@ -2758,10 +2999,18 @@ export default function ScholarshipForm() {
                                   setJournals,
                                   index,
                                   "journal",
-                                  event.target.value
+                                  event.target.value,
+                                  { section: "journals" }
                                 )
                               }
                               placeholder="期刊名稱/期數"
+                            />
+                            <ValidationMessage
+                              message={getRowFieldError(
+                                "journals",
+                                index,
+                                "journal"
+                              )}
                             />
                             {journal.issns.length > 0 ? (
                               <p className="text-xs leading-5 text-slate-500">
@@ -2799,11 +3048,18 @@ export default function ScholarshipForm() {
                                 setJournals,
                                 index,
                                 "journalLevel",
-                                value ?? ""
+                                value ?? "",
+                                { section: "journals" }
                               )
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              className={getRowFieldClassName(
+                                "journals",
+                                index,
+                                "journalLevel"
+                              )}
+                            >
                               <SelectValue placeholder="期刊等級" />
                             </SelectTrigger>
                             <SelectContent>
@@ -2811,6 +3067,13 @@ export default function ScholarshipForm() {
                               <SelectItem value="非I級期刊">非I級期刊</SelectItem>
                             </SelectContent>
                           </Select>
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "journals",
+                              index,
+                              "journalLevel"
+                            )}
+                          />
                         </TableCell>
                         <TableCell className="align-top">
                           <Select
@@ -2821,11 +3084,18 @@ export default function ScholarshipForm() {
                                 setJournals,
                                 index,
                                 "database",
-                                value ?? ""
+                                value ?? "",
+                                { section: "journals" }
                               )
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              className={getRowFieldClassName(
+                                "journals",
+                                index,
+                                "database"
+                              )}
+                            >
                               <SelectValue placeholder="資料庫" />
                             </SelectTrigger>
                             <SelectContent>
@@ -2838,6 +3108,13 @@ export default function ScholarshipForm() {
                               <SelectItem value="否">否</SelectItem>
                             </SelectContent>
                           </Select>
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "journals",
+                              index,
+                              "database"
+                            )}
+                          />
                         </TableCell>
                         <TableCell className="align-top">
                           <div className="flex justify-center pt-2">
@@ -2855,11 +3132,23 @@ export default function ScholarshipForm() {
                         </TableCell>
                         <TableCell className="align-top">
                           <Input
+                            className={getRowFieldClassName(
+                              "journals",
+                              index,
+                              "authorOrder"
+                            )}
                             value={journal.authorOrder}
                             onChange={(event) =>
                               updateJournalAuthorOrder(index, event.target.value)
                             }
                             placeholder="第一作者/通訊作者"
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "journals",
+                              index,
+                              "authorOrder"
+                            )}
                           />
                           {journal.authorOrderOriginal ? (
                             <p className="mt-2 text-xs leading-5 text-slate-500">
@@ -2882,7 +3171,8 @@ export default function ScholarshipForm() {
                                 journals,
                                 setJournals,
                                 index,
-                                emptyJournal
+                                emptyJournal,
+                                "journals"
                               )
                             }
                             aria-label="刪除期刊列"
@@ -2932,6 +3222,7 @@ export default function ScholarshipForm() {
                 className="w-full border-dashed"
                 onClick={() =>
                   addRowWhenComplete(
+                    "journals",
                     journals,
                     setJournals,
                     emptyJournal,
@@ -2945,8 +3236,7 @@ export default function ScholarshipForm() {
                       "journalLevel",
                       "database",
                       "authorOrder",
-                    ],
-                    "請先將最後一列「期刊發表」填寫完整，再新增下一列。"
+                    ]
                   )
                 }
               >
@@ -2983,6 +3273,11 @@ export default function ScholarshipForm() {
                       <TableRow key={index}>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "conferences",
+                              index,
+                              "date"
+                            )}
                             type="date"
                             value={conference.date}
                             onChange={(event) =>
@@ -2991,13 +3286,26 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "date",
-                                event.target.value
+                                event.target.value,
+                                { section: "conferences" }
                               )
                             }
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "date"
+                            )}
                           />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "conferences",
+                              index,
+                              "author"
+                            )}
                             value={conference.author}
                             onChange={(event) =>
                               updateRow(
@@ -3005,14 +3313,27 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "author",
-                                event.target.value
+                                event.target.value,
+                                { section: "conferences" }
                               )
                             }
                             placeholder="作者"
                           />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "author"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "conferences",
+                              index,
+                              "title"
+                            )}
                             value={conference.title}
                             onChange={(event) =>
                               updateRow(
@@ -3020,14 +3341,27 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "title",
-                                event.target.value
+                                event.target.value,
+                                { section: "conferences" }
                               )
                             }
                             placeholder="論文名稱"
                           />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "title"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "conferences",
+                              index,
+                              "conference"
+                            )}
                             value={conference.conference}
                             onChange={(event) =>
                               updateRow(
@@ -3035,14 +3369,27 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "conference",
-                                event.target.value
+                                event.target.value,
+                                { section: "conferences" }
                               )
                             }
                             placeholder="研討會名稱"
                           />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "conference"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "conferences",
+                              index,
+                              "organizer"
+                            )}
                             value={conference.organizer}
                             onChange={(event) =>
                               updateRow(
@@ -3050,10 +3397,18 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "organizer",
-                                event.target.value
+                                event.target.value,
+                                { section: "conferences" }
                               )
                             }
                             placeholder="主辦單位"
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "organizer"
+                            )}
                           />
                         </TableCell>
                         <TableCell>
@@ -3065,11 +3420,18 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "type",
-                                value ?? ""
+                                value ?? "",
+                                { section: "conferences" }
                               )
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              className={getRowFieldClassName(
+                                "conferences",
+                                index,
+                                "type"
+                              )}
+                            >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -3077,6 +3439,13 @@ export default function ScholarshipForm() {
                               <SelectItem value="壁報發表">壁報發表</SelectItem>
                             </SelectContent>
                           </Select>
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "type"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Select
@@ -3087,11 +3456,18 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "database",
-                                value ?? ""
+                                value ?? "",
+                                { section: "conferences" }
                               )
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              className={getRowFieldClassName(
+                                "conferences",
+                                index,
+                                "database"
+                              )}
+                            >
                               <SelectValue placeholder="資料庫" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3105,9 +3481,21 @@ export default function ScholarshipForm() {
                               <SelectItem value="否">否</SelectItem>
                             </SelectContent>
                           </Select>
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "database"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "conferences",
+                              index,
+                              "authorOrder"
+                            )}
                             value={conference.authorOrder}
                             onChange={(event) =>
                               updateRow(
@@ -3115,10 +3503,18 @@ export default function ScholarshipForm() {
                                 setConferences,
                                 index,
                                 "authorOrder",
-                                event.target.value
+                                event.target.value,
+                                { section: "conferences" }
                               )
                             }
                             placeholder="第一作者/通訊作者"
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "conferences",
+                              index,
+                              "authorOrder"
+                            )}
                           />
                         </TableCell>
                         <TableCell>
@@ -3131,7 +3527,8 @@ export default function ScholarshipForm() {
                                 conferences,
                                 setConferences,
                                 index,
-                                emptyConference
+                                emptyConference,
+                                "conferences"
                               )
                             }
                             aria-label="刪除研討會列"
@@ -3150,6 +3547,7 @@ export default function ScholarshipForm() {
                 className="w-full border-dashed"
                 onClick={() =>
                   addRowWhenComplete(
+                    "conferences",
                     conferences,
                     setConferences,
                     emptyConference,
@@ -3162,8 +3560,7 @@ export default function ScholarshipForm() {
                       "type",
                       "database",
                       "authorOrder",
-                    ],
-                    "請先將最後一列「國際研討會發表」填寫完整，再新增下一列。"
+                    ]
                   )
                 }
               >
@@ -3184,6 +3581,7 @@ export default function ScholarshipForm() {
                 minWidth="900px"
                 onAdd={() =>
                   addRowWhenComplete(
+                    "researchExperiences",
                     researchExperiences,
                     setResearchExperiences,
                     emptyResearchExperience,
@@ -3192,8 +3590,7 @@ export default function ScholarshipForm() {
                       "role",
                       "nature",
                       "duration",
-                    ],
-                    "請先將最後一列「研究經歷」填寫完整，再新增下一列。"
+                    ]
                   )
                 }
               >
@@ -3212,6 +3609,11 @@ export default function ScholarshipForm() {
                     <TableRow key={index}>
                       <TableCell>
                         <Input
+                          className={getRowFieldClassName(
+                            "researchExperiences",
+                            index,
+                            "institution"
+                          )}
                           value={experience.institution}
                           onChange={(event) =>
                             updateRow(
@@ -3219,10 +3621,18 @@ export default function ScholarshipForm() {
                               setResearchExperiences,
                               index,
                               "institution",
-                              event.target.value
+                              event.target.value,
+                              { section: "researchExperiences" }
                             )
                           }
                           placeholder="機構/主持人"
+                        />
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchExperiences",
+                            index,
+                            "institution"
+                          )}
                         />
                       </TableCell>
                       <TableCell>
@@ -3234,11 +3644,18 @@ export default function ScholarshipForm() {
                               setResearchExperiences,
                               index,
                               "role",
-                              value ?? ""
+                              value ?? "",
+                              { section: "researchExperiences" }
                             )
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger
+                            className={getRowFieldClassName(
+                              "researchExperiences",
+                              index,
+                              "role"
+                            )}
+                          >
                             <SelectValue placeholder="職稱" />
                           </SelectTrigger>
                           <SelectContent>
@@ -3248,6 +3665,13 @@ export default function ScholarshipForm() {
                             <SelectItem value="其他">其他</SelectItem>
                           </SelectContent>
                         </Select>
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchExperiences",
+                            index,
+                            "role"
+                          )}
+                        />
                       </TableCell>
                       <TableCell>
                         <Select
@@ -3258,11 +3682,18 @@ export default function ScholarshipForm() {
                               setResearchExperiences,
                               index,
                               "nature",
-                              value ?? ""
+                              value ?? "",
+                              { section: "researchExperiences" }
                             )
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger
+                            className={getRowFieldClassName(
+                              "researchExperiences",
+                              index,
+                              "nature"
+                            )}
+                          >
                             <SelectValue placeholder="性質" />
                           </SelectTrigger>
                           <SelectContent>
@@ -3272,9 +3703,21 @@ export default function ScholarshipForm() {
                             <SelectItem value="其他">其他</SelectItem>
                           </SelectContent>
                         </Select>
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchExperiences",
+                            index,
+                            "nature"
+                          )}
+                        />
                       </TableCell>
                       <TableCell>
                         <Input
+                          className={getRowFieldClassName(
+                            "researchExperiences",
+                            index,
+                            "duration"
+                          )}
                           value={experience.duration}
                           onChange={(event) =>
                             updateRow(
@@ -3282,10 +3725,18 @@ export default function ScholarshipForm() {
                               setResearchExperiences,
                               index,
                               "duration",
-                              event.target.value
+                              event.target.value,
+                              { section: "researchExperiences" }
                             )
                           }
                           placeholder="2023.01-2023.12"
+                        />
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchExperiences",
+                            index,
+                            "duration"
+                          )}
                         />
                       </TableCell>
                       <TableCell>
@@ -3303,7 +3754,8 @@ export default function ScholarshipForm() {
                               researchExperiences,
                               setResearchExperiences,
                               index,
-                              emptyResearchExperience
+                              emptyResearchExperience,
+                              "researchExperiences"
                             )
                           }
                         />
@@ -3319,6 +3771,7 @@ export default function ScholarshipForm() {
                 minWidth="900px"
                 onAdd={() =>
                   addRowWhenComplete(
+                    "researchAwards",
                     researchAwards,
                     setResearchAwards,
                     emptyResearchAward,
@@ -3327,8 +3780,7 @@ export default function ScholarshipForm() {
                       "projectNumber",
                       "amountOrItem",
                       "contribution",
-                    ],
-                    "請先將最後一列「研究獲獎/獎助」填寫完整，再新增下一列。"
+                    ]
                   )
                 }
               >
@@ -3347,6 +3799,11 @@ export default function ScholarshipForm() {
                     <TableRow key={index}>
                       <TableCell>
                         <Input
+                          className={getRowFieldClassName(
+                            "researchAwards",
+                            index,
+                            "name"
+                          )}
                           value={award.name}
                           onChange={(event) =>
                             updateRow(
@@ -3354,14 +3811,27 @@ export default function ScholarshipForm() {
                               setResearchAwards,
                               index,
                               "name",
-                              event.target.value
+                              event.target.value,
+                              { section: "researchAwards" }
                             )
                           }
                           placeholder="獎項/獎助名稱"
                         />
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchAwards",
+                            index,
+                            "name"
+                          )}
+                        />
                       </TableCell>
                       <TableCell>
                         <Input
+                          className={getRowFieldClassName(
+                            "researchAwards",
+                            index,
+                            "projectNumber"
+                          )}
                           value={award.projectNumber}
                           onChange={(event) =>
                             updateRow(
@@ -3369,14 +3839,27 @@ export default function ScholarshipForm() {
                               setResearchAwards,
                               index,
                               "projectNumber",
-                              event.target.value
+                              event.target.value,
+                              { section: "researchAwards" }
                             )
                           }
                           placeholder="編號"
                         />
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchAwards",
+                            index,
+                            "projectNumber"
+                          )}
+                        />
                       </TableCell>
                       <TableCell>
                         <Input
+                          className={getRowFieldClassName(
+                            "researchAwards",
+                            index,
+                            "amountOrItem"
+                          )}
                           value={award.amountOrItem}
                           onChange={(event) =>
                             updateRow(
@@ -3384,14 +3867,27 @@ export default function ScholarshipForm() {
                               setResearchAwards,
                               index,
                               "amountOrItem",
-                              event.target.value
+                              event.target.value,
+                              { section: "researchAwards" }
                             )
                           }
                           placeholder="金額/項目"
                         />
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchAwards",
+                            index,
+                            "amountOrItem"
+                          )}
+                        />
                       </TableCell>
                       <TableCell>
                         <Input
+                          className={getRowFieldClassName(
+                            "researchAwards",
+                            index,
+                            "contribution"
+                          )}
                           value={award.contribution}
                           onChange={(event) =>
                             updateRow(
@@ -3399,10 +3895,18 @@ export default function ScholarshipForm() {
                               setResearchAwards,
                               index,
                               "contribution",
-                              event.target.value
+                              event.target.value,
+                              { section: "researchAwards" }
                             )
                           }
                           placeholder="主要參與部分"
+                        />
+                        <ValidationMessage
+                          message={getRowFieldError(
+                            "researchAwards",
+                            index,
+                            "contribution"
+                          )}
                         />
                       </TableCell>
                       <TableCell>
@@ -3420,7 +3924,8 @@ export default function ScholarshipForm() {
                               researchAwards,
                               setResearchAwards,
                               index,
-                              emptyResearchAward
+                              emptyResearchAward,
+                              "researchAwards"
                             )
                           }
                         />
@@ -3456,6 +3961,11 @@ export default function ScholarshipForm() {
                       <TableRow key={index}>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "plannedResearch",
+                              index,
+                              "title"
+                            )}
                             value={research.title}
                             onChange={(event) =>
                               updateRow(
@@ -3463,14 +3973,27 @@ export default function ScholarshipForm() {
                                 setPlannedResearch,
                                 index,
                                 "title",
-                                event.target.value
+                                event.target.value,
+                                { section: "plannedResearch" }
                               )
                             }
                             placeholder="論文名稱"
                           />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "plannedResearch",
+                              index,
+                              "title"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "plannedResearch",
+                              index,
+                              "expectedDate"
+                            )}
                             value={research.expectedDate}
                             onChange={(event) =>
                               updateRow(
@@ -3478,14 +4001,27 @@ export default function ScholarshipForm() {
                                 setPlannedResearch,
                                 index,
                                 "expectedDate",
-                                event.target.value
+                                event.target.value,
+                                { section: "plannedResearch" }
                               )
                             }
                             placeholder="2026.09"
                           />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "plannedResearch",
+                              index,
+                              "expectedDate"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "plannedResearch",
+                              index,
+                              "targetVenue"
+                            )}
                             value={research.targetVenue}
                             onChange={(event) =>
                               updateRow(
@@ -3493,10 +4029,18 @@ export default function ScholarshipForm() {
                                 setPlannedResearch,
                                 index,
                                 "targetVenue",
-                                event.target.value
+                                event.target.value,
+                                { section: "plannedResearch" }
                               )
                             }
                             placeholder="期刊/研討會"
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "plannedResearch",
+                              index,
+                              "targetVenue"
+                            )}
                           />
                         </TableCell>
                         <TableCell>
@@ -3508,11 +4052,18 @@ export default function ScholarshipForm() {
                                 setPlannedResearch,
                                 index,
                                 "database",
-                                value ?? ""
+                                value ?? "",
+                                { section: "plannedResearch" }
                               )
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              className={getRowFieldClassName(
+                                "plannedResearch",
+                                index,
+                                "database"
+                              )}
+                            >
                               <SelectValue placeholder="選擇資料庫" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3523,9 +4074,21 @@ export default function ScholarshipForm() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "plannedResearch",
+                              index,
+                              "database"
+                            )}
+                          />
                         </TableCell>
                         <TableCell>
                           <Input
+                            className={getRowFieldClassName(
+                              "plannedResearch",
+                              index,
+                              "advisor"
+                            )}
                             value={research.advisor}
                             onChange={(event) =>
                               updateRow(
@@ -3533,10 +4096,18 @@ export default function ScholarshipForm() {
                                 setPlannedResearch,
                                 index,
                                 "advisor",
-                                event.target.value
+                                event.target.value,
+                                { section: "plannedResearch" }
                               )
                             }
                             placeholder="指導教授"
+                          />
+                          <ValidationMessage
+                            message={getRowFieldError(
+                              "plannedResearch",
+                              index,
+                              "advisor"
+                            )}
                           />
                         </TableCell>
                         <TableCell>
@@ -3547,7 +4118,8 @@ export default function ScholarshipForm() {
                                 plannedResearch,
                                 setPlannedResearch,
                                 index,
-                                emptyPlannedResearch
+                                emptyPlannedResearch,
+                                "plannedResearch"
                               )
                             }
                           />
@@ -3563,6 +4135,7 @@ export default function ScholarshipForm() {
                 className="w-full border-dashed"
                 onClick={() =>
                   addRowWhenComplete(
+                    "plannedResearch",
                     plannedResearch,
                     setPlannedResearch,
                     emptyPlannedResearch,
@@ -3572,8 +4145,7 @@ export default function ScholarshipForm() {
                       "targetVenue",
                       "database",
                       "advisor",
-                    ],
-                    "請先將最後一列「預計研究議題」填寫完整，再新增下一列。"
+                    ]
                   )
                 }
               >
@@ -3707,6 +4279,12 @@ function Field({
       {children}
     </div>
   );
+}
+
+function ValidationMessage({ message }: { message?: string }) {
+  return message ? (
+    <p className="mt-1 text-xs font-medium text-red-600">{message}</p>
+  ) : null;
 }
 
 function FileUploadControl({
