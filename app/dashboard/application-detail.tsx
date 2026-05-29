@@ -323,6 +323,30 @@ export function ApplicationDetail({
                       eligibility.notReceivingOtherScholarship ? "是" : "否"
                     }
                   />
+                  {eligibility.employmentStatus && (
+                    <InfoRow
+                      label="兼職情形"
+                      value={eligibility.employmentStatus}
+                    />
+                  )}
+                  {eligibility.taMonthlyIncome && (
+                    <InfoRow
+                      label="教學助理月薪"
+                      value={eligibility.taMonthlyIncome}
+                    />
+                  )}
+                  {eligibility.employmentDescription && (
+                    <InfoRow
+                      label="兼職工作"
+                      value={eligibility.employmentDescription}
+                    />
+                  )}
+                  {eligibility.employmentMonthlyIncome && (
+                    <InfoRow
+                      label="兼職平均月薪"
+                      value={eligibility.employmentMonthlyIncome}
+                    />
+                  )}
                   {eligibility.eligibilityNotes && (
                     <InfoRow
                       label="補充說明"

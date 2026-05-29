@@ -78,6 +78,10 @@ public.scholarship_applications
 | `hasSpecialRecommendation` | 是否有特殊表現並經推薦 |
 | `noFullTimeJob` | 是否確認未從事專職工作 |
 | `notReceivingOtherScholarship` | 是否確認未重複請領其他獎助學金 |
+| `employmentStatus` | 全時博士生助學金兼職情形：無兼職、擔任校內外教學助理、有校內外兼職 |
+| `employmentDescription` | 全時博士生助學金兼職工作簡述 |
+| `employmentMonthlyIncome` | 全時博士生助學金兼職平均月薪 |
+| `taMonthlyIncome` | 全時博士生助學金校內外教學助理平均月薪 |
 | `eligibilityNotes` | 資格補充說明 |
 
 ## 學業表現：`payload.academicPerformance`
@@ -208,6 +212,8 @@ public.scholarship_applications
 | `document_advisorRecommendation` | 指導教授推薦函 | 是 |
 | `document_learningPlan` | 個人學習計畫書，最多 3 頁 | 是 |
 | `document_noFullTimeDeclaration` | 無專職切結書 | 是 |
+| `document_applicationForm` | 全時博士生助學金申請單 | 是 |
+| `document_researchDirectionStatement` | 全時博士生助學金個人研究方向說明 | 是 |
 | `document_researchExperiences_{index}` | 研究經歷證明文件（每筆一份） | 否 |
 | `document_researchAwards_{index}` | 研究獲獎證明文件（每筆一份） | 否 |
 | `document_otherReviewDocuments_0` | 其他有利審查文件，限 1 件 | 否 |

@@ -20,6 +20,10 @@ export type Eligibility = {
   hasSpecialRecommendation: boolean;
   noFullTimeJob: boolean;
   notReceivingOtherScholarship: boolean;
+  employmentStatus: string;
+  employmentDescription: string;
+  employmentMonthlyIncome: string;
+  taMonthlyIncome: string;
   eligibilityNotes: string;
 };
 

@@ -66,13 +66,21 @@ type ScholarshipFormConfig = {
   academicForm: "standard" | "doctoralResearchGrant" | "presidentialScholarship";
   amount: string;
   applicationType: string;
+  applicationTypeOptions?: readonly string[];
   description: string;
+  documentFields?: readonly DocumentField[];
   eligibilityReminder: string;
   period: string;
   programKey: ScholarshipProgramKey;
   program: string;
   studyStatusOptions: string[];
   title: string;
+};
+
+type DocumentField = {
+  key: string;
+  label: string;
+  required: boolean;
 };
 
 type DoctoralSemesterRecord = {
@@ -147,6 +155,16 @@ const INVALID_FIELD_CLASS =
 const STUDY_STATUS_NEW = "新領";
 const STUDY_STATUS_RENEWAL = "續領";
 const PENDING_ADVISOR_NAME = "找尋中，待定";
+const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
+const FULL_TIME_APPLICATION_TYPES = ["指導教授配合款", "競爭型"] as const;
+const EMPLOYMENT_STATUS_NONE = "無兼職";
+const EMPLOYMENT_STATUS_TA = "擔任校內外教學助理";
+const EMPLOYMENT_STATUS_PART_TIME = "有校內外兼職";
+const EMPLOYMENT_STATUS_OPTIONS = [
+  EMPLOYMENT_STATUS_NONE,
+  EMPLOYMENT_STATUS_TA,
+  EMPLOYMENT_STATUS_PART_TIME,
+] as const;
 const DEPARTMENT_OPTIONS = [
   "竹師教育學院博士班",
   "教育與學習科技學系",
@@ -181,6 +199,29 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     program: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
     studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
     title: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
+  },
+  "/scholarships/full-time-doctoral-grant": {
+    academicForm: "doctoralResearchGrant",
+    amount: "實際核發金額及核發月數由學院審查委員會核定",
+    applicationType: FULL_TIME_APPLICATION_TYPES[0],
+    applicationTypeOptions: FULL_TIME_APPLICATION_TYPES,
+    description: "全時博士生助學金申請表單",
+    documentFields: [
+      { key: "applicationForm", label: "申請單", required: true },
+      { key: "transcript", label: "歷年成績單", required: true },
+      {
+        key: "researchDirectionStatement",
+        label: "個人研究方向說明",
+        required: true,
+      },
+    ],
+    eligibilityReminder:
+      "限全時無專職就讀本院之博士生提出申請，以一至四年級為原則。請填寫申請類型、兼職情形調查並上傳指定文件。",
+    period: "本院全時博士生",
+    programKey: FULL_TIME_DOCTORAL_GRANT_KEY,
+    program: "全時博士生助學金",
+    studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
+    title: "全時博士生助學金",
   },
   "/scholarships/nstc-doctoral": DEFAULT_SCHOLARSHIP_CONFIG,
   "/scholarships/nstc-research-grant": {
@@ -230,7 +271,7 @@ const DOCUMENT_PREFIX = "document_";
 const STORAGE_BUCKET = "scholarship-documents";
 const PDF_MIME_TYPE = "application/pdf";
 
-const documentFields = [
+const standardDocumentFields = [
   { key: "transcript", label: "歷年成績單", required: true },
   { key: "advisorRecommendation", label: "指導教授推薦函", required: true },
   { key: "learningPlan", label: "個人學習計畫書（最多 3 頁）", required: true },
@@ -257,6 +298,21 @@ function isPdfFile(file: File) {
 function createStoragePath(applicationId: string, field: string) {
   return `${applicationId}/${field}/${crypto.randomUUID()}.pdf`;
 }
+
+const createEmptyEligibility = (): Eligibility => ({
+  bachelorRankPercent: "",
+  masterGpa: "",
+  gpaScale: "4.3",
+  masterPercentScore: "",
+  hasSpecialRecommendation: false,
+  noFullTimeJob: false,
+  notReceivingOtherScholarship: false,
+  employmentStatus: "",
+  employmentDescription: "",
+  employmentMonthlyIncome: "",
+  taMonthlyIncome: "",
+  eligibilityNotes: "",
+});
 
 const otherScholarshipRuleUrl =
   "https://ec.site.nthu.edu.tw/p/406-1584-160474,r255.php?Lang=zh-tw";
@@ -490,6 +546,16 @@ export default function ScholarshipForm() {
     );
   const config = applyProgramSetting(baseConfig, programSetting);
   const defaultStudyStatus = config.studyStatusOptions[0] ?? STUDY_STATUS_RENEWAL;
+  const applicationTypeOptions = useMemo(
+    () => config.applicationTypeOptions ?? [config.applicationType],
+    [config.applicationType, config.applicationTypeOptions]
+  );
+  const configuredDocumentFields = useMemo(
+    () => config.documentFields ?? standardDocumentFields,
+    [config.documentFields]
+  );
+  const isFullTimeDoctoralGrant =
+    config.programKey === FULL_TIME_DOCTORAL_GRANT_KEY;
   const [applicantInfo, setApplicantInfo] = useState<ApplicantInfo>({
     applicantName: "",
     studentId: "",
@@ -502,16 +568,8 @@ export default function ScholarshipForm() {
     studyStatus: defaultStudyStatus,
     applicationType: config.applicationType,
   });
-  const [eligibility, setEligibility] = useState<Eligibility>({
-    bachelorRankPercent: "",
-    masterGpa: "",
-    gpaScale: "4.3",
-    masterPercentScore: "",
-    hasSpecialRecommendation: false,
-    noFullTimeJob: false,
-    notReceivingOtherScholarship: false,
-    eligibilityNotes: "",
-  });
+  const [eligibility, setEligibility] =
+    useState<Eligibility>(createEmptyEligibility);
   const [academicPerformance, setAcademicPerformance] =
     useState<AcademicPerformance>(emptyAcademicPerformance);
   const [doctoralSemesterRecords, setDoctoralSemesterRecords] = useState<
@@ -602,7 +660,9 @@ export default function ScholarshipForm() {
   useEffect(() => {
     setApplicantInfo((current) => ({
       ...current,
-      applicationType: config.applicationType,
+      applicationType: applicationTypeOptions.includes(current.applicationType)
+        ? current.applicationType
+        : applicationTypeOptions[0] ?? config.applicationType,
       studyStatus: config.studyStatusOptions.includes(current.studyStatus)
         ? current.studyStatus
         : defaultStudyStatus,
@@ -613,7 +673,12 @@ export default function ScholarshipForm() {
           ? PENDING_ADVISOR_NAME
           : current.advisorName,
     }));
-  }, [config.applicationType, config.studyStatusOptions, defaultStudyStatus]);
+  }, [
+    applicationTypeOptions,
+    config.applicationType,
+    config.studyStatusOptions,
+    defaultStudyStatus,
+  ]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -656,7 +721,11 @@ export default function ScholarshipForm() {
           : defaultStudyStatus;
         setApplicantInfo({
           ...p.applicantInfo,
-          applicationType: config.applicationType,
+          applicationType: applicationTypeOptions.includes(
+            p.applicantInfo.applicationType
+          )
+            ? p.applicantInfo.applicationType
+            : applicationTypeOptions[0] ?? config.applicationType,
           studyStatus: normalizedStudyStatus,
           advisorName:
             normalizedStudyStatus === STUDY_STATUS_NEW &&
@@ -665,7 +734,12 @@ export default function ScholarshipForm() {
               : p.applicantInfo.advisorName,
         });
       }
-      if (p.eligibility) setEligibility(p.eligibility);
+      if (p.eligibility) {
+        setEligibility({
+          ...createEmptyEligibility(),
+          ...p.eligibility,
+        });
+      }
       if (p.academicPerformance) {
         const savedAcademicPerformance = {
           ...emptyAcademicPerformance(),
@@ -709,7 +783,12 @@ export default function ScholarshipForm() {
       if (p.otherReviewDocuments && p.otherReviewDocuments.length > 0)
         setOtherReviewDocuments(p.otherReviewDocuments);
     },
-    [config.applicationType, config.studyStatusOptions, defaultStudyStatus]
+    [
+      applicationTypeOptions,
+      config.applicationType,
+      config.studyStatusOptions,
+      defaultStudyStatus,
+    ]
   );
 
   // Load existing application data when user is authenticated
@@ -868,12 +947,12 @@ export default function ScholarshipForm() {
     applicantInfo.advisorName.trim() === PENDING_ADVISOR_NAME;
   const effectiveDocumentFields = useMemo(
     () =>
-      documentFields.map((document) =>
+      configuredDocumentFields.map((document) =>
         document.key === "advisorRecommendation" && isAdvisorPending
           ? { ...document, required: false }
           : document
       ),
-    [isAdvisorPending]
+    [configuredDocumentFields, isAdvisorPending]
   );
 
   const updateApplicant = (field: keyof ApplicantInfo, value: string) => {
@@ -1330,6 +1409,38 @@ export default function ScholarshipForm() {
       return;
     }
 
+    if (
+      status === "submitted" &&
+      !applicationTypeOptions.includes(applicantInfo.applicationType)
+    ) {
+      setSubmitMessage("送出前請選擇申請類型。");
+      return;
+    }
+
+    if (status === "submitted" && isFullTimeDoctoralGrant) {
+      if (!eligibility.employmentStatus) {
+        setSubmitMessage("送出前請完成兼職情形調查。");
+        return;
+      }
+
+      if (
+        eligibility.employmentStatus === EMPLOYMENT_STATUS_TA &&
+        !eligibility.taMonthlyIncome.trim()
+      ) {
+        setSubmitMessage("請填寫校內外教學助理平均月薪。");
+        return;
+      }
+
+      if (
+        eligibility.employmentStatus === EMPLOYMENT_STATUS_PART_TIME &&
+        (!eligibility.employmentDescription.trim() ||
+          !eligibility.employmentMonthlyIncome.trim())
+      ) {
+        setSubmitMessage("請填寫兼職工作簡述與兼職平均月薪。");
+        return;
+      }
+    }
+
     const hasRequiredAcademicPerformance =
       config.academicForm === "presidentialScholarship"
         ? applicantInfo.studyStatus === STUDY_STATUS_NEW
@@ -1385,8 +1496,9 @@ export default function ScholarshipForm() {
       (field) => field.match(/^document_otherReviewDocuments_\d+$/)
     );
     if (
-      otherReviewDocumentFields.length > 1 ||
-      (otherReviewDocuments.filter((d) => d.name.trim()).length || 0) > 1
+      !isFullTimeDoctoralGrant &&
+      (otherReviewDocumentFields.length > 1 ||
+        (otherReviewDocuments.filter((d) => d.name.trim()).length || 0) > 1)
     ) {
       setSubmitMessage("其他有利審查文件限上傳一件。");
       return;
@@ -1832,9 +1944,11 @@ export default function ScholarshipForm() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={config.applicationType}>
-                      {config.applicationType}
-                    </SelectItem>
+                    {applicationTypeOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
@@ -2781,6 +2895,91 @@ export default function ScholarshipForm() {
                   onChange={handleOtherScholarshipConfirmation}
                 />
               </div>
+              {isFullTimeDoctoralGrant ? (
+                <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-900">
+                      兼職情形調查
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      請依目前校內外工作情形填寫；若申請後有專職工作，應主動通知院辦公室。
+                    </p>
+                  </div>
+                  <Field label="兼職情形" htmlFor="employmentStatus" required>
+                    <Select
+                      value={eligibility.employmentStatus}
+                      onValueChange={(value) =>
+                        updateEligibility("employmentStatus", value ?? "")
+                      }
+                    >
+                      <SelectTrigger id="employmentStatus">
+                        <SelectValue placeholder="請選擇兼職情形" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EMPLOYMENT_STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  {eligibility.employmentStatus === EMPLOYMENT_STATUS_TA ? (
+                    <Field label="教學助理平均月薪" htmlFor="taMonthlyIncome" required>
+                      <Input
+                        id="taMonthlyIncome"
+                        value={eligibility.taMonthlyIncome}
+                        onChange={(event) =>
+                          updateEligibility(
+                            "taMonthlyIncome",
+                            event.target.value
+                          )
+                        }
+                        placeholder="例：8000"
+                      />
+                    </Field>
+                  ) : null}
+                  {eligibility.employmentStatus ===
+                  EMPLOYMENT_STATUS_PART_TIME ? (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Field
+                        label="兼職工作簡述"
+                        htmlFor="employmentDescription"
+                        required
+                      >
+                        <Input
+                          id="employmentDescription"
+                          value={eligibility.employmentDescription}
+                          onChange={(event) =>
+                            updateEligibility(
+                              "employmentDescription",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：研究助理、課輔教師"
+                        />
+                      </Field>
+                      <Field
+                        label="兼職平均月薪"
+                        htmlFor="employmentMonthlyIncome"
+                        required
+                      >
+                        <Input
+                          id="employmentMonthlyIncome"
+                          value={eligibility.employmentMonthlyIncome}
+                          onChange={(event) =>
+                            updateEligibility(
+                              "employmentMonthlyIncome",
+                              event.target.value
+                            )
+                          }
+                          placeholder="例：12000"
+                        />
+                      </Field>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
               <p className="text-sm leading-6 text-slate-600">
                 勾選「未重複請領」前，系統會先開啟
                 <a
@@ -4169,34 +4368,40 @@ export default function ScholarshipForm() {
                 placeholder="例如：專利發表、語言能力證明、作品、優良表現與服務等"
               />
 
-              <section className="space-y-3">
-                <h2 className="text-base font-semibold">其他有利審查文件</h2>
-                <div className="grid grid-cols-1 gap-4 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
-                  <Field label="名稱" htmlFor="otherReviewDocumentName">
-                    <Input
-                      id="otherReviewDocumentName"
-                      value={otherReviewDocuments[0]?.name ?? ""}
-                      onChange={(event) =>
-                        setOtherReviewDocuments([{ name: event.target.value }])
-                      }
-                      placeholder="例：語言能力證明、專利證書、作品集"
-                    />
-                  </Field>
-                  <Field
-                    label="有利資料上傳（請合併上傳成 1 件）"
-                    htmlFor="document_otherReviewDocuments_0"
-                  >
-                    <FileUploadControl
-                      id="document_otherReviewDocuments_0"
-                      name="document_otherReviewDocuments_0"
-                      existingFileName={getExistingFileName("otherReviewDocuments_0")}
-                    />
-                  </Field>
-                </div>
-              </section>
+              {!isFullTimeDoctoralGrant ? (
+                <section className="space-y-3">
+                  <h2 className="text-base font-semibold">其他有利審查文件</h2>
+                  <div className="grid grid-cols-1 gap-4 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
+                    <Field label="名稱" htmlFor="otherReviewDocumentName">
+                      <Input
+                        id="otherReviewDocumentName"
+                        value={otherReviewDocuments[0]?.name ?? ""}
+                        onChange={(event) =>
+                          setOtherReviewDocuments([{ name: event.target.value }])
+                        }
+                        placeholder="例：語言能力證明、專利證書、作品集"
+                      />
+                    </Field>
+                    <Field
+                      label="有利資料上傳（請合併上傳成 1 件）"
+                      htmlFor="document_otherReviewDocuments_0"
+                    >
+                      <FileUploadControl
+                        id="document_otherReviewDocuments_0"
+                        name="document_otherReviewDocuments_0"
+                        existingFileName={getExistingFileName(
+                          "otherReviewDocuments_0"
+                        )}
+                      />
+                    </Field>
+                  </div>
+                </section>
+              ) : null}
 
               <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
-                上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。
+                {isFullTimeDoctoralGrant
+                  ? "上傳檔名請依照「年度申請助學金_申請單/歷年成績單/個人研究方向說明_系所_名字」。"
+                  : "上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。"}
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {effectiveDocumentFields.map((document) => (

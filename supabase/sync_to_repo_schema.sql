@@ -166,6 +166,11 @@ alter table public.scholarship_program_settings
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
+alter table public.scholarship_program_settings
+  drop constraint if exists scholarship_program_settings_program_key_check,
+  add constraint scholarship_program_settings_program_key_check
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant'));
+
 insert into public.scholarship_program_settings (
   program_key,
   route_path,
@@ -231,6 +236,19 @@ values
     true,
     true,
     40
+  ),
+  (
+    'full-time-doctoral-grant',
+    '/scholarships/full-time-doctoral-grant',
+    '全時博士生助學金',
+    '填寫基本資料、申請類型、兼職情形調查與指定文件上傳。',
+    '適用本院全時博士生',
+    '實際核發金額及核發月數由學院審查委員會核定',
+    '測試中',
+    '限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請後如有休學或專職情形，應主動通知院辦公室。',
+    true,
+    true,
+    50
   )
 on conflict (program_key) do nothing;
 
@@ -254,7 +272,7 @@ alter table public.scholarship_program_settings
   alter column updated_at set default now(),
   drop constraint if exists scholarship_program_settings_program_key_check,
   add constraint scholarship_program_settings_program_key_check
-    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant')),
   drop constraint if exists scholarship_program_settings_display_order_check,
   add constraint scholarship_program_settings_display_order_check
     check (display_order between 0 and 9999);
@@ -413,10 +431,11 @@ set program_key = case scholarship_program
   when '國科會-博士生研究獎助學金(適用114學年度入學新生)' then 'nstc-research-grant'
   when '校長獎學金 (新生獎學金)' then 'presidential-new-student'
   when '教育部-博士生獎學金(適用114學年度博士班1至3年級學生)' then 'moe-doctoral'
+  when '全時博士生助學金' then 'full-time-doctoral-grant'
   else 'nstc-doctoral'
 end
 where program_key is null
-  or program_key not in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral');
+  or program_key not in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant');
 
 alter table public.scholarship_applications
   drop constraint if exists unique_user_per_program,
@@ -446,7 +465,7 @@ alter table public.scholarship_applications
   add constraint scholarship_applications_review_status_check
     check (review_status in ('自動審核完成', '等待人工審核', '人工審核完成', '資料錯誤')),
   add constraint scholarship_applications_program_key_check
-    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant')),
   add constraint unique_user_per_program_key unique (user_id, program_key);
 
 comment on table public.scholarship_applications is '獎學金申請案';

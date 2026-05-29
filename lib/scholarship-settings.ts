@@ -2,7 +2,8 @@ export type ScholarshipProgramKey =
   | "nstc-doctoral"
   | "nstc-research-grant"
   | "presidential-new-student"
-  | "moe-doctoral";
+  | "moe-doctoral"
+  | "full-time-doctoral-grant";
 
 export type ScholarshipProgramSetting = {
   amount: string;
@@ -26,6 +27,7 @@ export const SCHOLARSHIP_PROGRAM_KEYS = [
   "nstc-research-grant",
   "presidential-new-student",
   "moe-doctoral",
+  "full-time-doctoral-grant",
 ] as const satisfies readonly ScholarshipProgramKey[];
 
 export const DEFAULT_SCHOLARSHIP_PROGRAM_KEY: ScholarshipProgramKey =
@@ -92,6 +94,21 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       route_path: "/scholarships/moe-doctoral",
       status_label: "測試中",
       title: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
+    },
+    {
+      amount: "實際核發金額及核發月數由學院審查委員會核定",
+      description:
+        "填寫基本資料、申請類型、兼職情形調查與指定文件上傳。",
+      display_order: 50,
+      eligibility_reminder:
+        "限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請後如有休學或專職情形，應主動通知院辦公室。",
+      is_open: true,
+      is_visible: true,
+      period: "適用本院全時博士生",
+      program_key: "full-time-doctoral-grant",
+      route_path: "/scholarships/full-time-doctoral-grant",
+      status_label: "測試中",
+      title: "全時博士生助學金",
     },
   ];
 

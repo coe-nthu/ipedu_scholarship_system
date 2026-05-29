@@ -122,7 +122,7 @@ create trigger on_auth_user_created
 
 create table public.scholarship_program_settings (
   program_key text primary key
-    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+    check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant')),
   route_path text not null,
   title text not null,
   description text not null,
@@ -205,6 +205,19 @@ values
     true,
     true,
     40
+  ),
+  (
+    'full-time-doctoral-grant',
+    '/scholarships/full-time-doctoral-grant',
+    '全時博士生助學金',
+    '填寫基本資料、申請類型、兼職情形調查與指定文件上傳。',
+    '適用本院全時博士生',
+    '實際核發金額及核發月數由學院審查委員會核定',
+    '測試中',
+    '限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請後如有休學或專職情形，應主動通知院辦公室。',
+    true,
+    true,
+    50
   );
 
 drop trigger if exists handle_scholarship_program_settings_updated_at
@@ -259,7 +272,7 @@ create table public.scholarship_applications (
   id                       uuid primary key default gen_random_uuid(),
   user_id                  uuid references auth.users(id) on delete set null,
   program_key              text not null default 'nstc-doctoral'
-                             check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral')),
+                             check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant')),
   scholarship_program      text not null,
   applicant_name           text not null,
   student_id               text,
