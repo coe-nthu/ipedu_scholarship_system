@@ -201,6 +201,7 @@ async function getDashboardAccount(username: string) {
   if (!normalizedUsername || !config) return null;
 
   const query = new URLSearchParams({
+    is_active: "eq.true",
     limit: "1",
     select: "username,display_name,password_hash,role,department_scope",
     username: `eq.${normalizedUsername}`,
@@ -250,12 +251,33 @@ export async function verifyDashboardPassword(
   username: string,
   password: string
 ) {
-  if (!getSessionSecret()) return null;
+  if (!getSessionSecret()) {
+    console.warn("Dashboard password login failed: missing session secret.");
+    return null;
+  }
+
   const account = await getDashboardAccount(username);
-  if (!account || !isSha256PasswordHash(account.passwordHash)) return null;
+  if (!account) {
+    console.warn("Dashboard password login failed: account not found.", {
+      username,
+    });
+    return null;
+  }
+
+  if (!isSha256PasswordHash(account.passwordHash)) {
+    console.warn("Dashboard password login failed: invalid hash format.", {
+      username,
+    });
+    return null;
+  }
 
   const expectedHash = account.passwordHash.replace(/^sha256:/i, "");
-  if (!safeEqual(expectedHash, hashPassword(password))) return null;
+  if (!safeEqual(expectedHash, hashPassword(password))) {
+    console.warn("Dashboard password login failed: password mismatch.", {
+      username,
+    });
+    return null;
+  }
 
   return account;
 }
