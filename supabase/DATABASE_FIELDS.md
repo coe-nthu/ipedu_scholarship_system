@@ -28,7 +28,7 @@ public.scholarship_applications
 | `gpa` | `numeric(4,2)` | 學業表現 GPA |
 | `gpa_scale` | `numeric(3,1)` | GPA 滿分制，例如 `4.3` |
 | `submission_status` | `text` | 學生填寫狀態：`draft` 草稿、`submitted` 已送出 |
-| `review_status` | `text` | 文獻真實性審查狀態：`自動審核完成`、`等待人工審核`、`人工審核完成`、`資料錯誤` |
+| `review_status` | `text` | 文獻真實性審查狀態：`未審核`、`系所審核通過`、`院辦審核通過` |
 | `reviewer_remarks` | `text` | 審查備註（審查人員可讀寫的文字備註） |
 | `payload` | `jsonb` | 完整表單資料 JSON |
 | `files` | `jsonb` | 上傳檔案資料 JSON |

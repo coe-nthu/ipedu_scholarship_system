@@ -9,10 +9,9 @@ export function isValidUUID(value: unknown): value is string {
 
 /** Allowed review_status values for the dashboard PATCH */
 const VALID_REVIEW_STATUSES = [
-  "自動審核完成",
-  "等待人工審核",
-  "人工審核完成",
-  "資料錯誤",
+  "未審核",
+  "系所審核通過",
+  "院辦審核通過",
 ] as const;
 
 export type ReviewStatus = (typeof VALID_REVIEW_STATUSES)[number];

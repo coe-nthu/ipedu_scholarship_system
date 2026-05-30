@@ -316,12 +316,11 @@ create table public.scholarship_applications (
   gpa_scale                numeric(3, 1),
   submission_status        text not null default 'draft'
                              check (submission_status in ('draft', 'submitted')),
-  review_status            text not null default '等待人工審核'
+  review_status            text not null default '未審核'
                              check (review_status in (
-                               '自動審核完成',
-                               '等待人工審核',
-                               '人工審核完成',
-                               '資料錯誤'
+                               '未審核',
+                               '系所審核通過',
+                               '院辦審核通過'
                              )),
   reviewer_remarks         text not null default '',
   reviewed_by              uuid references auth.users(id) on delete set null,
@@ -337,7 +336,7 @@ comment on table  public.scholarship_applications is '獎學金申請案';
 comment on column public.scholarship_applications.user_id is '申請人的 auth.users ID';
 comment on column public.scholarship_applications.program_key is '穩定獎學金代碼，用於改名後維持草稿與申請案關聯';
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
-comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：自動審核完成、等待人工審核、人工審核完成、資料錯誤';
+comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：未審核、系所審核通過、院辦審核通過';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
 comment on column public.scholarship_applications.reviewed_by is '最後審核的教師 auth.users ID';
 comment on column public.scholarship_applications.reviewed_at is '最後審核時間';

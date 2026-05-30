@@ -400,7 +400,7 @@ create table if not exists public.scholarship_applications (
   gpa numeric(4, 2),
   gpa_scale numeric(3, 1),
   submission_status text not null default 'draft',
-  review_status text not null default '等待人工審核',
+  review_status text not null default '未審核',
   reviewer_remarks text not null default '',
   reviewed_by uuid references auth.users(id) on delete set null,
   reviewed_at timestamptz,
@@ -464,17 +464,17 @@ $$;
 
 update public.scholarship_applications
 set review_status = case review_status
-  when 'auto_verified' then '自動審核完成'
-  when 'pending_manual' then '等待人工審核'
-  when 'manual_verified' then '人工審核完成'
-  when 'data_error' then '資料錯誤'
-  else review_status
+  when 'auto_verified' then '未審核'
+  when 'pending_manual' then '未審核'
+  when 'manual_verified' then '系所審核通過'
+  when 'data_error' then '未審核'
+  else '未審核'
 end;
 
 update public.scholarship_applications
-set review_status = '等待人工審核'
+set review_status = '未審核'
 where review_status is null
-  or review_status not in ('自動審核完成', '等待人工審核', '人工審核完成', '資料錯誤');
+  or review_status not in ('未審核', '系所審核通過', '院辦審核通過');
 
 update public.scholarship_applications
 set submission_status = 'draft'
@@ -504,7 +504,7 @@ alter table public.scholarship_applications
   alter column submission_status set not null,
   alter column submission_status set default 'draft',
   alter column review_status set not null,
-  alter column review_status set default '等待人工審核',
+  alter column review_status set default '未審核',
   alter column reviewer_remarks set not null,
   alter column reviewer_remarks set default '',
   alter column payload set not null,
@@ -518,7 +518,7 @@ alter table public.scholarship_applications
   add constraint scholarship_applications_submission_status_check
     check (submission_status in ('draft', 'submitted')),
   add constraint scholarship_applications_review_status_check
-    check (review_status in ('自動審核完成', '等待人工審核', '人工審核完成', '資料錯誤')),
+    check (review_status in ('未審核', '系所審核通過', '院辦審核通過')),
   add constraint scholarship_applications_program_key_check
     check (program_key in ('nstc-doctoral', 'nstc-research-grant', 'presidential-new-student', 'moe-doctoral', 'full-time-doctoral-grant')),
   add constraint unique_user_per_program_key unique (user_id, program_key);
@@ -527,7 +527,7 @@ comment on table public.scholarship_applications is '獎學金申請案';
 comment on column public.scholarship_applications.user_id is '申請人的 auth.users ID';
 comment on column public.scholarship_applications.program_key is '穩定獎學金代碼，用於改名後維持草稿與申請案關聯';
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
-comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：自動審核完成、等待人工審核、人工審核完成、資料錯誤';
+comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：未審核、系所審核通過、院辦審核通過';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
 comment on column public.scholarship_applications.reviewed_by is '最後審核的教師 auth.users ID';
 comment on column public.scholarship_applications.reviewed_at is '最後審核時間';

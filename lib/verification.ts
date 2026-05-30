@@ -338,7 +338,7 @@ export async function verifyAllPublications(journals: Journal[]): Promise<{
         status: "all_passed",
         verifiedAt: new Date().toISOString(),
       },
-      reviewStatus: "自動審核完成",
+      reviewStatus: "未審核",
     };
   }
 
@@ -364,16 +364,16 @@ export async function verifyAllPublications(journals: Journal[]): Promise<{
 
   if (hasFail) {
     summaryStatus = "has_issues";
-    reviewStatus = "等待人工審核";
+    reviewStatus = "未審核";
   } else if (hasTimeout) {
     summaryStatus = "timeout";
-    reviewStatus = "等待人工審核";
+    reviewStatus = "未審核";
   } else if (allGood) {
     summaryStatus = "all_passed";
-    reviewStatus = "自動審核完成";
+    reviewStatus = "未審核";
   } else {
     summaryStatus = "pending";
-    reviewStatus = "等待人工審核";
+    reviewStatus = "未審核";
   }
 
   return {

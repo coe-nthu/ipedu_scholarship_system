@@ -135,16 +135,14 @@ export type ScholarshipPayload = {
 };
 
 export type ReviewStatus =
-  | "自動審核完成"
-  | "等待人工審核"
-  | "人工審核完成"
-  | "資料錯誤";
+  | "未審核"
+  | "系所審核通過"
+  | "院辦審核通過";
 
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
-  "自動審核完成": "自動審核完成",
-  "等待人工審核": "等待人工審核",
-  "人工審核完成": "人工審核完成",
-  "資料錯誤": "資料錯誤",
+  "未審核": "未審核",
+  "系所審核通過": "系所審核通過",
+  "院辦審核通過": "院辦審核通過",
 };
 
 export type SupabaseFileRecord = {

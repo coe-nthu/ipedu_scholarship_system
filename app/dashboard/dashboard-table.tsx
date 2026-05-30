@@ -6,7 +6,6 @@ import {
   ArrowUp,
   ArrowUpDown,
   CheckCircle2,
-  CircleAlert,
   CircleDot,
   Clock,
   FileText,
@@ -104,31 +103,26 @@ function comparePrimitive(
 /* ------------------------------------------------------------------ */
 
 const ALL_REVIEW_STATUSES: ReviewStatus[] = [
-  "自動審核完成",
-  "等待人工審核",
-  "人工審核完成",
-  "資料錯誤",
+  "未審核",
+  "系所審核通過",
+  "院辦審核通過",
 ];
 
 const REVIEW_STATUS_CONFIG: Record<
   ReviewStatus,
   { icon: typeof CheckCircle2; className: string }
 > = {
-  "自動審核完成": {
+  "未審核": {
+    icon: Clock,
+    className: "bg-slate-50 text-slate-700 border-slate-200",
+  },
+  "系所審核通過": {
     icon: CheckCircle2,
     className: "bg-emerald-50 text-emerald-700 border-emerald-200",
   },
-  "等待人工審核": {
-    icon: Clock,
-    className: "bg-amber-50 text-amber-700 border-amber-200",
-  },
-  "人工審核完成": {
+  "院辦審核通過": {
     icon: CircleDot,
     className: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  "資料錯誤": {
-    icon: CircleAlert,
-    className: "bg-red-50 text-red-700 border-red-200",
   },
 };
 

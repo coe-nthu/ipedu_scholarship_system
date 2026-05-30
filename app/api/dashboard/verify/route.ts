@@ -122,16 +122,16 @@ export async function POST(request: Request) {
 
       if (hasFail) {
         summary = { status: "has_issues" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "等待人工審核";
+        reviewStatus = "未審核";
       } else if (hasTimeout) {
         summary = { status: "timeout" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "等待人工審核";
+        reviewStatus = "未審核";
       } else if (allGood) {
         summary = { status: "all_passed" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "自動審核完成";
+        reviewStatus = "未審核";
       } else {
         summary = { status: "pending" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "等待人工審核";
+        reviewStatus = "未審核";
       }
     } else {
       // Verify all journals
