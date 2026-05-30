@@ -45,6 +45,36 @@ create table public.profiles (
 comment on table  public.profiles is '使用者角色與基本資料';
 comment on column public.profiles.role is 'student=學生, teacher=教師, admin=管理者';
 
+create table public.dashboard_accounts (
+  username          text primary key,
+  display_name      text not null,
+  password_hash     text not null,
+  role              text not null check (role in ('teacher', 'admin')),
+  department_scope  jsonb not null default '"all"'::jsonb,
+  is_active         boolean not null default true,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+comment on table public.dashboard_accounts is '後台固定帳密登入帳號';
+comment on column public.dashboard_accounts.password_hash is '後台帳密登入密碼雜湊，格式 sha256:<hex>';
+comment on column public.dashboard_accounts.department_scope is '後台可檢視系所範圍，JSON 字串 "all" 或字串陣列';
+
+drop trigger if exists handle_dashboard_accounts_updated_at on public.dashboard_accounts;
+create trigger handle_dashboard_accounts_updated_at
+  before update on public.dashboard_accounts
+  for each row
+  execute function moddatetime(updated_at);
+
+alter table public.dashboard_accounts enable row level security;
+
+drop policy if exists "Service role can manage dashboard accounts" on public.dashboard_accounts;
+create policy "Service role can manage dashboard accounts"
+  on public.dashboard_accounts for all
+  to service_role
+  using (true)
+  with check (true);
+
 -- 自動更新 updated_at
 drop trigger if exists handle_profiles_updated_at on public.profiles;
 create trigger handle_profiles_updated_at

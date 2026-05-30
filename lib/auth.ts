@@ -49,39 +49,6 @@ export const DEPARTMENT_ALIAS_GROUPS = {
   ],
 } as const;
 
-const DEFAULT_DASHBOARD_ACCOUNTS: Omit<DashboardAccount, "passwordHash">[] = [
-  {
-    displayName: "學院端",
-    role: "admin",
-    scope: "all",
-    username: "college",
-  },
-  {
-    displayName: "竹師教育學院博士班",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS["ipedu-phd"]],
-    username: "ipedu-phd",
-  },
-  {
-    displayName: "教育與學習科技學系",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.edtech],
-    username: "edtech",
-  },
-  {
-    displayName: "教育心理與諮商學系",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.psy],
-    username: "psy",
-  },
-  {
-    displayName: "臺灣語言研究與教學研究所",
-    role: "teacher",
-    scope: [...DEPARTMENT_ALIAS_GROUPS.taiwanese],
-    username: "taiwanese",
-  },
-];
-
 function normalizeDepartment(value: string) {
   return value.trim().replace(/\s+/g, "");
 }
@@ -120,66 +87,6 @@ function hashPassword(password: string) {
   return createHmac("sha256", getSessionSecret())
     .update(password)
     .digest("hex");
-}
-
-function isDashboardAccount(value: unknown): value is DashboardAccount {
-  if (!value || typeof value !== "object") return false;
-  const account = value as Partial<DashboardAccount>;
-  const validScope =
-    account.scope === "all" ||
-    (Array.isArray(account.scope) &&
-      account.scope.every((item) => typeof item === "string"));
-
-  return (
-    typeof account.username === "string" &&
-    typeof account.displayName === "string" &&
-    typeof account.passwordHash === "string" &&
-    (account.role === "teacher" || account.role === "admin") &&
-    validScope
-  );
-}
-
-function parseDashboardAccounts(): DashboardAccount[] {
-  const raw = process.env.DASHBOARD_ACCOUNTS_JSON;
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed.filter(isDashboardAccount);
-    }
-
-    if (parsed && typeof parsed === "object") {
-      return Object.entries(parsed).flatMap(([username, value]) => {
-        if (!value || typeof value !== "object") return [];
-        const defaultAccount = DEFAULT_DASHBOARD_ACCOUNTS.find(
-          (account) => account.username === username
-        );
-        const accountValue = value as Partial<DashboardAccount>;
-        const account = defaultAccount
-          ? {
-              ...defaultAccount,
-              passwordHash: accountValue.passwordHash,
-            }
-          : {
-              ...accountValue,
-              username,
-            };
-        return isDashboardAccount(account) ? [account] : [];
-      });
-    }
-  } catch {
-    return [];
-  }
-
-  return [];
-}
-
-function getDashboardAccount(username: string) {
-  const normalizedUsername = username.trim().toLowerCase();
-  return parseDashboardAccounts().find(
-    (account) => account.username.toLowerCase() === normalizedUsername
-  );
 }
 
 function createSessionValue(payload: DashboardSessionPayload) {
@@ -242,12 +149,109 @@ export function filterApplicationsByScope<
   );
 }
 
+function getSupabaseServiceConfig() {
+  const url = (
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ""
+  ).replace(/\/$/, "");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    return null;
+  }
+
+  return { serviceRoleKey, url };
+}
+
+function isDashboardScope(value: unknown): value is DashboardDepartmentScope {
+  return (
+    value === "all" ||
+    (Array.isArray(value) && value.every((item) => typeof item === "string"))
+  );
+}
+
+function getDefaultScopeForUsername(
+  username: string,
+  role: DashboardRole
+): DashboardDepartmentScope {
+  if (role === "admin") return "all";
+
+  const aliases =
+    DEPARTMENT_ALIAS_GROUPS[
+      username as keyof typeof DEPARTMENT_ALIAS_GROUPS
+    ];
+
+  return aliases ? [...aliases] : [];
+}
+
+function resolveDashboardScope(
+  value: unknown,
+  username: string,
+  role: DashboardRole
+) {
+  return isDashboardScope(value)
+    ? value
+    : getDefaultScopeForUsername(username, role);
+}
+
+async function getDashboardAccount(username: string) {
+  const normalizedUsername = username.trim().toLowerCase();
+  const config = getSupabaseServiceConfig();
+  if (!normalizedUsername || !config) return null;
+
+  const query = new URLSearchParams({
+    limit: "1",
+    select: "username,display_name,password_hash,role,department_scope",
+    username: `eq.${normalizedUsername}`,
+  });
+
+  const response = await fetch(`${config.url}/rest/v1/dashboard_accounts?${query}`, {
+    headers: {
+      apikey: config.serviceRoleKey,
+      authorization: `Bearer ${config.serviceRoleKey}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) return null;
+
+  const [profile] = (await response.json()) as {
+    department_scope: unknown;
+    display_name: string;
+    password_hash: string | null;
+    role: string;
+    username: string;
+  }[];
+
+  if (
+    !profile?.username ||
+    !profile.password_hash ||
+    (profile.role !== "teacher" && profile.role !== "admin")
+  ) {
+    return null;
+  }
+
+  const role = profile.role as DashboardRole;
+  return {
+    displayName: profile.display_name || profile.username,
+    passwordHash: profile.password_hash,
+    role,
+    scope: resolveDashboardScope(
+      profile.department_scope,
+      profile.username,
+      role
+    ),
+    username: profile.username,
+  } satisfies DashboardAccount;
+}
+
 export async function verifyDashboardPassword(
   username: string,
   password: string
 ) {
   if (!getSessionSecret()) return null;
-  const account = getDashboardAccount(username);
+  const account = await getDashboardAccount(username);
   if (!account || !isSha256PasswordHash(account.passwordHash)) return null;
 
   const expectedHash = account.passwordHash.replace(/^sha256:/i, "");
@@ -315,23 +319,18 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
     return { authorized: false, reason: "not_authenticated" };
   }
 
-  const url = (
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    ""
-  ).replace(/\/$/, "");
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const config = getSupabaseServiceConfig();
 
-  if (!url || !serviceRoleKey) {
+  if (!config) {
     return { authorized: false, reason: "not_authorized" };
   }
 
   const res = await fetch(
-    `${url}/rest/v1/profiles?id=eq.${user.id}&select=role,full_name`,
+    `${config.url}/rest/v1/profiles?id=eq.${user.id}&select=role,full_name`,
     {
       headers: {
-        apikey: serviceRoleKey,
-        authorization: `Bearer ${serviceRoleKey}`,
+        apikey: config.serviceRoleKey,
+        authorization: `Bearer ${config.serviceRoleKey}`,
       },
     }
   );

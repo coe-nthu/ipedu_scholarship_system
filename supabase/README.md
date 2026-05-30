@@ -54,24 +54,71 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_TUYFQeR6YRZZuhjsdsh_nA_cJFLD
 RESEND_API_KEY=re_xxxxxxxxx
 RESEND_FROM_EMAIL="IPEDU Scholarship <onboarding@resend.dev>"
 
-# Dashboard 固定帳密登入
+# Dashboard 帳密登入 session 簽章與密碼雜湊
 DASHBOARD_SESSION_SECRET=請使用至少32字元的隨機字串
-DASHBOARD_ACCOUNTS_JSON='{"college":{"displayName":"學院端","role":"admin","scope":"all","passwordHash":"sha256:..."},"ipedu-phd":{"displayName":"竹師教育學院博士班","role":"teacher","scope":["竹師教育學院博士班","竹師教育學院博士生班"],"passwordHash":"sha256:..."},"edtech":{"displayName":"教育與學習科技學系","role":"teacher","scope":["教育與學習科技學系","教育與學習科技系","教科系"],"passwordHash":"sha256:..."},"psy":{"displayName":"教育心理與諮商學系","role":"teacher","scope":["教育心理與諮商學系","心諮系","教育心理與諮商系"],"passwordHash":"sha256:..."},"taiwanese":{"displayName":"臺灣語言研究與教學研究所","role":"teacher","scope":["臺灣語言研究與教學研究所","台灣語言研究與教學研究所","臺語所","台語所"],"passwordHash":"sha256:..."}}'
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` 請到 Supabase Dashboard 的 Project Settings > API 取得。這個 key 只能放在伺服器環境變數，不要寫進前端元件，也不要 commit。
 
 `RESEND_API_KEY` 請到 Resend Dashboard 建立。測試時可先用 Resend 提供的 `onboarding@resend.dev`；正式寄件請先在 Resend 驗證自己的網域，再把 `RESEND_FROM_EMAIL` 改成該網域的寄件地址。
 
-Dashboard 固定帳密的密碼不要以明文放進環境變數。先設定同一組 `DASHBOARD_SESSION_SECRET`，再執行：
+Dashboard 帳密登入資料儲存在 `public.dashboard_accounts`，不需要綁定 Google email，也不再使用 `DASHBOARD_ACCOUNTS_JSON`。既有 Google 後台登入仍保留，會繼續依 `public.profiles.role` 是否為 `teacher` 或 `admin` 判斷權限。
+
+密碼不要以明文存進資料庫。先設定同一組 `DASHBOARD_SESSION_SECRET`，再執行：
 
 ```bash
 pnpm dashboard:hash-password <密碼>
 ```
 
-把輸出的 `sha256:...` 放入 `DASHBOARD_ACCOUNTS_JSON` 對應帳號的 `passwordHash`。
+把輸出的 `sha256:...` 寫入對應 dashboard account 的 `password_hash`。例如：
 
-若要一次產生學院端與各系所的初始密碼、session secret、以及完整 `DASHBOARD_ACCOUNTS_JSON`，可執行：
+```sql
+insert into public.dashboard_accounts (
+  username,
+  display_name,
+  password_hash,
+  role,
+  department_scope
+) values (
+  'college',
+  '學院端',
+  'sha256:...',
+  'admin',
+  '"all"'::jsonb
+)
+on conflict (username) do update
+set
+  display_name = excluded.display_name,
+  password_hash = excluded.password_hash,
+  role = excluded.role,
+  department_scope = excluded.department_scope;
+```
+
+系所端 scope 使用 JSON 字串陣列：
+
+```sql
+insert into public.dashboard_accounts (
+  username,
+  display_name,
+  password_hash,
+  role,
+  department_scope
+) values (
+  'edtech',
+  '教育與學習科技學系',
+  'sha256:...',
+  'teacher',
+  '["教育與學習科技學系","教育與學習科技系","教科系"]'::jsonb
+)
+on conflict (username) do update
+set
+  display_name = excluded.display_name,
+  password_hash = excluded.password_hash,
+  role = excluded.role,
+  department_scope = excluded.department_scope;
+```
+
+若要一次產生學院端與各系所的初始密碼、session secret、以及可貼到 SQL Editor 的更新片段，可執行：
 
 ```bash
 pnpm dashboard:generate-accounts
