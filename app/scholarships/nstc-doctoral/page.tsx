@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { isValidDoi, normalizeDoi } from "@/lib/doi";
 import { findJournalIndexMatch } from "@/lib/journal-indexes";
 import {
   getDefaultScholarshipProgramSetting,
@@ -1417,12 +1418,44 @@ export default function ScholarshipForm() {
 
   const [fetchingDoiIndex, setFetchingDoiIndex] = useState<number | null>(null);
 
+  const setDoiFieldError = (index: number, message: string) => {
+    setRowValidationErrors((current) => ({
+      ...current,
+      journals: {
+        ...(current.journals ?? {}),
+        [index]: { ...(current.journals?.[index] ?? {}), doi: message },
+      },
+    }));
+  };
+
   const fetchPaperData = async (index: number) => {
-    const doiValue = journals[index].doi.trim();
+    const rawDoi = journals[index].doi;
+    const doiValue = normalizeDoi(rawDoi);
+
     if (!doiValue) {
-      alert("請先輸入 DOI 碼");
+      setDoiFieldError(index, "請先輸入 DOI 碼");
       return;
     }
+
+    // Validate format up-front so a malformed DOI shows a clear "格式錯誤"
+    // warning instead of a misleading "查無資料".
+    if (!isValidDoi(doiValue)) {
+      setDoiFieldError(
+        index,
+        "DOI 格式不正確，請輸入如 10.xxxx/xxxxx 的格式（可省略 https://doi.org/ 前綴）。"
+      );
+      return;
+    }
+
+    // Write the cleaned DOI back into the field so verification later uses it.
+    if (doiValue !== rawDoi) {
+      updateRow(journals, setJournals, index, "doi", doiValue, {
+        section: "journals",
+      });
+    } else {
+      clearRowFieldError("journals", index, "doi");
+    }
+
     if (fetchingDoiIndex !== null) return; // prevent concurrent fetches
 
     setFetchingDoiIndex(index);
@@ -1433,9 +1466,21 @@ export default function ScholarshipForm() {
       const result = await response.json();
 
       if (!result.success) {
-        alert(result.error || "找不到資料");
+        if (result.code === "invalid_format") {
+          setDoiFieldError(
+            index,
+            result.error || "DOI 格式不正確，請確認輸入。"
+          );
+        } else {
+          setDoiFieldError(
+            index,
+            result.error || "查無此 DOI 資料，請確認是否正確，或於右側欄位自行補登。"
+          );
+        }
         return;
       }
+
+      clearRowFieldError("journals", index, "doi");
 
       const doiAuthorNames =
         result.data.authors?.map((author: { given: string; family: string }) =>
@@ -1483,7 +1528,7 @@ export default function ScholarshipForm() {
         })
       );
     } catch {
-      alert("連線發生錯誤，請稍後再試。");
+      setDoiFieldError(index, "連線發生錯誤，請稍後再試。");
     } finally {
       setFetchingDoiIndex(null);
     }

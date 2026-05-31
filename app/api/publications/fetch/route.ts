@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+import { isValidDoi, normalizeDoi } from "@/lib/doi";
+
+// Crossref's "polite pool": identifying the caller avoids the heavily
+// throttled anonymous pool, which is the usual cause of flaky lookups
+// from shared serverless IPs.
+const CROSSREF_USER_AGENT =
+  "IpeduScholarshipSystem/1.0 (mailto:ipedu@mail.nthu.edu.tw)";
 
 type Author = {
   given: string;
@@ -30,19 +37,39 @@ function formatDate(dateParts: number[]): string {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const doi = searchParams.get("doi");
+  const rawDoi = searchParams.get("doi");
 
-  if (!doi) {
+  if (!rawDoi || !rawDoi.trim()) {
     return NextResponse.json(
       { success: false, error: "缺少 DOI 參數" },
       { status: 400 }
     );
   }
 
+  // Normalise common paste artefacts (full URL, "doi:" scheme, trailing
+  // punctuation) before doing anything else.
+  const doi = normalizeDoi(rawDoi);
+
+  // Reject malformed input with a distinct code so the client can show a
+  // "格式錯誤" warning rather than a misleading "查無資料".
+  if (!isValidDoi(doi)) {
+    return NextResponse.json(
+      {
+        success: false,
+        code: "invalid_format",
+        error:
+          "DOI 格式不正確，請輸入如 10.xxxx/xxxxx 的格式（可省略 https://doi.org/ 前綴）。",
+      },
+      { status: 422 }
+    );
+  }
+
   try {
     // ── Step 1: Try Crossref (has the richest metadata) ──
     const crossrefUrl = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
-    const crRes = await fetch(crossrefUrl);
+    const crRes = await fetch(crossrefUrl, {
+      headers: { "User-Agent": CROSSREF_USER_AGENT },
+    });
 
     if (crRes.ok) {
       const data = (await crRes.json()).message;
@@ -87,7 +114,10 @@ export async function GET(request: Request) {
     const cslRes = await fetch(
       `https://doi.org/${encodeURIComponent(doi)}`,
       {
-        headers: { Accept: "application/vnd.citationstyles.csl+json" },
+        headers: {
+          Accept: "application/vnd.citationstyles.csl+json",
+          "User-Agent": CROSSREF_USER_AGENT,
+        },
         redirect: "follow",
       }
     );

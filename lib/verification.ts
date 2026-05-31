@@ -1,3 +1,4 @@
+import { normalizeDoi } from "@/lib/doi";
 import type {
   Journal,
   PublicationVerification,
@@ -124,10 +125,14 @@ export async function verifyPublication(
     verifiedAt: now,
   };
 
-  if (!journal.doi) {
+  // Normalise paste artefacts (full URL, "doi:" scheme, trailing punctuation)
+  // so a stored DOI verifies the same way the auto-fill lookup resolved it.
+  const doi = normalizeDoi(journal.doi);
+  if (!doi) {
     base.message = "無 DOI，跳過自動驗證";
     return base;
   }
+  journal = { ...journal, doi };
 
   /* ---- Step 1: Check DOI existence via doi.org Registration Agency API ---- */
   let doiRA: string | null = null;
