@@ -65,6 +65,7 @@ import {
   scopeToGroupKeys,
   type DepartmentGroupKey,
 } from "@/lib/departments";
+import { cn } from "@/lib/utils";
 import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
 import type {
   DashboardAccountEntry,
@@ -443,8 +444,15 @@ function ScholarshipProgramsPanel() {
                   }
                 />
               </label>
-              <div className="grid gap-3 rounded-md border border-slate-200 p-3 sm:grid-cols-2">
-                <label className="flex items-center justify-between gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-md border p-3 transition-colors",
+                    program.is_visible
+                      ? "border-emerald-300 bg-emerald-50/60"
+                      : "border-slate-200 bg-slate-50"
+                  )}
+                >
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700">
                     {program.is_visible ? (
                       <Eye className="size-4 text-emerald-600" />
@@ -453,25 +461,56 @@ function ScholarshipProgramsPanel() {
                     )}
                     顯示於首頁
                   </span>
-                  <Switch
-                    checked={program.is_visible}
-                    onCheckedChange={(checked) =>
-                      updateProgram(program.program_key, {
-                        is_visible: checked,
-                      })
-                    }
-                  />
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        program.is_visible
+                          ? "text-emerald-700"
+                          : "text-slate-400"
+                      )}
+                    >
+                      {program.is_visible ? "顯示中" : "已隱藏"}
+                    </span>
+                    <Switch
+                      className="data-checked:bg-emerald-500 data-unchecked:bg-slate-300"
+                      checked={program.is_visible}
+                      onCheckedChange={(checked) =>
+                        updateProgram(program.program_key, {
+                          is_visible: checked,
+                        })
+                      }
+                    />
+                  </span>
                 </label>
-                <label className="flex items-center justify-between gap-3">
+                <label
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-md border p-3 transition-colors",
+                    program.is_open
+                      ? "border-emerald-300 bg-emerald-50/60"
+                      : "border-slate-200 bg-slate-50"
+                  )}
+                >
                   <span className="text-sm font-medium text-slate-700">
                     開放填寫
                   </span>
-                  <Switch
-                    checked={program.is_open}
-                    onCheckedChange={(checked) =>
-                      updateProgram(program.program_key, { is_open: checked })
-                    }
-                  />
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        program.is_open ? "text-emerald-700" : "text-slate-400"
+                      )}
+                    >
+                      {program.is_open ? "開放中" : "已關閉"}
+                    </span>
+                    <Switch
+                      className="data-checked:bg-emerald-500 data-unchecked:bg-slate-300"
+                      checked={program.is_open}
+                      onCheckedChange={(checked) =>
+                        updateProgram(program.program_key, { is_open: checked })
+                      }
+                    />
+                  </span>
                 </label>
               </div>
             </div>

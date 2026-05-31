@@ -278,6 +278,12 @@ export function DashboardTable({
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
 
+  // Payload edits made in the detail Sheet are reflected here so the list and
+  // the open detail view stay in sync without a full refetch.
+  const [appOverrides, setAppOverrides] = useState<
+    Record<string, ScholarshipApplication>
+  >({});
+
   // Initialize state from DB data (via server component props)
   const [remarks, setRemarks] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -341,7 +347,15 @@ export function DashboardTable({
     [],
   );
 
-  const rows = useMemo(() => toRows(applications), [applications]);
+  const effectiveApplications = useMemo(
+    () => applications.map((a) => appOverrides[a.id] ?? a),
+    [applications, appOverrides],
+  );
+
+  const rows = useMemo(
+    () => toRows(effectiveApplications),
+    [effectiveApplications],
+  );
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -611,11 +625,16 @@ export function DashboardTable({
       </div>
 
       <ApplicationDetail
-        application={selectedApp}
+        application={
+          selectedApp ? (appOverrides[selectedApp.id] ?? selectedApp) : null
+        }
         open={selectedApp !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedApp(null);
         }}
+        onUpdated={(updated) =>
+          setAppOverrides((prev) => ({ ...prev, [updated.id]: updated }))
+        }
       />
     </>
   );

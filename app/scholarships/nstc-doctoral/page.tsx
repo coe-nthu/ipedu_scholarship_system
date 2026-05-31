@@ -61,6 +61,15 @@ import type {
   ScholarshipPayload,
   SupabaseFileRecord,
 } from "@/lib/types";
+import {
+  DATABASE_OPTIONS as databaseOptions,
+  DEPARTMENT_OPTIONS,
+  EMPLOYMENT_STATUS_OPTIONS,
+  EMPLOYMENT_STATUS_PART_TIME,
+  EMPLOYMENT_STATUS_TA,
+  STUDY_STATUS_NEW,
+  STUDY_STATUS_RENEWAL,
+} from "@/lib/scholarship-form-options";
 
 type ScholarshipFormConfig = {
   academicForm: "standard" | "doctoralResearchGrant" | "presidentialScholarship";
@@ -152,25 +161,9 @@ const ROW_FIELD_LABELS: Record<RepeatableSection, Record<string, string>> = {
 const INVALID_FIELD_CLASS =
   "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";
 
-const STUDY_STATUS_NEW = "新領";
-const STUDY_STATUS_RENEWAL = "續領";
 const PENDING_ADVISOR_NAME = "找尋中，待定";
 const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
 const FULL_TIME_APPLICATION_TYPES = ["指導教授配合款", "競爭型"] as const;
-const EMPLOYMENT_STATUS_NONE = "無兼職";
-const EMPLOYMENT_STATUS_TA = "擔任校內外教學助理";
-const EMPLOYMENT_STATUS_PART_TIME = "有校內外兼職";
-const EMPLOYMENT_STATUS_OPTIONS = [
-  EMPLOYMENT_STATUS_NONE,
-  EMPLOYMENT_STATUS_TA,
-  EMPLOYMENT_STATUS_PART_TIME,
-] as const;
-const DEPARTMENT_OPTIONS = [
-  "竹師教育學院博士班",
-  "教育與學習科技學系",
-  "教育心理與諮商學系",
-  "臺灣語言研究與教學研究所",
-] as const;
 
 const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
   academicForm: "standard",
@@ -276,16 +269,6 @@ const standardDocumentFields = [
   { key: "advisorRecommendation", label: "指導教授推薦函", required: true },
   { key: "learningPlan", label: "個人學習計畫書（最多 3 頁）", required: true },
   { key: "noFullTimeDeclaration", label: "無專職切結書", required: true },
-] as const;
-
-const databaseOptions = [
-  "SSCI",
-  "SCIE",
-  "SCI",
-  "TSSCI",
-  "SCOPUS",
-  "其他",
-  "否",
 ] as const;
 
 function isPdfFile(file: File) {

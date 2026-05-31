@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -20,10 +29,22 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
+  Conference,
   Journal,
+  PlannedResearch,
   PublicationVerification,
+  ResearchAward,
+  ResearchExperience,
   ScholarshipApplication,
+  ScholarshipPayload,
 } from "@/lib/types";
+import {
+  DATABASE_OPTIONS,
+  DEPARTMENT_OPTIONS,
+  EMPLOYMENT_STATUS_OPTIONS,
+  GPA_SCALE_OPTIONS,
+  STUDY_STATUS_OPTIONS,
+} from "@/lib/scholarship-form-options";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -32,7 +53,12 @@ import {
   Download,
   FileText,
   Loader2,
+  Pencil,
+  Plus,
   RefreshCw,
+  Save,
+  Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,7 +67,80 @@ type ApplicationDetailProps = {
   application: ScholarshipApplication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onUpdated?: (application: ScholarshipApplication) => void;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Blank templates for newly-added repeatable rows                    */
+/* ------------------------------------------------------------------ */
+
+const EMPTY_JOURNAL: Journal = {
+  doi: "",
+  date: "",
+  author: "",
+  applicantAuthorName: "",
+  doiAuthorNames: [],
+  issns: [],
+  title: "",
+  journal: "",
+  reviewUnit: "",
+  journalLevel: "",
+  indexSource: "",
+  isCorrespondingAuthor: false,
+  hasTrustedDatabase: "",
+  database: "",
+  authorOrder: "",
+  authorOrderOriginal: "",
+  authorOrderModified: false,
+  authorOrderChangeNote: "",
+  attachmentNote: "",
+};
+
+const EMPTY_CONFERENCE: Conference = {
+  date: "",
+  author: "",
+  title: "",
+  conference: "",
+  organizer: "",
+  type: "",
+  database: "",
+  authorOrder: "",
+};
+
+const EMPTY_RESEARCH_EXPERIENCE: ResearchExperience = {
+  institution: "",
+  role: "",
+  nature: "",
+  duration: "",
+};
+
+const EMPTY_RESEARCH_AWARD: ResearchAward = {
+  name: "",
+  projectNumber: "",
+  amountOrItem: "",
+  contribution: "",
+};
+
+const EMPTY_PLANNED_RESEARCH: PlannedResearch = {
+  title: "",
+  expectedDate: "",
+  targetVenue: "",
+  hasTrustedDatabase: "",
+  database: "",
+  advisor: "",
+};
+
+/* ------------------------------------------------------------------ */
+/*  Immutable array helpers                                            */
+/* ------------------------------------------------------------------ */
+
+function updateAt<T>(list: T[], idx: number, patch: Partial<T>): T[] {
+  return list.map((item, i) => (i === idx ? { ...item, ...patch } : item));
+}
+
+function removeAt<T>(list: T[], idx: number): T[] {
+  return list.filter((_, i) => i !== idx);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Verification status helpers                                        */
@@ -145,6 +244,10 @@ function VerificationChecks({ v }: { v: PublicationVerification }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Read-only / editable field rows                                    */
+/* ------------------------------------------------------------------ */
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[120px_1fr] gap-2 py-1.5 border-b border-slate-100 last:border-0">
@@ -154,18 +257,121 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function TextRow({
+  label,
+  value,
+  onChange,
+  textarea,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  textarea?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] items-start gap-2 py-1.5 border-b border-slate-100 last:border-0">
+      <span className="pt-1.5 text-sm font-medium text-slate-500">{label}</span>
+      {textarea ? (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-h-16"
+        />
+      ) : (
+        <Input value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+    </div>
+  );
+}
+
+function SelectRow({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = "請選擇",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  placeholder?: string;
+}) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
+      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+const BOOL_OPTIONS = ["是", "否"] as const;
+
+function BoolRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
+      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <Select
+        value={value ? "是" : "否"}
+        onValueChange={(v) => onChange(v === "是")}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {BOOL_OPTIONS.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                           */
+/* ------------------------------------------------------------------ */
+
 export function ApplicationDetail({
   application,
   open,
   onOpenChange,
+  onUpdated,
 }: ApplicationDetailProps) {
   const [verifyingAll, setVerifyingAll] = useState(false);
   const [verifyingIdx, setVerifyingIdx] = useState<number | null>(null);
   const [liveJournals, setLiveJournals] = useState<Journal[] | null>(null);
 
-  // Reset local journal state when switching to a different application
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<ScholarshipPayload | null>(null);
+
+  // Reset local state when switching to a different application
   useEffect(() => {
     setLiveJournals(null);
+    setIsEditing(false);
+    setDraft(null);
   }, [application?.id]);
 
   const triggerVerify = useCallback(
@@ -188,7 +394,9 @@ export function ApplicationDetail({
         const data = await res.json();
         if (data.success && data.journals) {
           // Update local journal state with verification results
-          const newJournals = [...(liveJournals ?? application.payload.journals ?? [])];
+          const newJournals = [
+            ...(liveJournals ?? application.payload.journals ?? []),
+          ];
           for (const item of data.journals as {
             index: number;
             verification: PublicationVerification;
@@ -202,9 +410,7 @@ export function ApplicationDetail({
           }
           setLiveJournals(newJournals);
           toast.success(
-            journalIndex !== undefined
-              ? "單篇驗證完成"
-              : "全部驗證完成"
+            journalIndex !== undefined ? "單篇驗證完成" : "全部驗證完成"
           );
         } else {
           toast.error(data.error || "驗證失敗");
@@ -218,6 +424,58 @@ export function ApplicationDetail({
     },
     [application, liveJournals]
   );
+
+  const startEditing = useCallback(() => {
+    if (!application) return;
+    // Deep clone so edits don't mutate the source; keep already-run
+    // verification by preferring liveJournals.
+    const base: ScholarshipPayload = {
+      ...application.payload,
+      journals: liveJournals ?? application.payload.journals ?? [],
+    };
+    setDraft(structuredClone(base));
+    setIsEditing(true);
+  }, [application, liveJournals]);
+
+  const cancelEditing = useCallback(() => {
+    setIsEditing(false);
+    setDraft(null);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!application || !draft) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/dashboard", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          applicationId: application.id,
+          payload: draft,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "儲存失敗，請重試。");
+        return;
+      }
+      const updated: ScholarshipApplication =
+        (data.application as ScholarshipApplication | undefined) ?? {
+          ...application,
+          payload: draft,
+        };
+      // Reflect saved verification back into the live view.
+      setLiveJournals(updated.payload.journals ?? []);
+      onUpdated?.(updated);
+      setIsEditing(false);
+      setDraft(null);
+      toast.success("已儲存申請表變更。");
+    } catch {
+      toast.error("儲存請求失敗，請重試。");
+    } finally {
+      setSaving(false);
+    }
+  }, [application, draft, onUpdated]);
 
   if (!application) return null;
 
@@ -236,14 +494,56 @@ export function ApplicationDetail({
         className="data-[side=right]:sm:max-w-2xl overflow-y-auto bg-white"
       >
         <SheetHeader className="border-b border-slate-200 pb-4">
-          <SheetTitle className="text-lg">
-            {applicantInfo.applicantName} — 申請資料詳情
-          </SheetTitle>
-          <SheetDescription>
-            {applicantInfo.department} /{" "}
-            {applicantInfo.studentId} /{" "}
-            指導教授：{applicantInfo.advisorName}
-          </SheetDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SheetTitle className="text-lg">
+                {applicantInfo.applicantName} — 申請資料詳情
+              </SheetTitle>
+              <SheetDescription>
+                {applicantInfo.department} / {applicantInfo.studentId} /
+                指導教授：{applicantInfo.advisorName}
+              </SheetDescription>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {isEditing ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-xs h-8"
+                    disabled={saving}
+                    onClick={cancelEditing}
+                  >
+                    <X className="size-3.5" />
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-1 text-xs h-8"
+                    disabled={saving}
+                    onClick={handleSave}
+                  >
+                    {saving ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5" />
+                    )}
+                    儲存
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 text-xs h-8"
+                  onClick={startEditing}
+                >
+                  <Pencil className="size-3.5" />
+                  編輯
+                </Button>
+              )}
+            </div>
+          </div>
         </SheetHeader>
 
         <div className="px-4 pb-6">
@@ -262,25 +562,195 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm">申請人資訊</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow
-                    label="申請項目"
-                    value={application.scholarship_program}
-                  />
-                  <InfoRow label="姓名" value={applicantInfo.applicantName} />
-                  <InfoRow label="學號" value={applicantInfo.studentId} />
-                  <InfoRow label="系所" value={applicantInfo.department} />
-                  <InfoRow label="Email" value={applicantInfo.email} />
-                  <InfoRow label="手機" value={applicantInfo.phone} />
-                  <InfoRow label="指導教授" value={applicantInfo.advisorName} />
-                  <InfoRow
-                    label="入學學年度"
-                    value={applicantInfo.admissionAcademicYear}
-                  />
-                  <InfoRow label="請領別" value={applicantInfo.studyStatus} />
-                  <InfoRow
-                    label="申請類別"
-                    value={applicantInfo.applicationType}
-                  />
+                  {isEditing && draft ? (
+                    <>
+                      <InfoRow
+                        label="申請項目"
+                        value={application.scholarship_program}
+                      />
+                      <TextRow
+                        label="姓名"
+                        value={draft.applicantInfo.applicantName}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    applicantName: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="學號"
+                        value={draft.applicantInfo.studentId}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    studentId: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <SelectRow
+                        label="系所"
+                        value={draft.applicantInfo.department}
+                        options={DEPARTMENT_OPTIONS}
+                        placeholder="請選擇所屬學系所"
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    department: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="Email"
+                        value={draft.applicantInfo.email}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    email: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="手機"
+                        value={draft.applicantInfo.phone}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    phone: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="指導教授"
+                        value={draft.applicantInfo.advisorName}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    advisorName: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="入學學年度"
+                        value={draft.applicantInfo.admissionAcademicYear}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    admissionAcademicYear: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <SelectRow
+                        label="請領別"
+                        value={draft.applicantInfo.studyStatus}
+                        options={STUDY_STATUS_OPTIONS}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    studyStatus: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="申請類別"
+                        value={draft.applicantInfo.applicationType}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  applicantInfo: {
+                                    ...d.applicantInfo,
+                                    applicationType: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow
+                        label="申請項目"
+                        value={application.scholarship_program}
+                      />
+                      <InfoRow label="姓名" value={applicantInfo.applicantName} />
+                      <InfoRow label="學號" value={applicantInfo.studentId} />
+                      <InfoRow label="系所" value={applicantInfo.department} />
+                      <InfoRow label="Email" value={applicantInfo.email} />
+                      <InfoRow label="手機" value={applicantInfo.phone} />
+                      <InfoRow
+                        label="指導教授"
+                        value={applicantInfo.advisorName}
+                      />
+                      <InfoRow
+                        label="入學學年度"
+                        value={applicantInfo.admissionAcademicYear}
+                      />
+                      <InfoRow label="請領別" value={applicantInfo.studyStatus} />
+                      <InfoRow
+                        label="申請類別"
+                        value={applicantInfo.applicationType}
+                      />
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -289,69 +759,283 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm">請領資格</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow
-                    label="學士班排名"
-                    value={
-                      eligibility.bachelorRankPercent
-                        ? `前 ${eligibility.bachelorRankPercent}%`
-                        : ""
-                    }
-                  />
-                  <InfoRow
-                    label="碩士班 GPA"
-                    value={
-                      eligibility.masterGpa
-                        ? `${eligibility.masterGpa} / ${eligibility.gpaScale}`
-                        : ""
-                    }
-                  />
-                  <InfoRow
-                    label="碩士百分制"
-                    value={eligibility.masterPercentScore}
-                  />
-                  <InfoRow
-                    label="特殊推薦"
-                    value={eligibility.hasSpecialRecommendation ? "是" : "否"}
-                  />
-                  <InfoRow
-                    label="無專職工作"
-                    value={eligibility.noFullTimeJob ? "是" : "否"}
-                  />
-                  <InfoRow
-                    label="未重複請領"
-                    value={
-                      eligibility.notReceivingOtherScholarship ? "是" : "否"
-                    }
-                  />
-                  {eligibility.employmentStatus && (
-                    <InfoRow
-                      label="兼職情形"
-                      value={eligibility.employmentStatus}
-                    />
-                  )}
-                  {eligibility.taMonthlyIncome && (
-                    <InfoRow
-                      label="教學助理月薪"
-                      value={eligibility.taMonthlyIncome}
-                    />
-                  )}
-                  {eligibility.employmentDescription && (
-                    <InfoRow
-                      label="兼職工作"
-                      value={eligibility.employmentDescription}
-                    />
-                  )}
-                  {eligibility.employmentMonthlyIncome && (
-                    <InfoRow
-                      label="兼職平均月薪"
-                      value={eligibility.employmentMonthlyIncome}
-                    />
-                  )}
-                  {eligibility.eligibilityNotes && (
-                    <InfoRow
-                      label="補充說明"
-                      value={eligibility.eligibilityNotes}
-                    />
+                  {isEditing && draft ? (
+                    <>
+                      <TextRow
+                        label="學士班排名(%)"
+                        value={draft.eligibility.bachelorRankPercent}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    bachelorRankPercent: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="碩士班 GPA"
+                        value={draft.eligibility.masterGpa}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    masterGpa: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <SelectRow
+                        label="GPA 級距"
+                        value={draft.eligibility.gpaScale}
+                        options={GPA_SCALE_OPTIONS}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    gpaScale: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="碩士百分制"
+                        value={draft.eligibility.masterPercentScore}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    masterPercentScore: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <BoolRow
+                        label="特殊推薦"
+                        value={draft.eligibility.hasSpecialRecommendation}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    hasSpecialRecommendation: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <BoolRow
+                        label="無專職工作"
+                        value={draft.eligibility.noFullTimeJob}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    noFullTimeJob: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <BoolRow
+                        label="未重複請領"
+                        value={draft.eligibility.notReceivingOtherScholarship}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    notReceivingOtherScholarship: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <SelectRow
+                        label="兼職情形"
+                        value={draft.eligibility.employmentStatus}
+                        options={EMPLOYMENT_STATUS_OPTIONS}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    employmentStatus: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="教學助理月薪"
+                        value={draft.eligibility.taMonthlyIncome}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    taMonthlyIncome: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="兼職工作"
+                        value={draft.eligibility.employmentDescription}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    employmentDescription: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="兼職平均月薪"
+                        value={draft.eligibility.employmentMonthlyIncome}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    employmentMonthlyIncome: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="補充說明"
+                        textarea
+                        value={draft.eligibility.eligibilityNotes}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  eligibility: {
+                                    ...d.eligibility,
+                                    eligibilityNotes: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow
+                        label="學士班排名"
+                        value={
+                          eligibility.bachelorRankPercent
+                            ? `前 ${eligibility.bachelorRankPercent}%`
+                            : ""
+                        }
+                      />
+                      <InfoRow
+                        label="碩士班 GPA"
+                        value={
+                          eligibility.masterGpa
+                            ? `${eligibility.masterGpa} / ${eligibility.gpaScale}`
+                            : ""
+                        }
+                      />
+                      <InfoRow
+                        label="碩士百分制"
+                        value={eligibility.masterPercentScore}
+                      />
+                      <InfoRow
+                        label="特殊推薦"
+                        value={eligibility.hasSpecialRecommendation ? "是" : "否"}
+                      />
+                      <InfoRow
+                        label="無專職工作"
+                        value={eligibility.noFullTimeJob ? "是" : "否"}
+                      />
+                      <InfoRow
+                        label="未重複請領"
+                        value={
+                          eligibility.notReceivingOtherScholarship ? "是" : "否"
+                        }
+                      />
+                      {eligibility.employmentStatus && (
+                        <InfoRow
+                          label="兼職情形"
+                          value={eligibility.employmentStatus}
+                        />
+                      )}
+                      {eligibility.taMonthlyIncome && (
+                        <InfoRow
+                          label="教學助理月薪"
+                          value={eligibility.taMonthlyIncome}
+                        />
+                      )}
+                      {eligibility.employmentDescription && (
+                        <InfoRow
+                          label="兼職工作"
+                          value={eligibility.employmentDescription}
+                        />
+                      )}
+                      {eligibility.employmentMonthlyIncome && (
+                        <InfoRow
+                          label="兼職平均月薪"
+                          value={eligibility.employmentMonthlyIncome}
+                        />
+                      )}
+                      {eligibility.eligibilityNotes && (
+                        <InfoRow
+                          label="補充說明"
+                          value={eligibility.eligibilityNotes}
+                        />
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -361,31 +1045,142 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm">學業表現</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow
-                    label="累計 GPA"
-                    value={`${academicPerformance.cumulativeGpa} / ${academicPerformance.cumulativeGpaScale}`}
-                  />
-                  <InfoRow
-                    label="班排名"
-                    value={
-                      academicPerformance.classRankPercent
-                        ? `前 ${academicPerformance.classRankPercent}%`
-                        : ""
-                    }
-                  />
-                  <InfoRow
-                    label="已修學分"
-                    value={academicPerformance.completedCredits}
-                  />
-                  <InfoRow
-                    label="操行成績"
-                    value={academicPerformance.conductScore}
-                  />
-                  {academicPerformance.transcriptNotes && (
-                    <InfoRow
-                      label="成績備註"
-                      value={academicPerformance.transcriptNotes}
-                    />
+                  {isEditing && draft ? (
+                    <>
+                      <TextRow
+                        label="累計 GPA"
+                        value={draft.academicPerformance.cumulativeGpa}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    cumulativeGpa: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <SelectRow
+                        label="累計 GPA 級距"
+                        value={draft.academicPerformance.cumulativeGpaScale}
+                        options={GPA_SCALE_OPTIONS}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    cumulativeGpaScale: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="班排名(%)"
+                        value={draft.academicPerformance.classRankPercent}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    classRankPercent: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="已修學分"
+                        value={draft.academicPerformance.completedCredits}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    completedCredits: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="操行成績"
+                        value={draft.academicPerformance.conductScore}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    conductScore: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <TextRow
+                        label="成績備註"
+                        textarea
+                        value={draft.academicPerformance.transcriptNotes}
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    transcriptNotes: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow
+                        label="累計 GPA"
+                        value={`${academicPerformance.cumulativeGpa} / ${academicPerformance.cumulativeGpaScale}`}
+                      />
+                      <InfoRow
+                        label="班排名"
+                        value={
+                          academicPerformance.classRankPercent
+                            ? `前 ${academicPerformance.classRankPercent}%`
+                            : ""
+                        }
+                      />
+                      <InfoRow
+                        label="已修學分"
+                        value={academicPerformance.completedCredits}
+                      />
+                      <InfoRow
+                        label="操行成績"
+                        value={academicPerformance.conductScore}
+                      />
+                      {academicPerformance.transcriptNotes && (
+                        <InfoRow
+                          label="成績備註"
+                          value={academicPerformance.transcriptNotes}
+                        />
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -398,9 +1193,14 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       期刊發表
-                      <Badge variant="secondary">{journals.length} 篇</Badge>
+                      <Badge variant="secondary">
+                        {isEditing && draft
+                          ? draft.journals.length
+                          : journals.length}{" "}
+                        篇
+                      </Badge>
                     </span>
-                    {journals.length > 0 && (
+                    {!isEditing && journals.length > 0 && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -419,7 +1219,183 @@ export function ApplicationDetail({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {journals.length === 0 ? (
+                  {isEditing && draft ? (
+                    <div className="space-y-3">
+                      {draft.journals.map((j, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md border border-slate-200 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">
+                              第 {idx + 1} 篇
+                            </span>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-6 text-red-500 hover:text-red-600"
+                              onClick={() =>
+                                setDraft((d) =>
+                                  d
+                                    ? { ...d, journals: removeAt(d.journals, idx) }
+                                    : d
+                                )
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <TextRow
+                            label="題目"
+                            value={j.title}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        title: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="期刊名稱"
+                            value={j.journal}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        journal: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="作者"
+                            value={j.author}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        author: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="作者順位"
+                            value={j.authorOrder}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        authorOrder: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="期刊等級"
+                            value={j.journalLevel}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        journalLevel: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <SelectRow
+                            label="資料庫別"
+                            value={j.database}
+                            options={DATABASE_OPTIONS}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        database: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="DOI"
+                            value={j.doi}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        doi: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="日期"
+                            value={j.date}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      journals: updateAt(d.journals, idx, {
+                                        date: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  journals: [...d.journals, { ...EMPTY_JOURNAL }],
+                                }
+                              : d
+                          )
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        新增期刊
+                      </Button>
+                    </div>
+                  ) : journals.length === 0 ? (
                     <p className="text-sm text-slate-400">無期刊發表紀錄</p>
                   ) : (
                     <div className="space-y-3">
@@ -519,11 +1495,198 @@ export function ApplicationDetail({
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center justify-between">
                     研討會發表
-                    <Badge variant="secondary">{conferences.length} 篇</Badge>
+                    <Badge variant="secondary">
+                      {isEditing && draft
+                        ? draft.conferences.length
+                        : conferences.length}{" "}
+                      篇
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {conferences.length === 0 ? (
+                  {isEditing && draft ? (
+                    <div className="space-y-3">
+                      {draft.conferences.map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md border border-slate-200 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">
+                              第 {idx + 1} 篇
+                            </span>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-6 text-red-500 hover:text-red-600"
+                              onClick={() =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        conferences: removeAt(d.conferences, idx),
+                                      }
+                                    : d
+                                )
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <TextRow
+                            label="題目"
+                            value={c.title}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        title: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="研討會"
+                            value={c.conference}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        conference: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="主辦單位"
+                            value={c.organizer}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        organizer: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="作者"
+                            value={c.author}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        author: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="作者順位"
+                            value={c.authorOrder}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        authorOrder: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="類型"
+                            value={c.type}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        type: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <SelectRow
+                            label="資料庫別"
+                            value={c.database}
+                            options={DATABASE_OPTIONS}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        database: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="日期"
+                            value={c.date}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      conferences: updateAt(d.conferences, idx, {
+                                        date: v,
+                                      }),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  conferences: [
+                                    ...d.conferences,
+                                    { ...EMPTY_CONFERENCE },
+                                  ],
+                                }
+                              : d
+                          )
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        新增研討會
+                      </Button>
+                    </div>
+                  ) : conferences.length === 0 ? (
                     <p className="text-sm text-slate-400">無研討會發表紀錄</p>
                   ) : (
                     <div className="space-y-3">
@@ -570,7 +1733,135 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm">相關研究參與</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {researchExperiences.length === 0 ? (
+                  {isEditing && draft ? (
+                    <div className="space-y-3">
+                      {draft.researchExperiences.map((r, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md border border-slate-200 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">
+                              第 {idx + 1} 筆
+                            </span>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-6 text-red-500 hover:text-red-600"
+                              onClick={() =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        researchExperiences: removeAt(
+                                          d.researchExperiences,
+                                          idx
+                                        ),
+                                      }
+                                    : d
+                                )
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <TextRow
+                            label="機構/主持人"
+                            value={r.institution}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchExperiences: updateAt(
+                                        d.researchExperiences,
+                                        idx,
+                                        { institution: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="職稱"
+                            value={r.role}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchExperiences: updateAt(
+                                        d.researchExperiences,
+                                        idx,
+                                        { role: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="性質"
+                            value={r.nature}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchExperiences: updateAt(
+                                        d.researchExperiences,
+                                        idx,
+                                        { nature: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="期間"
+                            value={r.duration}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchExperiences: updateAt(
+                                        d.researchExperiences,
+                                        idx,
+                                        { duration: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  researchExperiences: [
+                                    ...d.researchExperiences,
+                                    { ...EMPTY_RESEARCH_EXPERIENCE },
+                                  ],
+                                }
+                              : d
+                          )
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        新增研究參與
+                      </Button>
+                    </div>
+                  ) : researchExperiences.length === 0 ? (
                     <p className="text-sm text-slate-400">無研究參與紀錄</p>
                   ) : (
                     <Table>
@@ -589,9 +1880,7 @@ export function ApplicationDetail({
                               {r.institution}
                             </TableCell>
                             <TableCell className="text-xs">{r.role}</TableCell>
-                            <TableCell className="text-xs">
-                              {r.nature}
-                            </TableCell>
+                            <TableCell className="text-xs">{r.nature}</TableCell>
                             <TableCell className="text-xs">
                               {r.duration}
                             </TableCell>
@@ -608,7 +1897,135 @@ export function ApplicationDetail({
                   <CardTitle className="text-sm">研究獲獎/獎助</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {researchAwards.length === 0 ? (
+                  {isEditing && draft ? (
+                    <div className="space-y-3">
+                      {draft.researchAwards.map((a, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md border border-slate-200 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">
+                              第 {idx + 1} 筆
+                            </span>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-6 text-red-500 hover:text-red-600"
+                              onClick={() =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        researchAwards: removeAt(
+                                          d.researchAwards,
+                                          idx
+                                        ),
+                                      }
+                                    : d
+                                )
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <TextRow
+                            label="名稱"
+                            value={a.name}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchAwards: updateAt(
+                                        d.researchAwards,
+                                        idx,
+                                        { name: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="編號"
+                            value={a.projectNumber}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchAwards: updateAt(
+                                        d.researchAwards,
+                                        idx,
+                                        { projectNumber: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="金額/項目"
+                            value={a.amountOrItem}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchAwards: updateAt(
+                                        d.researchAwards,
+                                        idx,
+                                        { amountOrItem: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="貢獻"
+                            value={a.contribution}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      researchAwards: updateAt(
+                                        d.researchAwards,
+                                        idx,
+                                        { contribution: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  researchAwards: [
+                                    ...d.researchAwards,
+                                    { ...EMPTY_RESEARCH_AWARD },
+                                  ],
+                                }
+                              : d
+                          )
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        新增獲獎
+                      </Button>
+                    </div>
+                  ) : researchAwards.length === 0 ? (
                     <p className="text-sm text-slate-400">無獲獎紀錄</p>
                   ) : (
                     <Table>
@@ -653,7 +2070,154 @@ export function ApplicationDetail({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {plannedResearch.length === 0 ? (
+                  {isEditing && draft ? (
+                    <div className="space-y-3">
+                      {draft.plannedResearch.map((p, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md border border-slate-200 p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-500">
+                              第 {idx + 1} 筆
+                            </span>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-6 text-red-500 hover:text-red-600"
+                              onClick={() =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        plannedResearch: removeAt(
+                                          d.plannedResearch,
+                                          idx
+                                        ),
+                                      }
+                                    : d
+                                )
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <TextRow
+                            label="議題"
+                            value={p.title}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      plannedResearch: updateAt(
+                                        d.plannedResearch,
+                                        idx,
+                                        { title: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="預計投稿"
+                            value={p.targetVenue}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      plannedResearch: updateAt(
+                                        d.plannedResearch,
+                                        idx,
+                                        { targetVenue: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="預計時間"
+                            value={p.expectedDate}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      plannedResearch: updateAt(
+                                        d.plannedResearch,
+                                        idx,
+                                        { expectedDate: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="指導教授"
+                            value={p.advisor}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      plannedResearch: updateAt(
+                                        d.plannedResearch,
+                                        idx,
+                                        { advisor: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <SelectRow
+                            label="資料庫別"
+                            value={p.database}
+                            options={DATABASE_OPTIONS}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      plannedResearch: updateAt(
+                                        d.plannedResearch,
+                                        idx,
+                                        { database: v }
+                                      ),
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  plannedResearch: [
+                                    ...d.plannedResearch,
+                                    { ...EMPTY_PLANNED_RESEARCH },
+                                  ],
+                                }
+                              : d
+                          )
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        新增預計研究
+                      </Button>
+                    </div>
+                  ) : plannedResearch.length === 0 ? (
                     <p className="text-sm text-slate-400">無預計研究議題</p>
                   ) : (
                     <div className="space-y-3">
@@ -691,18 +2255,30 @@ export function ApplicationDetail({
                 </CardContent>
               </Card>
 
-              {payload.otherAchievements && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">其他優秀事蹟</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">其他優秀事蹟</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isEditing && draft ? (
+                    <Textarea
+                      value={draft.otherAchievements}
+                      onChange={(e) =>
+                        setDraft((d) =>
+                          d ? { ...d, otherAchievements: e.target.value } : d
+                        )
+                      }
+                      className="min-h-24"
+                    />
+                  ) : payload.otherAchievements ? (
                     <p className="text-sm text-slate-700">
                       {payload.otherAchievements}
                     </p>
-                  </CardContent>
-                </Card>
-              )}
+                  ) : (
+                    <p className="text-sm text-slate-400">無</p>
+                  )}
+                </CardContent>
+              </Card>
 
               <Card>
                 <CardHeader className="pb-2">
