@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -20,6 +21,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -102,6 +111,14 @@ type MasterDirectSemesterRecord = {
   semester: string;
   credits: string;
   gpa: string;
+};
+
+type PreviousApp = {
+  id: string;
+  program_key: string;
+  scholarship_program: string | null;
+  submitted_at: string | null;
+  payload: ScholarshipPayload;
 };
 
 type RepeatableSection =
@@ -602,9 +619,17 @@ export default function ScholarshipForm() {
   const hasLoadedExisting = useRef(false);
   const formInitialized = useRef(false); // true after initial server/localStorage load completes
 
+  // Auto-fill prompt: offer to import data from a previously submitted application
+  const [importCandidates, setImportCandidates] = useState<PreviousApp[]>([]);
+  const [showImportPrompt, setShowImportPrompt] = useState(false);
+  const importPromptChecked = useRef(false);
+
   useEffect(() => {
     hasLoadedExisting.current = false;
     formInitialized.current = false;
+    importPromptChecked.current = false;
+    setImportCandidates([]);
+    setShowImportPrompt(false);
     setExistingAppId(null);
     setExistingFiles([]);
     setExistingUpdatedAt(null);
@@ -840,6 +865,110 @@ export default function ScholarshipForm() {
       loadExistingApplication();
     }
   }, [currentUser, loadExistingApplication]);
+
+  // Fill empty form fields from a previously submitted application's payload.
+  // Never overwrites values the student has already entered.
+  const importFromPayload = useCallback((source: ScholarshipPayload) => {
+    // Deep clone + strip server-computed verification fields (recomputed on submit)
+    const p = JSON.parse(JSON.stringify(source)) as ScholarshipPayload;
+    delete (p as Record<string, unknown>).verificationSummary;
+
+    // Scalar fields: fill only when the current value is an empty string.
+    const fillScalar =
+      <T extends Record<string, unknown>>(incoming?: Partial<T>) =>
+      (current: T): T => {
+        if (!incoming) return current;
+        const next = { ...current };
+        for (const key of Object.keys(incoming) as (keyof T)[]) {
+          const incomingValue = incoming[key];
+          if (
+            current[key] === "" &&
+            typeof incomingValue === "string" &&
+            incomingValue !== ""
+          ) {
+            next[key] = incomingValue as T[keyof T];
+          }
+        }
+        return next;
+      };
+
+    setApplicantInfo(fillScalar<ApplicantInfo>(p.applicantInfo));
+    setEligibility(fillScalar<Eligibility>(p.eligibility));
+    setAcademicPerformance(fillScalar<AcademicPerformance>(p.academicPerformance));
+
+    if (p.otherAchievements) {
+      setOtherAchievements((current) =>
+        current.trim() === "" ? p.otherAchievements ?? current : current
+      );
+    }
+
+    // Repeatable sections: only import when the current section is entirely empty.
+    const fillRows =
+      <T extends Record<string, unknown>>(incoming: T[] | undefined) =>
+      (current: T[]): T[] => {
+        if (compactRows(current).length > 0) return current;
+        const cleaned = compactRows(incoming ?? []);
+        return cleaned.length > 0 ? cleaned : current;
+      };
+
+    // Strip per-journal verification before import.
+    const incomingJournals = (p.journals ?? []).map((journal) => {
+      const next = { ...journal } as Record<string, unknown>;
+      delete next.verification;
+      return next as Journal;
+    });
+
+    setJournals(fillRows<Journal>(incomingJournals));
+    setConferences(fillRows<Conference>(p.conferences));
+    setResearchExperiences(fillRows<ResearchExperience>(p.researchExperiences));
+    setResearchAwards(fillRows<ResearchAward>(p.researchAwards));
+    setPlannedResearch(fillRows<PlannedResearch>(p.plannedResearch));
+    setOtherReviewDocuments(
+      fillRows<OtherReviewDocument>(p.otherReviewDocuments)
+    );
+
+    setShowImportPrompt(false);
+    toast.success("已帶入先前申請的資料，請確認並補上需重新上傳的附件。");
+  }, []);
+
+  // Offer to auto-fill from a previously submitted application — only when
+  // starting a brand-new application for this program (no existing record).
+  useEffect(() => {
+    if (
+      !currentUser ||
+      !formInitialized.current ||
+      isLoadingExisting ||
+      existingAppId !== null ||
+      importPromptChecked.current
+    ) {
+      return;
+    }
+
+    importPromptChecked.current = true;
+    let isMounted = true;
+
+    fetch("/api/scholarships?previousSubmitted=1")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted || !data?.success || !Array.isArray(data.applications)) {
+          return;
+        }
+        const candidates = (data.applications as PreviousApp[]).filter(
+          (app) => app.program_key !== config.programKey && app.payload
+        );
+        if (candidates.length > 0) {
+          setImportCandidates(candidates);
+          setShowImportPrompt(true);
+        }
+      })
+      .catch(() => {
+        // Non-blocking — student can still fill the form manually.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, isLoadingExisting, existingAppId, config.programKey]);
 
   // ── Auto-save form state to localStorage ──
   const DRAFT_KEY = `scholarship-draft-${config.programKey}`;
@@ -1710,6 +1839,65 @@ export default function ScholarshipForm() {
                 <AuthButton />
               </div>
             </header>
+
+            <Dialog open={showImportPrompt} onOpenChange={setShowImportPrompt}>
+              <DialogContent className="bg-white text-slate-900 sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>帶入先前申請的資料？</DialogTitle>
+                  <DialogDescription>
+                    偵測到你曾提交過其他獎學金申請。可一鍵帶入相同欄位的基本資料與文獻，僅會填入目前空白的欄位，不會覆蓋你已填的內容。附件需重新上傳。
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-2">
+                  {importCandidates.map((candidate) => {
+                    const title =
+                      candidate.scholarship_program ||
+                      getDefaultScholarshipProgramSetting(
+                        candidate.program_key as ScholarshipProgramKey
+                      ).title;
+                    const submittedAt = candidate.submitted_at
+                      ? new Date(candidate.submitted_at).toLocaleDateString(
+                          "zh-TW"
+                        )
+                      : null;
+                    return (
+                      <div
+                        key={candidate.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900">
+                            {title}
+                          </p>
+                          {submittedAt ? (
+                            <p className="text-xs text-slate-500">
+                              提交於 {submittedAt}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="shrink-0 bg-[#1f6f78] text-white hover:bg-[#185860]"
+                          onClick={() => importFromPayload(candidate.payload)}
+                        >
+                          帶入
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowImportPrompt(false)}
+                  >
+                    不需要，自行填寫
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950">
               <FileText className="size-4" />

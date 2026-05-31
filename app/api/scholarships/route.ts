@@ -91,6 +91,43 @@ export async function GET(request: Request) {
 
     const { serviceRoleKey, url } = getSupabaseConfig();
     const searchParams = new URL(request.url).searchParams;
+
+    // ── Mode: list this user's previously SUBMITTED applications ──
+    // Used by the form page to offer auto-fill from a prior application.
+    if (searchParams.get("previousSubmitted")) {
+      const prevQuery = new URLSearchParams({
+        // SECURITY: scope strictly to the verified user.id — never from input.
+        user_id: `eq.${user.id}`,
+        submission_status: "eq.submitted",
+        select: "id,program_key,scholarship_program,submitted_at,payload",
+        order: "submitted_at.desc",
+      });
+
+      const prevResponse = await fetch(
+        `${url}/rest/v1/scholarship_applications?${prevQuery}`,
+        {
+          headers: {
+            apikey: serviceRoleKey,
+            authorization: `Bearer ${serviceRoleKey}`,
+          },
+        }
+      );
+
+      if (!prevResponse.ok) {
+        throw new Error("資料查詢失敗。");
+      }
+
+      const applications = (await prevResponse.json()) as {
+        id: string;
+        program_key: string;
+        scholarship_program: string | null;
+        submitted_at: string | null;
+        payload: ScholarshipPayload;
+      }[];
+
+      return NextResponse.json({ success: true, applications });
+    }
+
     const scholarshipProgram = normalizeScholarshipProgram(
       searchParams.get("scholarshipProgram")
     );
