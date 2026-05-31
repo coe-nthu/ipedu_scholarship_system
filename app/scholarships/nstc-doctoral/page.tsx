@@ -904,11 +904,22 @@ export default function ScholarshipForm() {
       );
     }
 
-    // Repeatable sections: only import when the current section is entirely empty.
+    // Repeatable sections: only import when the student hasn't entered anything.
+    // NOTE: the empty templates carry non-empty defaults (e.g. journal
+    // hasTrustedDatabase "是", conference type "口頭發表"), so `compactRows`
+    // would treat a fresh row as "filled". Instead we compare against a blank
+    // template row to decide whether the section is still pristine.
     const fillRows =
-      <T extends Record<string, unknown>>(incoming: T[] | undefined) =>
+      <T extends Record<string, unknown>>(
+        incoming: T[] | undefined,
+        makeEmpty: () => T
+      ) =>
       (current: T[]): T[] => {
-        if (compactRows(current).length > 0) return current;
+        const blank = JSON.stringify(makeEmpty());
+        const isPristine = current.every(
+          (row) => JSON.stringify(row) === blank
+        );
+        if (!isPristine) return current;
         const cleaned = compactRows(incoming ?? []);
         return cleaned.length > 0 ? cleaned : current;
       };
@@ -920,21 +931,43 @@ export default function ScholarshipForm() {
       return next as Journal;
     });
 
-    setJournals(fillRows<Journal>(incomingJournals));
-    setConferences(fillRows<Conference>(p.conferences));
-    setResearchExperiences(fillRows<ResearchExperience>(p.researchExperiences));
-    setResearchAwards(fillRows<ResearchAward>(p.researchAwards));
-    setPlannedResearch(fillRows<PlannedResearch>(p.plannedResearch));
+    setJournals(fillRows<Journal>(incomingJournals, emptyJournal));
+    setConferences(fillRows<Conference>(p.conferences, emptyConference));
+    setResearchExperiences(
+      fillRows<ResearchExperience>(p.researchExperiences, emptyResearchExperience)
+    );
+    setResearchAwards(
+      fillRows<ResearchAward>(p.researchAwards, emptyResearchAward)
+    );
+    setPlannedResearch(
+      fillRows<PlannedResearch>(p.plannedResearch, emptyPlannedResearch)
+    );
     setOtherReviewDocuments(
-      fillRows<OtherReviewDocument>(p.otherReviewDocuments)
+      fillRows<OtherReviewDocument>(
+        p.otherReviewDocuments,
+        emptyOtherReviewDocument
+      )
     );
 
     setShowImportPrompt(false);
     toast.success("已帶入先前申請的資料，請確認並補上需重新上傳的附件。");
   }, []);
 
-  // Offer to auto-fill from a previously submitted application — only when
-  // starting a brand-new application for this program (no existing record).
+  // Student-initiated import: open the chooser if there are several previous
+  // applications, otherwise import the single candidate directly.
+  const handleImportClick = useCallback(() => {
+    if (importCandidates.length === 0) return;
+    if (importCandidates.length === 1) {
+      importFromPayload(importCandidates[0].payload);
+      return;
+    }
+    setShowImportPrompt(true);
+  }, [importCandidates, importFromPayload]);
+
+  // Fetch this user's previously submitted applications so we can offer a
+  // manual "帶入" button — only when starting a brand-new application for this
+  // program (no existing record). Does NOT auto-open any dialog; the student
+  // actively triggers the import via the button.
   useEffect(() => {
     if (
       !currentUser ||
@@ -960,7 +993,6 @@ export default function ScholarshipForm() {
         );
         if (candidates.length > 0) {
           setImportCandidates(candidates);
-          setShowImportPrompt(true);
         }
       })
       .catch(() => {
@@ -1886,12 +1918,36 @@ export default function ScholarshipForm() {
               </div>
             </header>
 
+            {importCandidates.length > 0 ? (
+              <div className="flex flex-col gap-3 rounded-xl border border-[#1f6f78]/30 bg-[#1f6f78]/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="mt-0.5 size-5 shrink-0 text-[#1f6f78]" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      帶入先前申請的資料
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      偵測到你曾提交過其他獎學金申請，可一鍵帶入基本資料、科系、文獻與研討會等相同欄位。僅會填入目前空白的欄位，附件需重新上傳。
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleImportClick}
+                  className="w-full shrink-0 gap-1.5 bg-[#1f6f78] font-semibold text-white shadow-sm transition hover:bg-[#185860] sm:w-auto"
+                >
+                  <Sparkles className="size-4" />
+                  一鍵帶入
+                </Button>
+              </div>
+            ) : null}
+
             <Dialog open={showImportPrompt} onOpenChange={setShowImportPrompt}>
               <DialogContent className="bg-white text-slate-900 sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>帶入先前申請的資料？</DialogTitle>
+                  <DialogTitle>選擇要帶入的申請</DialogTitle>
                   <DialogDescription>
-                    偵測到你曾提交過其他獎學金申請。可一鍵帶入相同欄位的基本資料與文獻，僅會填入目前空白的欄位，不會覆蓋你已填的內容。附件需重新上傳。
+                    你有多筆已提交的申請，請選擇要帶入哪一筆。僅會填入目前空白的欄位，不會覆蓋你已填的內容，附件需重新上傳。
                   </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-2">
