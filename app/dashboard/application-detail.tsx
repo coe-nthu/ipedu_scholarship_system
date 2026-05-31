@@ -494,7 +494,7 @@ export function ApplicationDetail({
         className="data-[side=right]:sm:max-w-2xl overflow-y-auto bg-white"
       >
         <SheetHeader className="border-b border-slate-200 pb-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 pr-8">
             <div className="min-w-0">
               <SheetTitle className="text-lg">
                 {applicantInfo.applicantName} — 申請資料詳情
