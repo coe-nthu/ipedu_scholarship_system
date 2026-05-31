@@ -300,7 +300,7 @@ function SelectRow({
   return (
     <div className="grid grid-cols-[120px_1fr] items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
       <span className="text-sm font-medium text-slate-500">{label}</span>
-      <Select value={value} onValueChange={onChange}>
+      <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
         <SelectTrigger>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
