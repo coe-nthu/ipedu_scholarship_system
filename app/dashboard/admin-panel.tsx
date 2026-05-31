@@ -1,7 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Eye, EyeOff, Plus, Save, Settings, Shield, Trash2, UserCheck } from "lucide-react";
+import {
+  Building2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Mail,
+  Pencil,
+  Plus,
+  Save,
+  Settings,
+  Shield,
+  Trash2,
+  UserCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -31,6 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -44,8 +58,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DEPARTMENT_GROUP_KEYS,
+  DEPARTMENT_GROUP_LABELS,
+  groupKeysToScope,
+  scopeToGroupKeys,
+  type DepartmentGroupKey,
+} from "@/lib/departments";
 import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
-import type { AuthorizedEmail, DashboardRole } from "@/lib/types";
+import type {
+  DashboardAccountEntry,
+  DashboardDepartmentScope,
+  DashboardRole,
+} from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
 /*  Role badge                                                         */
@@ -458,113 +483,293 @@ function ScholarshipProgramsPanel() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Account-type badge                                                 */
+/* ------------------------------------------------------------------ */
+
+function AccountKindBadge({ kind }: { kind: DashboardAccountEntry["kind"] }) {
+  const config =
+    kind === "password"
+      ? {
+          label: "帳密帳號",
+          icon: KeyRound,
+          className: "bg-sky-50 text-sky-700 border-sky-200",
+        }
+      : {
+          label: "Google",
+          icon: Mail,
+          className: "bg-amber-50 text-amber-700 border-amber-200",
+        };
+  const Icon = config.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${config.className}`}
+    >
+      <Icon className="size-3" />
+      {config.label}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Department scope display + editor                                  */
+/* ------------------------------------------------------------------ */
+
+function ScopeBadges({ scope }: { scope: DashboardDepartmentScope }) {
+  if (scope === "all") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+        <Building2 className="size-3" />
+        全部系所
+      </span>
+    );
+  }
+
+  const keys = scopeToGroupKeys(scope);
+  if (keys.length === 0) {
+    return <span className="text-xs text-slate-400">未指定系所</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {keys.map((key) => (
+        <span
+          key={key}
+          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+        >
+          <Building2 className="size-3" />
+          {DEPARTMENT_GROUP_LABELS[key]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ScopeEditorDialog({
+  account,
+  onSave,
+}: {
+  account: DashboardAccountEntry;
+  onSave: (scope: DashboardDepartmentScope) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<DepartmentGroupKey[]>(() =>
+    scopeToGroupKeys(account.departmentScope)
+  );
+
+  // Reset selection to the current scope each time the dialog opens.
+  const handleOpenChange = (next: boolean) => {
+    if (next) setSelected(scopeToGroupKeys(account.departmentScope));
+    setOpen(next);
+  };
+
+  const toggle = (key: DepartmentGroupKey, checked: boolean) => {
+    setSelected((prev) =>
+      checked ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)
+    );
+  };
+
+  const allSelected = selected.length === DEPARTMENT_GROUP_KEYS.length;
+
+  const handleSave = () => {
+    onSave(groupKeysToScope(selected));
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Pencil className="size-3.5" />
+            編輯系所
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>編輯可審查系所</DialogTitle>
+          <DialogDescription>
+            設定「{account.displayName}」可審查的系所範圍。未勾選任何系所代表無可審查範圍。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <label className="flex items-center gap-2.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={(checked) =>
+                setSelected(checked ? [...DEPARTMENT_GROUP_KEYS] : [])
+              }
+            />
+            <span className="text-sm font-medium text-slate-800">
+              全部系所
+            </span>
+          </label>
+          <div className="grid gap-2">
+            {DEPARTMENT_GROUP_KEYS.map((key) => (
+              <label
+                key={key}
+                className="flex items-center gap-2.5 rounded-md border border-slate-200 px-3 py-2"
+              >
+                <Checkbox
+                  checked={selected.includes(key)}
+                  onCheckedChange={(checked) => toggle(key, checked === true)}
+                />
+                <span className="text-sm text-slate-700">
+                  {DEPARTMENT_GROUP_LABELS[key]}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>取消</DialogClose>
+          <Button onClick={handleSave}>儲存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
+function accountId(account: Pick<DashboardAccountEntry, "kind" | "key">) {
+  return `${account.kind}:${account.key}`;
+}
+
 export function AdminPanel() {
-  const [entries, setEntries] = useState<AuthorizedEmail[]>([]);
+  const [accounts, setAccounts] = useState<DashboardAccountEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch authorized emails on mount
+  const loadAccounts = useCallback(() => {
+    return fetch("/api/dashboard/accounts")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setAccounts(data.accounts);
+        } else {
+          toast.error(data.error || "載入帳號失敗。");
+        }
+      })
+      .catch(() => toast.error("載入帳號失敗。"));
+  }, []);
+
   useEffect(() => {
-    fetch("/api/dashboard/authorized-emails")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setEntries(data.entries);
-        } else {
-          toast.error(data.error || "載入授權名單失敗。");
-        }
-      })
-      .catch(() => toast.error("載入授權名單失敗。"))
-      .finally(() => setLoading(false));
-  }, []);
+    loadAccounts().finally(() => setLoading(false));
+  }, [loadAccounts]);
 
-  // Add email
-  const handleAdd = useCallback((email: string, role: DashboardRole) => {
-    fetch("/api/dashboard/authorized-emails", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, role }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setEntries((prev) => [...prev, data.entry]);
-          toast.success(`已新增 ${email}`);
-        } else {
-          toast.error(data.error || "新增失敗。");
-        }
-      })
-      .catch(() => toast.error("新增失敗。"));
-  }, []);
-
-  // Update role
-  const handleRoleChange = useCallback(
-    (id: string, newRole: DashboardRole) => {
-      setEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, role: newRole } : e))
-      );
-
+  // Add a Google authorized email, then refresh the unified list.
+  const handleAdd = useCallback(
+    (email: string, role: DashboardRole) => {
       fetch("/api/dashboard/authorized-emails", {
-        method: "PATCH",
+        method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id, role: newRole }),
+        body: JSON.stringify({ email, role }),
       })
         .then((res) => res.json())
         .then((data) => {
-          if (!data.success) {
-            // Revert
-            setEntries((prev) =>
-              prev.map((e) => {
-                if (e.id === id) {
-                  const oldRole = newRole === "admin" ? "teacher" : "admin";
-                  return { ...e, role: oldRole };
-                }
-                return e;
-              })
-            );
-            toast.error(data.error || "角色更新失敗。");
+          if (data.success) {
+            toast.success(`已新增 ${email}`);
+            return loadAccounts();
+          }
+          toast.error(data.error || "新增失敗。");
+        })
+        .catch(() => toast.error("新增失敗。"));
+    },
+    [loadAccounts]
+  );
+
+  // Optimistically patch an account, reverting on failure.
+  const patchAccount = useCallback(
+    (
+      account: DashboardAccountEntry,
+      patch: Partial<Pick<DashboardAccountEntry, "role" | "departmentScope">>,
+      body: Record<string, unknown>,
+      successMessage: string
+    ) => {
+      const id = accountId(account);
+      const previous = account;
+      setAccounts((prev) =>
+        prev.map((a) => (accountId(a) === id ? { ...a, ...patch } : a))
+      );
+
+      const revert = () =>
+        setAccounts((prev) =>
+          prev.map((a) => (accountId(a) === id ? previous : a))
+        );
+
+      fetch("/api/dashboard/accounts", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: account.kind,
+          key: account.key,
+          ...body,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            toast.success(successMessage);
           } else {
-            toast.success("角色已更新。");
+            revert();
+            toast.error(data.error || "更新失敗。");
           }
         })
         .catch(() => {
-          setEntries((prev) =>
-            prev.map((e) => {
-              if (e.id === id) {
-                const oldRole = newRole === "admin" ? "teacher" : "admin";
-                return { ...e, role: oldRole };
-              }
-              return e;
-            })
-          );
-          toast.error("角色更新失敗。");
+          revert();
+          toast.error("更新失敗。");
         });
     },
     []
   );
 
-  // Delete entry
-  const handleDelete = useCallback((id: string) => {
-    const entry = entries.find((e) => e.id === id);
+  const handleRoleChange = useCallback(
+    (account: DashboardAccountEntry, newRole: DashboardRole) => {
+      if (newRole === account.role) return;
+      patchAccount(
+        account,
+        { role: newRole },
+        { role: newRole },
+        "角色已更新。"
+      );
+    },
+    [patchAccount]
+  );
 
+  const handleScopeChange = useCallback(
+    (account: DashboardAccountEntry, newScope: DashboardDepartmentScope) => {
+      patchAccount(
+        account,
+        { departmentScope: newScope },
+        { departmentScope: newScope },
+        "系所範圍已更新。"
+      );
+    },
+    [patchAccount]
+  );
+
+  // Delete a Google authorized email (password accounts are not deletable here).
+  const handleDelete = useCallback((account: DashboardAccountEntry) => {
     fetch("/api/dashboard/authorized-emails", {
       method: "DELETE",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: account.key }),
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setEntries((prev) => prev.filter((e) => e.id !== id));
-          toast.success(`已移除 ${entry?.email ?? ""}`);
+          setAccounts((prev) =>
+            prev.filter((a) => accountId(a) !== accountId(account))
+          );
+          toast.success(`已移除 ${account.label}`);
         } else {
           toast.error(data.error || "刪除失敗。");
         }
       })
       .catch(() => toast.error("刪除失敗。"));
-  }, [entries]);
+  }, []);
 
   if (loading) {
     return (
@@ -575,15 +780,18 @@ export function AdminPanel() {
     );
   }
 
-  const emailPanel = (
+  const passwordCount = accounts.filter((a) => a.kind === "password").length;
+  const googleCount = accounts.filter((a) => a.kind === "google").length;
+
+  const accountsPanel = (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
-            授權名單管理
+            帳號與權限管理
           </h2>
           <p className="text-sm text-slate-500">
-            共 {entries.length} 位授權使用者
+            帳密帳號 {passwordCount} 個 · Google 帳號 {googleCount} 個
           </p>
         </div>
         <AddEmailDialog onAdd={handleAdd} />
@@ -593,69 +801,91 @@ export function AdminPanel() {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
-              <TableHead>Email</TableHead>
+              <TableHead>類型</TableHead>
+              <TableHead>帳號</TableHead>
               <TableHead>角色</TableHead>
-              <TableHead>新增時間</TableHead>
+              <TableHead>可審查系所</TableHead>
               <TableHead className="w-[80px]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.length === 0 ? (
+            {accounts.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="text-center text-slate-400 py-8"
                 >
-                  尚無授權 Email
+                  尚無帳號
                 </TableCell>
               </TableRow>
             ) : (
-              entries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="font-mono text-sm">
-                    {entry.email}
+              accounts.map((account) => (
+                <TableRow key={accountId(account)}>
+                  <TableCell>
+                    <AccountKindBadge kind={account.kind} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-mono text-sm text-slate-800">
+                      {account.label}
+                    </div>
+                    {account.kind === "password" &&
+                      account.displayName !== account.label && (
+                        <div className="text-xs text-slate-400">
+                          {account.displayName}
+                        </div>
+                      )}
                   </TableCell>
                   <TableCell>
                     <RoleSelect
-                      role={entry.role}
-                      onRoleChange={(r) => handleRoleChange(entry.id, r)}
+                      role={account.role}
+                      onRoleChange={(r) => handleRoleChange(account, r)}
                     />
                   </TableCell>
-                  <TableCell className="text-xs text-slate-500">
-                    {new Date(entry.created_at).toLocaleDateString("zh-TW")}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <ScopeBadges scope={account.departmentScope} />
+                      <ScopeEditorDialog
+                        account={account}
+                        onSave={(scope) => handleScopeChange(account, scope)}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <AlertDialog>
-                      <AlertDialogTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-slate-400 hover:text-red-600"
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        }
-                      />
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>確認移除授權</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            確定要將 {entry.email} 從授權名單中移除嗎？
-                            移除後該帳號將無法存取審查面板。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>取消</AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            onClick={() => handleDelete(entry.id)}
-                          >
-                            確認移除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    {account.kind === "google" ? (
+                      <AlertDialog>
+                        <AlertDialogTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-slate-400 hover:text-red-600"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          }
+                        />
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>確認移除授權</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              確定要將 {account.label} 從授權名單中移除嗎？
+                              移除後該帳號將無法存取審查面板。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction
+                              variant="destructive"
+                              onClick={() => handleDelete(account)}
+                            >
+                              確認移除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -663,6 +893,9 @@ export function AdminPanel() {
           </TableBody>
         </Table>
       </div>
+      <p className="text-xs text-slate-400">
+        帳密帳號的新增與密碼設定由系統 script 管理，此處僅能調整其角色與系所範圍。
+      </p>
     </div>
   );
 
@@ -673,16 +906,16 @@ export function AdminPanel() {
           <Settings className="size-4" />
           獎學金設定
         </TabsTrigger>
-        <TabsTrigger value="emails" className="gap-1.5 text-sm">
+        <TabsTrigger value="accounts" className="gap-1.5 text-sm">
           <Shield className="size-4" />
-          授權名單
+          帳號與權限
         </TabsTrigger>
       </TabsList>
       <TabsContent value="programs" className="space-y-4">
         <ScholarshipProgramsPanel />
       </TabsContent>
-      <TabsContent value="emails" className="space-y-4">
-        {emailPanel}
+      <TabsContent value="accounts" className="space-y-4">
+        {accountsPanel}
       </TabsContent>
     </Tabs>
   );

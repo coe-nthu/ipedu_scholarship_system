@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkDashboardAccess } from "@/lib/auth";
+import { checkDashboardAccess, isDashboardScope } from "@/lib/auth";
 import { isValidUUID } from "@/lib/validation";
 
 function getSupabaseConfig() {
@@ -37,7 +37,7 @@ export async function GET() {
     const { serviceRoleKey, url } = getSupabaseConfig();
 
     const response = await fetch(
-      `${url}/rest/v1/authorized_emails?order=created_at.asc&select=id,email,role,added_by,created_at,updated_at`,
+      `${url}/rest/v1/authorized_emails?order=created_at.asc&select=id,email,role,department_scope,added_by,created_at,updated_at`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string;
       role?: string;
+      departmentScope?: unknown;
     };
 
     const email = body.email?.trim().toLowerCase();
@@ -97,6 +98,13 @@ export async function POST(request: Request) {
       return jsonError("角色必須是 teacher 或 admin。");
     }
 
+    if (
+      body.departmentScope !== undefined &&
+      !isDashboardScope(body.departmentScope)
+    ) {
+      return jsonError("系所範圍格式不合法。");
+    }
+
     // Insert into authorized_emails
     const insertRes = await fetch(`${url}/rest/v1/authorized_emails`, {
       method: "POST",
@@ -110,6 +118,9 @@ export async function POST(request: Request) {
         email,
         role,
         added_by: auth.userId,
+        ...(body.departmentScope !== undefined
+          ? { department_scope: body.departmentScope }
+          : {}),
       }),
     });
 

@@ -5,12 +5,18 @@ CREATE TABLE IF NOT EXISTS public.authorized_emails (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL UNIQUE,
   role text NOT NULL DEFAULT 'teacher' CHECK (role IN ('teacher', 'admin')),
+  department_scope jsonb NOT NULL DEFAULT '"all"'::jsonb,
   added_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- 既有資料庫補欄位（冪等）
+ALTER TABLE public.authorized_emails
+  ADD COLUMN IF NOT EXISTS department_scope jsonb NOT NULL DEFAULT '"all"'::jsonb;
+
 COMMENT ON TABLE public.authorized_emails IS '儀表板授權 email 白名單';
+COMMENT ON COLUMN public.authorized_emails.department_scope IS '後台可檢視系所範圍，JSON 字串 "all" 或字串陣列（與 dashboard_accounts 一致）';
 
 DROP TRIGGER IF EXISTS handle_authorized_emails_updated_at ON public.authorized_emails;
 CREATE TRIGGER handle_authorized_emails_updated_at

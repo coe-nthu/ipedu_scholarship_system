@@ -215,7 +215,22 @@ export type AuthorizedEmail = {
   id: string;
   email: string;
   role: DashboardRole;
+  department_scope: DashboardDepartmentScope;
   added_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** Unified account row for the admin "accounts & permissions" panel */
+export type DashboardAccountEntry = {
+  kind: "password" | "google";
+  /** password: username · google: authorized_emails.id */
+  key: string;
+  /** password: username · google: email */
+  label: string;
+  displayName: string;
+  role: DashboardRole;
+  departmentScope: DashboardDepartmentScope;
+  /** Only meaningful for password accounts; google is always true */
+  isActive: boolean;
 };

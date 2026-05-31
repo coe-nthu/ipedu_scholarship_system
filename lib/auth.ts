@@ -1,6 +1,17 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { resolveDashboardScope } from "@/lib/departments";
+
+// Re-export the client-safe department helpers so existing server-side
+// importers of "@/lib/auth" keep working.
+export {
+  canAccessDepartment,
+  filterApplicationsByScope,
+  isDashboardScope,
+  resolveDashboardScope,
+  DEPARTMENT_ALIAS_GROUPS,
+} from "@/lib/departments";
 
 export type DashboardRole = "teacher" | "admin";
 export type DashboardDepartmentScope = "all" | string[];
@@ -36,22 +47,6 @@ type DashboardSessionPayload = {
 
 const DASHBOARD_SESSION_COOKIE = "dashboard_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
-
-export const DEPARTMENT_ALIAS_GROUPS = {
-  "ipedu-phd": ["竹師教育學院博士班", "竹師教育學院博士生班"],
-  edtech: ["教育與學習科技學系", "教育與學習科技系", "教科系"],
-  psy: ["教育心理與諮商學系", "心諮系", "教育心理與諮商系"],
-  taiwanese: [
-    "臺灣語言研究與教學研究所",
-    "台灣語言研究與教學研究所",
-    "臺語所",
-    "台語所",
-  ],
-} as const;
-
-function normalizeDepartment(value: string) {
-  return value.trim().replace(/\s+/g, "");
-}
 
 function base64UrlEncode(value: string) {
   return Buffer.from(value, "utf8").toString("base64url");
@@ -129,26 +124,6 @@ async function getPasswordSession(): Promise<DashboardSessionPayload | null> {
   return session ? parseSessionValue(session) : null;
 }
 
-export function canAccessDepartment(
-  scope: DashboardDepartmentScope,
-  department: string | null | undefined
-) {
-  if (scope === "all") return true;
-  if (!department) return false;
-  const normalizedDepartment = normalizeDepartment(department);
-  return scope.some(
-    (candidate) => normalizeDepartment(candidate) === normalizedDepartment
-  );
-}
-
-export function filterApplicationsByScope<
-  T extends { department: string | null | undefined },
->(applications: T[], scope: DashboardDepartmentScope) {
-  return applications.filter((application) =>
-    canAccessDepartment(scope, application.department)
-  );
-}
-
 function getSupabaseServiceConfig() {
   const url = (
     process.env.SUPABASE_URL ||
@@ -162,37 +137,6 @@ function getSupabaseServiceConfig() {
   }
 
   return { serviceRoleKey, url };
-}
-
-function isDashboardScope(value: unknown): value is DashboardDepartmentScope {
-  return (
-    value === "all" ||
-    (Array.isArray(value) && value.every((item) => typeof item === "string"))
-  );
-}
-
-function getDefaultScopeForUsername(
-  username: string,
-  role: DashboardRole
-): DashboardDepartmentScope {
-  if (role === "admin") return "all";
-
-  const aliases =
-    DEPARTMENT_ALIAS_GROUPS[
-      username as keyof typeof DEPARTMENT_ALIAS_GROUPS
-    ];
-
-  return aliases ? [...aliases] : [];
-}
-
-function resolveDashboardScope(
-  value: unknown,
-  username: string,
-  role: DashboardRole
-) {
-  return isDashboardScope(value)
-    ? value
-    : getDefaultScopeForUsername(username, role);
 }
 
 async function getDashboardAccount(username: string) {
@@ -365,10 +309,15 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
     const profile = profiles[0];
     const role = profile?.role;
     if (role === "teacher" || role === "admin") {
+      const departmentScope = await getAuthorizedEmailScope(
+        config,
+        user.email,
+        role
+      );
       return {
         authorized: true,
         authProvider: "google",
-        departmentScope: "all",
+        departmentScope,
         displayName: profile.full_name || user.email,
         email: user.email,
         role: role as DashboardRole,
@@ -378,4 +327,39 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
   }
 
   return { authorized: false, reason: "not_authorized" };
+}
+
+/**
+ * Read a Google account's department scope from authorized_emails.
+ * Falls back to "all" when no scope is set (admins keep full access; teachers
+ * default to all until an admin narrows them).
+ */
+async function getAuthorizedEmailScope(
+  config: { serviceRoleKey: string; url: string },
+  email: string,
+  role: DashboardRole
+): Promise<DashboardDepartmentScope> {
+  try {
+    const response = await fetch(
+      `${config.url}/rest/v1/authorized_emails?email=eq.${encodeURIComponent(
+        email.toLowerCase()
+      )}&select=department_scope&limit=1`,
+      {
+        headers: {
+          apikey: config.serviceRoleKey,
+          authorization: `Bearer ${config.serviceRoleKey}`,
+        },
+        cache: "no-store",
+      }
+    );
+    if (response.ok) {
+      const [row] = (await response.json()) as {
+        department_scope: unknown;
+      }[];
+      return resolveDashboardScope(row?.department_scope, email, role);
+    }
+  } catch {
+    // best-effort; fall through to default
+  }
+  return resolveDashboardScope(undefined, email, role);
 }
