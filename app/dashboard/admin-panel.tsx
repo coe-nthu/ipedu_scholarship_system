@@ -181,7 +181,7 @@ function AddEmailDialog({ onAdd }: { onAdd: (email: string, role: DashboardRole)
           </Button>
         }
       />
-      <DialogContent>
+      <DialogContent className="bg-white text-slate-900">
         <DialogHeader>
           <DialogTitle>新增授權 Email</DialogTitle>
           <DialogDescription>
@@ -585,7 +585,7 @@ function ScopeEditorDialog({
           </Button>
         }
       />
-      <DialogContent>
+      <DialogContent className="bg-white text-slate-900">
         <DialogHeader>
           <DialogTitle>編輯可審查系所</DialogTitle>
           <DialogDescription>
