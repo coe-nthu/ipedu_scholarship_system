@@ -903,7 +903,7 @@ export function AdminPanel() {
                             </Button>
                           }
                         />
-                        <AlertDialogContent>
+                        <AlertDialogContent className="bg-white text-slate-900">
                           <AlertDialogHeader>
                             <AlertDialogTitle>確認移除授權</AlertDialogTitle>
                             <AlertDialogDescription>
