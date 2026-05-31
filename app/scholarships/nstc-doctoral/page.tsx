@@ -12,6 +12,7 @@ import {
   Info,
   Plus,
   Send,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -3280,14 +3281,14 @@ export default function ScholarshipForm() {
                             />
                             <Button
                               type="button"
-                              variant="secondary"
-                              size="sm"
                               disabled={fetchingDoiIndex !== null}
                               onClick={() => fetchPaperData(index)}
+                              className="w-full gap-1.5 bg-[#1f6f78] font-semibold text-white shadow-sm transition hover:bg-[#185860] disabled:opacity-60"
                             >
+                              <Sparkles className="size-4" />
                               {fetchingDoiIndex === index
                                 ? "查詢中..."
-                                : "自動帶入"}
+                                : "自動帶入文獻資訊"}
                             </Button>
                             <p className="text-xs leading-5 text-slate-500">
                               DOI 查無資料時，右側欄位可自行補登。
