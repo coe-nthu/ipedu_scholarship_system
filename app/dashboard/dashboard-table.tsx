@@ -348,7 +348,10 @@ export function DashboardTable({
   );
 
   const effectiveApplications = useMemo(
-    () => applications.map((a) => appOverrides[a.id] ?? a),
+    () =>
+      applications
+        .map((a) => appOverrides[a.id] ?? a)
+        .filter((a) => a.submission_status === "submitted"),
     [applications, appOverrides],
   );
 
@@ -632,9 +635,17 @@ export function DashboardTable({
         onOpenChange={(open) => {
           if (!open) setSelectedApp(null);
         }}
-        onUpdated={(updated) =>
-          setAppOverrides((prev) => ({ ...prev, [updated.id]: updated }))
-        }
+        onUpdated={(updated) => {
+          setAppOverrides((prev) => ({ ...prev, [updated.id]: updated }));
+          setRemarks((prev) => ({
+            ...prev,
+            [updated.id]: updated.reviewer_remarks ?? "",
+          }));
+          setReviewStatuses((prev) => ({
+            ...prev,
+            [updated.id]: updated.review_status,
+          }));
+        }}
       />
     </>
   );

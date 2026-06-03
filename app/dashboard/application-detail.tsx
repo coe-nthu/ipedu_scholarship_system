@@ -6,6 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -53,6 +61,7 @@ import {
   Download,
   FileText,
   Loader2,
+  Mail,
   Pencil,
   Plus,
   RefreshCw,
@@ -366,12 +375,18 @@ export function ApplicationDetail({
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<ScholarshipPayload | null>(null);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionMessage, setCorrectionMessage] = useState("");
+  const [sendingCorrection, setSendingCorrection] = useState(false);
 
   // Reset local state when switching to a different application
   useEffect(() => {
     setLiveJournals(null);
     setIsEditing(false);
     setDraft(null);
+    setCorrectionOpen(false);
+    setCorrectionMessage("");
+    setSendingCorrection(false);
   }, [application?.id]);
 
   const triggerVerify = useCallback(
@@ -477,6 +492,45 @@ export function ApplicationDetail({
     }
   }, [application, draft, onUpdated]);
 
+  const handleSendCorrection = useCallback(async () => {
+    if (!application) return;
+    const message = correctionMessage.trim();
+    if (!message) {
+      toast.error("請填寫需補正內容。");
+      return;
+    }
+
+    setSendingCorrection(true);
+    try {
+      const res = await fetch("/api/dashboard/correction-email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          applicationId: application.id,
+          message,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "補正通知寄送失敗，請重試。");
+        return;
+      }
+
+      const updated = data.application as ScholarshipApplication | undefined;
+      if (updated) {
+        onUpdated?.(updated);
+      }
+      setCorrectionOpen(false);
+      setCorrectionMessage("");
+      toast.success("已寄出補正通知，申請案已退回可修改。");
+      onOpenChange(false);
+    } catch {
+      toast.error("補正通知請求失敗，請重試。");
+    } finally {
+      setSendingCorrection(false);
+    }
+  }, [application, correctionMessage, onOpenChange, onUpdated]);
+
   if (!application) return null;
 
   const { payload, files } = application;
@@ -486,6 +540,8 @@ export function ApplicationDetail({
   const researchExperiences = payload.researchExperiences ?? [];
   const researchAwards = payload.researchAwards ?? [];
   const plannedResearch = payload.plannedResearch ?? [];
+  const correctionRecipientEmail =
+    applicantInfo.email || `${application.applicant_name} 的 Email 未填寫`;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -532,19 +588,103 @@ export function ApplicationDetail({
                   </Button>
                 </>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 text-xs h-8"
-                  onClick={startEditing}
-                >
-                  <Pencil className="size-3.5" />
-                  編輯
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-xs h-8"
+                    onClick={() => setCorrectionOpen(true)}
+                  >
+                    <Mail className="size-3.5" />
+                    通知補正
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-xs h-8"
+                    onClick={startEditing}
+                  >
+                    <Pencil className="size-3.5" />
+                    編輯
+                  </Button>
+                </>
               )}
             </div>
           </div>
         </SheetHeader>
+
+        <Dialog open={correctionOpen} onOpenChange={setCorrectionOpen}>
+          <DialogContent className="sm:max-w-lg bg-white">
+            <DialogHeader>
+              <DialogTitle>通知學生補正申請資料</DialogTitle>
+              <DialogDescription>
+                系統會寄出通知信，並將申請案退回可修改狀態。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <div className="grid grid-cols-[80px_1fr] gap-2">
+                  <span className="font-medium text-slate-500">收件人</span>
+                  <span className="break-all text-slate-900">
+                    {correctionRecipientEmail}
+                  </span>
+                  <span className="font-medium text-slate-500">申請人</span>
+                  <span className="text-slate-900">
+                    {applicantInfo.applicantName || application.applicant_name}
+                  </span>
+                  <span className="font-medium text-slate-500">申請項目</span>
+                  <span className="text-slate-900">
+                    {application.scholarship_program}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label
+                  htmlFor="correction-message"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  需補正內容
+                </label>
+                <Textarea
+                  id="correction-message"
+                  value={correctionMessage}
+                  onChange={(e) => setCorrectionMessage(e.target.value)}
+                  maxLength={2000}
+                  className="min-h-36"
+                  placeholder="請說明申請資料哪裡需要更正，例如：成績單缺少頁面、期刊 DOI 資料不一致、附件需重新上傳。"
+                />
+                <p className="text-right text-xs text-slate-400">
+                  {correctionMessage.length}/2000
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={sendingCorrection}
+                onClick={() => setCorrectionOpen(false)}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                className="gap-1"
+                disabled={sendingCorrection || !correctionMessage.trim()}
+                onClick={handleSendCorrection}
+              >
+                {sendingCorrection ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Mail className="size-4" />
+                )}
+                寄出並退回
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="px-4 pb-6">
           <Tabs defaultValue="basic" className="flex-col">

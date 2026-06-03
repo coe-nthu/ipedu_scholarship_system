@@ -9,6 +9,15 @@ type SendScholarshipConfirmationEmailInput = {
   submittedAt: string | null;
 };
 
+type SendScholarshipCorrectionEmailInput = {
+  applicationId: string;
+  applicantName: string;
+  department: string;
+  message: string;
+  recipientEmail: string;
+  scholarshipProgram: string;
+};
+
 type ResendEmailResponse = {
   id?: string;
   message?: string;
@@ -114,23 +123,100 @@ function buildConfirmationText({
   ].join("\n");
 }
 
-export async function sendScholarshipConfirmationEmail(
-  input: SendScholarshipConfirmationEmailInput
-) {
+function buildCorrectionHtml({
+  applicationId,
+  applicantName,
+  department,
+  message,
+  scholarshipProgram,
+}: SendScholarshipCorrectionEmailInput) {
+  const safeApplicantName = escapeHtml(applicantName || "同學");
+  const safeDepartment = escapeHtml(department || "未填寫");
+  const safeApplicationId = escapeHtml(applicationId);
+  const safeScholarshipProgram = escapeHtml(scholarshipProgram);
+  const safeMessage = escapeHtml(message).replaceAll("\n", "<br />");
+
+  return `
+    <div style="font-family: Arial, 'Noto Sans TC', sans-serif; line-height: 1.7; color: #0f172a;">
+      <h1 style="font-size: 20px; margin: 0 0 16px;">獎學金申請資料需補正</h1>
+      <p>${safeApplicantName} 您好：</p>
+      <p>系辦審查您的「${safeScholarshipProgram}」申請資料後，發現下列項目需要補正。</p>
+      <table style="border-collapse: collapse; margin: 20px 0; width: 100%; max-width: 560px;">
+        <tbody>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請項目</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeScholarshipProgram}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請編號</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeApplicationId}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">系所</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeDepartment}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin: 20px 0; padding: 14px 16px; border-left: 4px solid #f59e0b; background: #fffbeb;">
+        <p style="margin: 0 0 8px; font-weight: 700;">需補正內容</p>
+        <p style="margin: 0;">${safeMessage}</p>
+      </div>
+      <p>系統已將您的申請退回可修改狀態，請登入原申請頁修正資料後重新送出。</p>
+      <p style="color: #475569; font-size: 13px;">此信件由系統自動寄出，請勿直接回覆。</p>
+    </div>
+  `;
+}
+
+function buildCorrectionText({
+  applicationId,
+  applicantName,
+  department,
+  message,
+  scholarshipProgram,
+}: SendScholarshipCorrectionEmailInput) {
+  return [
+    `${applicantName || "同學"} 您好：`,
+    "",
+    `系辦審查您的「${scholarshipProgram}」申請資料後，發現下列項目需要補正。`,
+    `申請項目：${scholarshipProgram}`,
+    `申請編號：${applicationId}`,
+    `系所：${department || "未填寫"}`,
+    "",
+    "需補正內容：",
+    message,
+    "",
+    "系統已將您的申請退回可修改狀態，請登入原申請頁修正資料後重新送出。",
+    "此信件由系統自動寄出，請勿直接回覆。",
+  ].join("\n");
+}
+
+async function sendResendEmail({
+  html,
+  idempotencyKey,
+  recipientEmail,
+  subject,
+  text,
+}: {
+  html: string;
+  idempotencyKey: string;
+  recipientEmail: string;
+  subject: string;
+  text: string;
+}) {
   const { apiKey, fromEmail } = getResendConfig();
   const response = await fetch(RESEND_EMAIL_API_URL, {
     method: "POST",
     headers: {
       authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
-      "Idempotency-Key": `scholarship-confirmation-${input.applicationId}`,
+      "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({
       from: fromEmail,
-      to: [input.recipientEmail],
-      subject: "獎學金申請已送出",
-      html: buildConfirmationHtml(input),
-      text: buildConfirmationText(input),
+      to: [recipientEmail],
+      subject,
+      html,
+      text,
     }),
   });
 
@@ -141,4 +227,28 @@ export async function sendScholarshipConfirmationEmail(
   }
 
   return result.id;
+}
+
+export async function sendScholarshipConfirmationEmail(
+  input: SendScholarshipConfirmationEmailInput
+) {
+  return sendResendEmail({
+    html: buildConfirmationHtml(input),
+    idempotencyKey: `scholarship-confirmation-${input.applicationId}`,
+    recipientEmail: input.recipientEmail,
+    subject: "獎學金申請已送出",
+    text: buildConfirmationText(input),
+  });
+}
+
+export async function sendScholarshipCorrectionEmail(
+  input: SendScholarshipCorrectionEmailInput
+) {
+  return sendResendEmail({
+    html: buildCorrectionHtml(input),
+    idempotencyKey: `scholarship-correction-${input.applicationId}-${Date.now()}`,
+    recipientEmail: input.recipientEmail,
+    subject: "獎學金申請資料需補正",
+    text: buildCorrectionText(input),
+  });
 }
