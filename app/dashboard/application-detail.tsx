@@ -53,6 +53,10 @@ import {
   GPA_SCALE_OPTIONS,
   STUDY_STATUS_OPTIONS,
 } from "@/lib/scholarship-form-options";
+import {
+  getAcademicDisplayRows,
+  getEligibilityDisplayRows,
+} from "@/lib/dashboard-application-display";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -534,7 +538,7 @@ export function ApplicationDetail({
   if (!application) return null;
 
   const { payload, files } = application;
-  const { applicantInfo, eligibility, academicPerformance } = payload;
+  const { applicantInfo } = payload;
   const journals = liveJournals ?? payload.journals ?? [];
   const conferences = payload.conferences ?? [];
   const researchExperiences = payload.researchExperiences ?? [];
@@ -542,6 +546,8 @@ export function ApplicationDetail({
   const plannedResearch = payload.plannedResearch ?? [];
   const correctionRecipientEmail =
     applicantInfo.email || `${application.applicant_name} 的 Email 未填寫`;
+  const eligibilityDisplayRows = getEligibilityDisplayRows(application);
+  const academicDisplayRows = getAcademicDisplayRows(application);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -1111,70 +1117,13 @@ export function ApplicationDetail({
                     </>
                   ) : (
                     <>
-                      <InfoRow
-                        label="學士班排名"
-                        value={
-                          eligibility.bachelorRankPercent
-                            ? `前 ${eligibility.bachelorRankPercent}%`
-                            : ""
-                        }
-                      />
-                      <InfoRow
-                        label="碩士班 GPA"
-                        value={
-                          eligibility.masterGpa
-                            ? `${eligibility.masterGpa} / ${eligibility.gpaScale}`
-                            : ""
-                        }
-                      />
-                      <InfoRow
-                        label="碩士百分制"
-                        value={eligibility.masterPercentScore}
-                      />
-                      <InfoRow
-                        label="內容屬實"
-                        value={eligibility.hasSpecialRecommendation ? "是" : "否"}
-                      />
-                      <InfoRow
-                        label="無專職工作"
-                        value={eligibility.noFullTimeJob ? "是" : "否"}
-                      />
-                      <InfoRow
-                        label="已詳閱辦法"
-                        value={
-                          eligibility.notReceivingOtherScholarship ? "是" : "否"
-                        }
-                      />
-                      {eligibility.employmentStatus && (
+                      {eligibilityDisplayRows.map((row) => (
                         <InfoRow
-                          label="兼職情形"
-                          value={eligibility.employmentStatus}
+                          key={row.label}
+                          label={row.label}
+                          value={row.value}
                         />
-                      )}
-                      {eligibility.taMonthlyIncome && (
-                        <InfoRow
-                          label="教學助理月薪"
-                          value={eligibility.taMonthlyIncome}
-                        />
-                      )}
-                      {eligibility.employmentDescription && (
-                        <InfoRow
-                          label="兼職工作"
-                          value={eligibility.employmentDescription}
-                        />
-                      )}
-                      {eligibility.employmentMonthlyIncome && (
-                        <InfoRow
-                          label="兼職平均月薪"
-                          value={eligibility.employmentMonthlyIncome}
-                        />
-                      )}
-                      {eligibility.eligibilityNotes && (
-                        <InfoRow
-                          label="補充說明"
-                          value={eligibility.eligibilityNotes}
-                        />
-                      )}
+                      ))}
                     </>
                   )}
                 </CardContent>
@@ -1294,32 +1243,13 @@ export function ApplicationDetail({
                     </>
                   ) : (
                     <>
-                      <InfoRow
-                        label="累計 GPA"
-                        value={`${academicPerformance.cumulativeGpa} / ${academicPerformance.cumulativeGpaScale}`}
-                      />
-                      <InfoRow
-                        label="班排名"
-                        value={
-                          academicPerformance.classRankPercent
-                            ? `前 ${academicPerformance.classRankPercent}%`
-                            : ""
-                        }
-                      />
-                      <InfoRow
-                        label="已修學分"
-                        value={academicPerformance.completedCredits}
-                      />
-                      <InfoRow
-                        label="操行成績"
-                        value={academicPerformance.conductScore}
-                      />
-                      {academicPerformance.transcriptNotes && (
+                      {academicDisplayRows.map((row) => (
                         <InfoRow
-                          label="成績備註"
-                          value={academicPerformance.transcriptNotes}
+                          key={row.label}
+                          label={row.label}
+                          value={row.value}
                         />
-                      )}
+                      ))}
                     </>
                   )}
                 </CardContent>

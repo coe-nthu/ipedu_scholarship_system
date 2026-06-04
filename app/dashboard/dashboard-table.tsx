@@ -30,6 +30,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStatus, ScholarshipApplication } from "@/lib/types";
 import { REVIEW_STATUS_LABELS } from "@/lib/types";
+import { getDashboardGpaSummary } from "@/lib/dashboard-application-display";
 import { ApplicationDetail } from "./application-detail";
 
 /* ------------------------------------------------------------------ */
@@ -67,22 +68,24 @@ type DashboardRow = {
 /* ------------------------------------------------------------------ */
 
 function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
-  return apps.map((app, idx) => ({
-    rowNumber: idx + 1,
-    application: app,
-    department: app.department,
-    studentId: app.student_id,
-    name: app.applicant_name,
-    gpa: app.gpa,
-    completedCredits:
-      app.payload.academicPerformance?.completedCredits ?? "",
-    journalCount: app.payload.journals?.length ?? 0,
-    levelOneJournalCount: (app.payload.journals ?? []).filter(
-      (j) => j.journalLevel === "I級期刊"
-    ).length,
-    conferenceCount: app.payload.conferences?.length ?? 0,
-    studyStatus: app.payload.applicantInfo?.studyStatus ?? "",
-  }));
+  return apps.map((app, idx) => {
+    const gpaSummary = getDashboardGpaSummary(app);
+    return {
+      rowNumber: idx + 1,
+      application: app,
+      department: app.department,
+      studentId: app.student_id,
+      name: app.applicant_name,
+      gpa: gpaSummary.gpa,
+      completedCredits: gpaSummary.completedCredits,
+      journalCount: app.payload.journals?.length ?? 0,
+      levelOneJournalCount: (app.payload.journals ?? []).filter(
+        (j) => j.journalLevel === "I級期刊"
+      ).length,
+      conferenceCount: app.payload.conferences?.length ?? 0,
+      studyStatus: app.payload.applicantInfo?.studyStatus ?? "",
+    };
+  });
 }
 
 function comparePrimitive(
