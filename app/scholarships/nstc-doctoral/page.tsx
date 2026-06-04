@@ -597,10 +597,6 @@ export default function ScholarshipForm() {
   const [otherReviewDocuments, setOtherReviewDocuments] = useState<
     OtherReviewDocument[]
   >([emptyOtherReviewDocument()]);
-  const [
-    hasOpenedOtherScholarshipRule,
-    setHasOpenedOtherScholarshipRule,
-  ] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1057,13 +1053,12 @@ export default function ScholarshipForm() {
     if (
       (eligibility.bachelorRankPercent && bachelorRank <= 20) ||
       (eligibility.masterGpa && masterGpa >= 3.76) ||
-      (eligibility.masterPercentScore && masterScore >= 85) ||
-      eligibility.hasSpecialRecommendation
+      (eligibility.masterPercentScore && masterScore >= 85)
     ) {
       return "已符合至少一項請領資格條件";
     }
 
-    return "請填寫學士排名、碩士 GPA/百分制或特殊表現推薦";
+    return "請填寫學士排名、碩士 GPA 或百分制成績";
   }, [eligibility]);
 
   const journalSummary = useMemo(() => {
@@ -1124,25 +1119,6 @@ export default function ScholarshipForm() {
     value: string | boolean
   ) => {
     setEligibility((current) => ({ ...current, [field]: value }));
-  };
-
-  const handleOtherScholarshipConfirmation = (checked: boolean) => {
-    if (!checked) {
-      updateEligibility("notReceivingOtherScholarship", false);
-      return;
-    }
-
-    if (!hasOpenedOtherScholarshipRule) {
-      window.open(otherScholarshipRuleUrl, "_blank", "noopener,noreferrer");
-      setHasOpenedOtherScholarshipRule(true);
-      setSubmitMessage(
-        "請先閱讀本院其他獎助學金頁面，回到表單後再次勾選即可確認。"
-      );
-      return;
-    }
-
-    updateEligibility("notReceivingOtherScholarship", true);
-    setSubmitMessage("");
   };
 
   const updateAcademicPerformance = (
@@ -1657,6 +1633,16 @@ export default function ScholarshipForm() {
           ? "送出前請填寫學業成績資料。"
           : "送出前請填寫學業表現 GPA。"
       );
+      return;
+    }
+
+    if (
+      status === "submitted" &&
+      (!eligibility.hasSpecialRecommendation ||
+        !eligibility.noFullTimeJob ||
+        !eligibility.notReceivingOtherScholarship)
+    ) {
+      setSubmitMessage("送出前請勾選表單底部三項聲明。");
       return;
     }
 
@@ -3147,27 +3133,6 @@ export default function ScholarshipForm() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <CheckField
-                  checked={eligibility.hasSpecialRecommendation}
-                  label="特殊表現，經指導教授及院系所推薦"
-                  onChange={(checked) =>
-                    updateEligibility("hasSpecialRecommendation", checked)
-                  }
-                />
-                <CheckField
-                  checked={eligibility.noFullTimeJob}
-                  label="確認未於公私立機構從事專職工作"
-                  onChange={(checked) =>
-                    updateEligibility("noFullTimeJob", checked)
-                  }
-                />
-                <CheckField
-                  checked={eligibility.notReceivingOtherScholarship}
-                  label="確認未重複請領本院其他獎助學金"
-                  onChange={handleOtherScholarshipConfirmation}
-                />
-              </div>
               {isFullTimeDoctoralGrant ? (
                 <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4">
                   <div>
@@ -3253,20 +3218,6 @@ export default function ScholarshipForm() {
                   ) : null}
                 </section>
               ) : null}
-              <p className="text-sm leading-6 text-slate-600">
-                勾選「未重複請領」前，系統會先開啟
-                <a
-                  className="mx-1 font-medium text-[#1f6f78] underline underline-offset-4"
-                  href={otherScholarshipRuleUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => setHasOpenedOtherScholarshipRule(true)}
-                >
-                  本院獎助學金頁面
-                </a>
-                供閱讀申請規則。
-              </p>
-
               <Textarea
                 className="min-h-24"
                 value={academicPerformance.transcriptNotes}
@@ -4719,6 +4670,49 @@ export default function ScholarshipForm() {
               <AlertDescription>{submitMessage}</AlertDescription>
             </Alert>
           ) : null}
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">送出前聲明</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <CheckField
+                  checked={eligibility.hasSpecialRecommendation}
+                  label="我保證以上內容皆為真實，否則後果自行承擔"
+                  onChange={(checked) =>
+                    updateEligibility("hasSpecialRecommendation", checked)
+                  }
+                />
+                <CheckField
+                  checked={eligibility.noFullTimeJob}
+                  label="我目前未於公私立機構從事專職工作"
+                  onChange={(checked) =>
+                    updateEligibility("noFullTimeJob", checked)
+                  }
+                />
+                <CheckField
+                  checked={eligibility.notReceivingOtherScholarship}
+                  label="我已詳閱獎學金相關辦法，並了解相關規則"
+                  onChange={(checked) =>
+                    updateEligibility("notReceivingOtherScholarship", checked)
+                  }
+                />
+              </div>
+              <p className="text-sm leading-6 text-slate-600">
+                獎學金相關辦法可參考
+                <a
+                  className="mx-1 font-medium text-[#1f6f78] underline underline-offset-4"
+                  href={otherScholarshipRuleUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  本院獎助學金頁面
+                </a>
+                。
+              </p>
+            </CardContent>
+          </Card>
 
           <div className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-300 bg-[#f4f7f6]/95 py-4 backdrop-blur sm:flex-row sm:justify-end">
             <Button

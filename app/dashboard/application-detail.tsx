@@ -971,7 +971,7 @@ export function ApplicationDetail({
                         }
                       />
                       <BoolRow
-                        label="特殊推薦"
+                        label="內容屬實"
                         value={draft.eligibility.hasSpecialRecommendation}
                         onChange={(v) =>
                           setDraft((d) =>
@@ -1005,7 +1005,7 @@ export function ApplicationDetail({
                         }
                       />
                       <BoolRow
-                        label="未重複請領"
+                        label="已詳閱辦法"
                         value={draft.eligibility.notReceivingOtherScholarship}
                         onChange={(v) =>
                           setDraft((d) =>
@@ -1132,7 +1132,7 @@ export function ApplicationDetail({
                         value={eligibility.masterPercentScore}
                       />
                       <InfoRow
-                        label="特殊推薦"
+                        label="內容屬實"
                         value={eligibility.hasSpecialRecommendation ? "是" : "否"}
                       />
                       <InfoRow
@@ -1140,7 +1140,7 @@ export function ApplicationDetail({
                         value={eligibility.noFullTimeJob ? "是" : "否"}
                       />
                       <InfoRow
-                        label="未重複請領"
+                        label="已詳閱辦法"
                         value={
                           eligibility.notReceivingOtherScholarship ? "是" : "否"
                         }
