@@ -1,4 +1,5 @@
 import { normalizeDoi } from "@/lib/doi";
+import { applyJournalIndexMatch } from "@/lib/journal-index-service";
 import type {
   Journal,
   PublicationVerification,
@@ -353,10 +354,17 @@ export async function verifyAllPublications(journals: Journal[]): Promise<{
   );
 
   // Embed results into each journal
-  const enriched = journals.map((j, i) => ({
-    ...j,
-    verification: results[i],
-  }));
+  const enriched = await Promise.all(
+    journals.map(async (j, i) =>
+      applyJournalIndexMatch(
+        {
+          ...j,
+          verification: results[i],
+        },
+        results[i].crossrefJournal
+      )
+    )
+  );
 
   const hasFail = results.some((r) => r.status === "fail");
   const hasTimeout = results.some((r) => r.status === "timeout");

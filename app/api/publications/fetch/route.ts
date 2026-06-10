@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isValidDoi, normalizeDoi } from "@/lib/doi";
+import { findJournalIndexMatch } from "@/lib/journal-index-service";
 
 // Crossref's "polite pool": identifying the caller avoids the heavily
 // throttled anonymous pool, which is the usual cause of flaky lookups
@@ -92,16 +93,24 @@ export async function GET(request: Request) {
       const issue = data.issue ? `Issue ${data.issue}` : "";
       const volumeIssue = [volume, issue].filter(Boolean).join(", ");
 
+      const journalName = data["container-title"]?.[0] || "未提供期刊名稱";
+      const issns: string[] = data.ISSN || [];
+      const indexMatch = await findJournalIndexMatch({
+        issns,
+        journalTitle: journalName,
+      });
+
       return NextResponse.json({
         success: true,
         source: "Crossref",
         data: {
           doi: data.DOI,
           title: data.title?.[0] || "未提供標題",
-          journalName: data["container-title"]?.[0] || "未提供期刊名稱",
+          journalName,
           publishDate: formatDate(dateParts),
           volumeIssue,
-          issns: data.ISSN || [],
+          issns,
+          indexMatch,
           authors,
           authorString: formatAuthorString(authors),
           publisher: data.publisher || "",
@@ -183,16 +192,23 @@ export async function GET(request: Request) {
       if (cslAuthors.length > 3) authorString += " et al.";
     }
 
+    const journalName = csl["container-title"] || "未提供期刊名稱";
+    const indexMatch = await findJournalIndexMatch({
+      issns,
+      journalTitle: journalName,
+    });
+
     return NextResponse.json({
       success: true,
       source: "DOI",
       data: {
         doi: csl.DOI || doi,
         title: csl.title || "未提供標題",
-        journalName: csl["container-title"] || "未提供期刊名稱",
+        journalName,
         publishDate: formatDate(cslDateParts),
         volumeIssue: cslVolumeIssue,
         issns,
+        indexMatch,
         authors: cslAuthors,
         authorString,
         publisher: csl.publisher || "",

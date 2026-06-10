@@ -381,7 +381,87 @@ create policy "Service role can manage scholarship program settings"
   with check (true);
 
 -- ============================================================
--- 3. scholarship_applications
+-- 3. journal_index_records
+-- ============================================================
+
+create table if not exists public.journal_index_records (
+  id uuid primary key default gen_random_uuid(),
+  journal_title text not null,
+  issn text,
+  eissn text,
+  category text,
+  edition text not null,
+  jif text,
+  jci text,
+  quartile text,
+  jcr_year integer,
+  source_file_name text,
+  uploaded_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.journal_index_records
+  add column if not exists journal_title text,
+  add column if not exists issn text,
+  add column if not exists eissn text,
+  add column if not exists category text,
+  add column if not exists edition text,
+  add column if not exists jif text,
+  add column if not exists jci text,
+  add column if not exists quartile text,
+  add column if not exists jcr_year integer,
+  add column if not exists source_file_name text,
+  add column if not exists uploaded_by uuid references auth.users(id) on delete set null,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+update public.journal_index_records
+set
+  journal_title = coalesce(journal_title, ''),
+  edition = coalesce(edition, '')
+where journal_title is null
+  or edition is null;
+
+alter table public.journal_index_records
+  alter column journal_title set not null,
+  alter column edition set not null,
+  alter column created_at set not null,
+  alter column created_at set default now(),
+  alter column updated_at set not null,
+  alter column updated_at set default now();
+
+comment on table public.journal_index_records is '院辦上傳的 JCR JournalResults 期刊索引';
+comment on column public.journal_index_records.edition is 'JCR Edition，例如 SSCI、SCIE、ESCI、AHCI';
+
+create index if not exists idx_journal_index_records_title
+  on public.journal_index_records(lower(journal_title));
+create index if not exists idx_journal_index_records_issn
+  on public.journal_index_records(issn);
+create index if not exists idx_journal_index_records_eissn
+  on public.journal_index_records(eissn);
+create index if not exists idx_journal_index_records_created_at
+  on public.journal_index_records(created_at desc);
+
+drop trigger if exists handle_journal_index_records_updated_at
+  on public.journal_index_records;
+create trigger handle_journal_index_records_updated_at
+  before update on public.journal_index_records
+  for each row
+  execute function moddatetime(updated_at);
+
+alter table public.journal_index_records enable row level security;
+
+drop policy if exists "Service role can manage journal index records"
+  on public.journal_index_records;
+create policy "Service role can manage journal index records"
+  on public.journal_index_records for all
+  to service_role
+  using (true)
+  with check (true);
+
+-- ============================================================
+-- 4. scholarship_applications
 -- ============================================================
 
 create table if not exists public.scholarship_applications (

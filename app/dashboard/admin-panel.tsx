@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Building2,
+  Database,
   Eye,
   EyeOff,
+  FileSpreadsheet,
   KeyRound,
   Mail,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   Settings,
   Shield,
   Trash2,
+  Upload,
   UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -71,6 +75,8 @@ import type {
   DashboardAccountEntry,
   DashboardDepartmentScope,
   DashboardRole,
+  JournalIndexImportSummary,
+  JournalIndexRecord,
 } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
@@ -522,6 +528,227 @@ function ScholarshipProgramsPanel() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Journal index import                                               */
+/* ------------------------------------------------------------------ */
+
+type JournalIndexState = {
+  canUpload: boolean;
+  count: number;
+  latest: Pick<
+    JournalIndexRecord,
+    "created_at" | "source_file_name" | "uploaded_by"
+  > | null;
+  preview: JournalIndexRecord[];
+};
+
+function JournalIndexesPanel() {
+  const [state, setState] = useState<JournalIndexState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [lastSummary, setLastSummary] =
+    useState<JournalIndexImportSummary | null>(null);
+
+  const load = useCallback(() => {
+    return fetch("/api/dashboard/journal-indexes")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setState({
+            canUpload: Boolean(data.canUpload),
+            count: Number(data.count ?? 0),
+            latest: data.latest ?? null,
+            preview: data.preview ?? [],
+          });
+        } else {
+          toast.error(data.error || "載入期刊索引失敗。");
+        }
+      })
+      .catch(() => toast.error("載入期刊索引失敗。"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    return load();
+  }, [load]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleUpload = () => {
+    if (!selectedFile) {
+      toast.error("請先選擇 CSV 檔案。");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("file", selectedFile);
+    setUploading(true);
+    setLastSummary(null);
+
+    fetch("/api/dashboard/journal-indexes", {
+      method: "POST",
+      body: formData,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setLastSummary(data.summary);
+          setSelectedFile(null);
+          toast.success(`已匯入 ${data.summary.count} 筆期刊索引。`);
+          return load();
+        }
+
+        toast.error(data.error || "匯入期刊索引失敗。");
+      })
+      .catch(() => toast.error("匯入期刊索引失敗。"))
+      .finally(() => setUploading(false));
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">期刊索引</h2>
+          <p className="text-sm text-slate-500">
+            上傳 JCR JournalResults CSV，供學生 DOI 自動帶入與後台重新驗證使用。
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={refresh}>
+          <RefreshCw className="size-4" />
+          重新整理
+        </Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Database className="size-5 text-[#1f6f78]" />
+            <div>
+              <h3 className="font-semibold text-slate-900">目前索引狀態</h3>
+              <p className="text-xs text-slate-500">
+                共 {state?.count ?? 0} 筆；來源：
+                {state?.latest?.source_file_name ?? "尚未匯入"}
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-md border border-slate-200">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>期刊名稱</TableHead>
+                  <TableHead className="w-28">ISSN</TableHead>
+                  <TableHead className="w-28">eISSN</TableHead>
+                  <TableHead className="w-24">Edition</TableHead>
+                  <TableHead className="w-24">Quartile</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!state || state.preview.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="py-8 text-center text-slate-400"
+                    >
+                      尚無期刊索引資料
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  state.preview.map((record, index) => (
+                    <TableRow
+                      key={`${record.journal_title}-${record.issn}-${index}`}
+                    >
+                      <TableCell>
+                        <div className="font-medium text-slate-900">
+                          {record.journal_title}
+                        </div>
+                        {record.category ? (
+                          <div className="text-xs text-slate-500">
+                            {record.category}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>{record.issn || "—"}</TableCell>
+                      <TableCell>{record.eissn || "—"}</TableCell>
+                      <TableCell>{record.edition}</TableCell>
+                      <TableCell>{record.quartile || "—"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="size-5 text-[#1f6f78]" />
+            <h3 className="font-semibold text-slate-900">上傳 CSV</h3>
+          </div>
+          <div className="space-y-3">
+            <Input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={!state?.canUpload || uploading}
+              onChange={(event) =>
+                setSelectedFile(event.currentTarget.files?.[0] ?? null)
+              }
+            />
+            <p className="text-xs leading-5 text-slate-500">
+              請使用 JCR 匯出的 JournalResults CSV。匯入會整批取代目前索引。
+            </p>
+            <Button
+              className="w-full gap-1.5 bg-[#1f6f78] hover:bg-[#185d65]"
+              disabled={!state?.canUpload || uploading || !selectedFile}
+              onClick={handleUpload}
+            >
+              <Upload className="size-4" />
+              {uploading ? "匯入中" : "匯入期刊索引"}
+            </Button>
+            {!state?.canUpload ? (
+              <p className="text-xs text-amber-700">
+                只有管理員可以上傳期刊索引。
+              </p>
+            ) : null}
+          </div>
+
+          {lastSummary ? (
+            <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <p className="font-medium">
+                已匯入 {lastSummary.count} 筆期刊索引
+              </p>
+              <p className="mt-1 text-xs">
+                檔案：{lastSummary.sourceFileName}；略過重複：
+                {lastSummary.duplicatesSkipped} 筆
+              </p>
+              {lastSummary.errors.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {lastSummary.errors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Account-type badge                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -945,6 +1172,10 @@ export function AdminPanel() {
           <Settings className="size-4" />
           獎學金設定
         </TabsTrigger>
+        <TabsTrigger value="journal-indexes" className="gap-1.5 text-sm">
+          <Database className="size-4" />
+          期刊索引
+        </TabsTrigger>
         <TabsTrigger value="accounts" className="gap-1.5 text-sm">
           <Shield className="size-4" />
           帳號與權限
@@ -952,6 +1183,9 @@ export function AdminPanel() {
       </TabsList>
       <TabsContent value="programs" className="space-y-4">
         <ScholarshipProgramsPanel />
+      </TabsContent>
+      <TabsContent value="journal-indexes" className="space-y-4">
+        <JournalIndexesPanel />
       </TabsContent>
       <TabsContent value="accounts" className="space-y-4">
         {accountsPanel}

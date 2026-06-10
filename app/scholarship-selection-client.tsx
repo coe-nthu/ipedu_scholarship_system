@@ -13,8 +13,15 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { AuthButton } from "@/components/auth-button";
+import { LanguageToggle } from "@/components/language-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getInitialScholarshipLanguage,
+  SCHOLARSHIP_LANGUAGE_STORAGE_KEY,
+  textForLanguage,
+  type ScholarshipLanguage,
+} from "@/lib/scholarship-language";
 import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/client";
 
@@ -63,14 +70,7 @@ function ProgramText({
   english?: string;
 }) {
   return (
-    <>
-      <span>{children}</span>
-      {enabled && english ? (
-        <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">
-          {english}
-        </span>
-      ) : null}
-    </>
+    <>{enabled && english ? <span>{english}</span> : <span>{children}</span>}</>
   );
 }
 
@@ -81,6 +81,9 @@ export function ScholarshipSelectionClient({
 }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [language, setLanguage] = useState<ScholarshipLanguage>(
+    getInitialScholarshipLanguage
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -108,7 +111,16 @@ export function ScholarshipSelectionClient({
     };
   }, []);
 
+  const updateLanguage = (nextLanguage: ScholarshipLanguage) => {
+    setLanguage(nextLanguage);
+    window.localStorage.setItem(
+      SCHOLARSHIP_LANGUAGE_STORAGE_KEY,
+      nextLanguage
+    );
+  };
+
   const visiblePrograms = initialPrograms.filter((program) => program.is_visible);
+  const isEnglish = language === "en";
 
   return (
     <main className="min-h-screen bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
@@ -130,24 +142,37 @@ export function ScholarshipSelectionClient({
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-sm font-medium text-emerald-700">
-                    竹師教育學院
+                    {textForLanguage(language, "竹師教育學院", "College of Education")}
                   </p>
                   <h1 className="mt-2 text-3xl font-bold text-slate-950">
-                    獎學金申請入口
+                    {textForLanguage(
+                      language,
+                      "獎學金申請入口",
+                      "Scholarship Application Portal"
+                    )}
                   </h1>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    請選擇要申請的獎學金項目。不同獎學金會導向各自的申請表與文件需求。
+                    {textForLanguage(
+                      language,
+                      "請選擇要申請的獎學金項目。不同獎學金會導向各自的申請表與文件需求。",
+                      "Choose a scholarship program to begin. Each program has its own application form and required documents."
+                    )}
                   </p>
                 </div>
-                <AuthButton />
+                <div className="flex flex-wrap items-center gap-3">
+                  <LanguageToggle
+                    language={language}
+                    onChange={updateLanguage}
+                  />
+                  <AuthButton />
+                </div>
               </div>
             </header>
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {visiblePrograms.map((program) => {
-                const bilingual = BILINGUAL_PROGRAM_KEYS.has(
-                  program.program_key
-                );
+                const bilingual =
+                  isEnglish && BILINGUAL_PROGRAM_KEYS.has(program.program_key);
                 const english = PROGRAM_ENGLISH_COPY[program.program_key];
 
                 return (
@@ -226,12 +251,7 @@ export function ScholarshipSelectionClient({
                           className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#1f6f78] px-3 py-2 text-sm font-medium text-white hover:bg-[#185d65]"
                         >
                           <span>
-                            開始填寫
-                            {bilingual ? (
-                              <span className="ml-1 text-xs font-normal">
-                                Start application
-                              </span>
-                            ) : null}
+                            {bilingual ? "Start application" : "開始填寫"}
                           </span>
                           <ArrowRight className="size-4" />
                         </Link>
@@ -240,7 +260,7 @@ export function ScholarshipSelectionClient({
                           aria-disabled="true"
                           className="inline-flex h-9 w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-500"
                         >
-                          尚未開放
+                          {bilingual ? "Not open yet" : "尚未開放"}
                           <Clock className="size-4" />
                         </div>
                       )}

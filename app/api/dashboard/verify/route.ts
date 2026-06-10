@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { canAccessDepartment, checkDashboardAccess } from "@/lib/auth";
+import { applyJournalIndexMatch } from "@/lib/journal-index-service";
 import { isValidUUID } from "@/lib/validation";
 import { verifyPublication, verifyAllPublications } from "@/lib/verification";
 import type { Journal, ScholarshipPayload } from "@/lib/types";
@@ -106,8 +107,12 @@ export async function POST(request: Request) {
       }
 
       const result = await verifyPublication(journals[journalIndex]);
+      const updatedJournal = await applyJournalIndexMatch(
+        { ...journals[journalIndex], verification: result },
+        result.crossrefJournal
+      );
       updatedJournals = journals.map((j, i) =>
-        i === journalIndex ? { ...j, verification: result } : j
+        i === journalIndex ? updatedJournal : j
       );
 
       // Re-evaluate overall status

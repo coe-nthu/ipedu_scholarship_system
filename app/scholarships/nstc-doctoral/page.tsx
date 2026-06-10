@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AuthButton } from "@/components/auth-button";
+import { LanguageToggle } from "@/components/language-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,7 +50,11 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { isValidDoi, normalizeDoi } from "@/lib/doi";
-import { findJournalIndexMatch } from "@/lib/journal-indexes";
+import {
+  getInitialScholarshipLanguage,
+  SCHOLARSHIP_LANGUAGE_STORAGE_KEY,
+  type ScholarshipLanguage,
+} from "@/lib/scholarship-language";
 import {
   getDefaultScholarshipProgramSetting,
   getProgramKeyByRoutePath,
@@ -203,6 +208,14 @@ const FORM_ENGLISH_COPY = {
   basic: "Personal Information",
   declarations: "Declarations Before Submission",
   department: "Department / Institute",
+  description: {
+    "full-time-doctoral-grant":
+      "Full-Time Doctoral Student Grant application form",
+    "nstc-doctoral":
+      "Application form for 111-112 academic year students",
+    "nstc-research-grant":
+      "Application form for incoming 114 academic year doctoral students",
+  },
   documents: "Other Achievements and Required PDF Uploads",
   email: "Email",
   employment: "Employment Status Survey",
@@ -220,6 +233,8 @@ const FORM_ENGLISH_COPY = {
     "nstc-doctoral": "NSTC Scholarship for Outstanding Doctoral Students",
     "nstc-research-grant": "NSTC Doctoral Research Grant",
   },
+  eligibilityReminder:
+    "Please review the eligibility requirements and required documents before submitting.",
   researchExperience: "Research Experience",
   submit: "Submit Application",
   studyStatus: "Application Category",
@@ -229,6 +244,46 @@ const FORM_ENGLISH_COPY = {
   uploadsNoteScholarship:
     "Recommended filename format: year_scholarship_transcript/recommendation/no full-time job declaration_department_name. Filename format is recommended, not enforced.",
 } as const;
+
+const OPTION_ENGLISH_COPY: Record<string, string> = {
+  "WOS conference proceedings citation index":
+    "WOS conference proceedings citation index",
+  "SCOPUS conference proceedings citation index":
+    "SCOPUS conference proceedings citation index",
+  I級期刊: "Level I Journal",
+  非I級期刊: "Non-Level I Journal",
+  其他: "Other",
+  否: "No",
+  口頭發表: "Oral Presentation",
+  壁報發表: "Poster Presentation",
+  新領: "New Application",
+  續領: "Renewal",
+  指導教授配合款: "Advisor Matching Fund",
+  競爭型: "Competitive Track",
+  無兼職: "No Part-time Work",
+  擔任校內外教學助理: "Teaching Assistant",
+  有校內外兼職: "Part-time Work",
+  研究者本人: "Principal Researcher",
+  研究助理: "Research Assistant",
+  工讀生: "Student Worker",
+  教師研究案: "Faculty Research Project",
+  畢業專題: "Graduation Project",
+  國際合作: "International Collaboration",
+  逕博: "Direct Doctoral Program",
+  甄試: "Recommendation Admission",
+  考試: "Entrance Exam",
+  僅申請續領校長獎學金: "Renew Presidential Scholarship Only",
+  同意達標準時更換申請教育部博士生獎學金:
+    "Switch to MOE Doctoral Scholarship if eligible",
+};
+
+const DOCUMENT_ENGLISH_COPY: Record<string, string> = {
+  applicationForm: "Application Form",
+  advisorRecommendation: "Advisor Recommendation",
+  noFullTimeJobDeclaration: "No Full-time Job Declaration",
+  researchDirectionStatement: "Personal Research Statement",
+  transcript: "Official Transcript",
+};
 
 function isBilingualProgram(programKey: ScholarshipProgramKey) {
   return BILINGUAL_PROGRAM_KEYS.has(programKey);
@@ -250,6 +305,24 @@ function getBilingualProgramTitle(programKey: ScholarshipProgramKey) {
     : undefined;
 }
 
+function getBilingualDescription(programKey: ScholarshipProgramKey) {
+  return isBilingualProgram(programKey)
+    ? FORM_ENGLISH_COPY.description[
+        programKey as keyof typeof FORM_ENGLISH_COPY.description
+      ]
+    : undefined;
+}
+
+function optionText(option: string, englishMode: boolean) {
+  return englishMode ? OPTION_ENGLISH_COPY[option] ?? option : option;
+}
+
+function documentText(document: DocumentField, englishMode: boolean) {
+  return englishMode
+    ? DOCUMENT_ENGLISH_COPY[document.key] ?? document.label
+    : document.label;
+}
+
 function BiText({
   children,
   className,
@@ -263,18 +336,13 @@ function BiText({
 }) {
   return (
     <span className={className}>
-      <span>{children}</span>
-      {enabled && english ? (
-        <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
-          {english}
-        </span>
-      ) : null}
+      {enabled && english ? english : children}
     </span>
   );
 }
 
 function bi(enabled: boolean, zh: string, en: string) {
-  return enabled ? `${zh}\n${en}` : zh;
+  return enabled ? en : zh;
 }
 
 const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
@@ -651,7 +719,11 @@ export default function ScholarshipForm() {
   );
   const isFullTimeDoctoralGrant =
     config.programKey === FULL_TIME_DOCTORAL_GRANT_KEY;
-  const bilingual = isBilingualProgram(config.programKey);
+  const supportsLanguageSwitch = isBilingualProgram(config.programKey);
+  const [language, setLanguage] = useState<ScholarshipLanguage>(
+    getInitialScholarshipLanguage
+  );
+  const bilingual = supportsLanguageSwitch && language === "en";
   const [applicantInfo, setApplicantInfo] = useState<ApplicantInfo>({
     applicantName: "",
     studentId: "",
@@ -717,6 +789,14 @@ export default function ScholarshipForm() {
   const [importCandidates, setImportCandidates] = useState<PreviousApp[]>([]);
   const [showImportPrompt, setShowImportPrompt] = useState(false);
   const importPromptChecked = useRef(false);
+
+  const updateLanguage = (nextLanguage: ScholarshipLanguage) => {
+    setLanguage(nextLanguage);
+    window.localStorage.setItem(
+      SCHOLARSHIP_LANGUAGE_STORAGE_KEY,
+      nextLanguage
+    );
+  };
 
   const setSectionRef = (key: string) => (node: HTMLDivElement | null) => {
     sectionRefs.current[key] = node;
@@ -1649,10 +1729,7 @@ export default function ScholarshipForm() {
           [author.given, author.family].filter(Boolean).join(" ").trim()
         ) ?? [];
       const issns = result.data.issns ?? [];
-      const journalIndexMatch = findJournalIndexMatch({
-        issns,
-        journalTitle: result.data.journalName,
-      });
+      const journalIndexMatch = result.data.indexMatch;
 
       setJournals((current) =>
         current.map((journal, rowIndex) => {
@@ -1677,7 +1754,7 @@ export default function ScholarshipForm() {
             database: journalIndexMatch?.database || journal.database,
             journalLevel: journalIndexMatch?.level || journal.journalLevel,
             indexSource: journalIndexMatch
-              ? "依期刊索引對照表自動判別"
+              ? journalIndexMatch.indexSource || "依期刊索引對照表自動判別"
               : "未命中索引對照表，請人工選擇",
             authorOrder: journal.authorOrderModified
               ? journal.authorOrder
@@ -2220,7 +2297,9 @@ export default function ScholarshipForm() {
                     className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-950"
                   >
                     <ArrowLeft className="size-4" />
-                    返回獎學金選擇
+                    {bilingual
+                      ? "Back to scholarship selection"
+                      : "返回獎學金選擇"}
                   </Link>
                   <p className="text-sm font-medium text-emerald-700">
                     <BiText
@@ -2231,18 +2310,33 @@ export default function ScholarshipForm() {
                     </BiText>
                   </p>
                   <h1 className="mt-2 text-3xl font-bold text-slate-950">
-                    {config.description}
+                    <BiText
+                      enabled={bilingual}
+                      english={getBilingualDescription(config.programKey)}
+                    >
+                      {config.description}
+                    </BiText>
                   </h1>
                 </div>
-                <Badge className="w-fit whitespace-normal bg-[#1f6f78] py-2 text-left text-white">
-                  <BiText
-                    enabled={bilingual}
-                    english={getBilingualAmount(config.programKey)}
-                  >
-                    {config.amount}
-                  </BiText>
-                </Badge>
-                <AuthButton />
+                <div className="flex flex-col items-start gap-3 md:items-end">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {supportsLanguageSwitch ? (
+                      <LanguageToggle
+                        language={language}
+                        onChange={updateLanguage}
+                      />
+                    ) : null}
+                    <AuthButton />
+                  </div>
+                  <div className="max-w-sm rounded-lg bg-[#1f6f78] px-3 py-2 text-sm leading-6 text-white shadow-sm">
+                    <BiText
+                      enabled={bilingual}
+                      english={getBilingualAmount(config.programKey)}
+                    >
+                      {config.amount}
+                    </BiText>
+                  </div>
+                </div>
               </div>
             </header>
 
@@ -2336,14 +2430,10 @@ export default function ScholarshipForm() {
                   請領資格提醒
                 </BiText>
               </AlertTitle>
-              <AlertDescription className="space-y-1">
-                {config.eligibilityReminder}
-                {bilingual ? (
-                  <span className="block text-xs leading-5 text-emerald-900/80">
-                    Please review the eligibility requirements and required
-                    documents before submitting.
-                  </span>
-                ) : null}
+              <AlertDescription>
+                {bilingual
+                  ? FORM_ENGLISH_COPY.eligibilityReminder
+                  : config.eligibilityReminder}
               </AlertDescription>
             </Alert>
 
@@ -2472,7 +2562,7 @@ export default function ScholarshipForm() {
                   className={cn(
                     topLevelErrors.applicantName && INVALID_FIELD_CLASS
                   )}
-                  placeholder={bilingual ? "請輸入姓名 / Full name" : "請輸入姓名"}
+                  placeholder={bilingual ? "Full name" : "請輸入姓名"}
                   required
                 />
               </Field>
@@ -2512,7 +2602,7 @@ export default function ScholarshipForm() {
                     <SelectValue
                       placeholder={
                         bilingual
-                          ? "請選擇所屬學系所 / Department"
+                          ? "Select department / institute"
                           : "請選擇所屬學系所"
                       }
                     />
@@ -2566,7 +2656,7 @@ export default function ScholarshipForm() {
                   onChange={(event) =>
                     updateApplicant("advisorName", event.target.value)
                   }
-                  placeholder="請輸入指導教授姓名"
+                  placeholder={bilingual ? "Advisor name" : "請輸入指導教授姓名"}
                 />
               </Field>
               <Field
@@ -2600,7 +2690,7 @@ export default function ScholarshipForm() {
                   <SelectContent>
                     {config.studyStatusOptions.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {option}
+                        {optionText(option, bilingual)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2629,7 +2719,7 @@ export default function ScholarshipForm() {
                   <SelectContent>
                     {applicationTypeOptions.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {option}
+                        {optionText(option, bilingual)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2655,13 +2745,9 @@ export default function ScholarshipForm() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm leading-6 text-slate-600">
-                  請依目前校內外工作情形填寫；若申請後有專職工作，應主動通知院辦公室。
-                  {bilingual ? (
-                    <span className="mt-1 block text-xs leading-5 text-slate-500">
-                      Please report your current work status. If you take a
-                      full-time job after applying, notify the college office.
-                    </span>
-                  ) : null}
+                  {bilingual
+                    ? "Please report your current work status. If you take a full-time job after applying, notify the college office."
+                    : "請依目前校內外工作情形填寫；若申請後有專職工作，應主動通知院辦公室。"}
                 </p>
                 <ValidationMessage message={topLevelErrors.employment} />
                 <Field
@@ -2683,12 +2769,18 @@ export default function ScholarshipForm() {
                         topLevelErrors.employmentStatus && INVALID_FIELD_CLASS
                       )}
                     >
-                      <SelectValue placeholder="請選擇兼職情形" />
+                      <SelectValue
+                        placeholder={
+                          bilingual
+                            ? "Select employment status"
+                            : "請選擇兼職情形"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {EMPLOYMENT_STATUS_OPTIONS.map((option) => (
                         <SelectItem key={option} value={option}>
-                          {option}
+                          {optionText(option, bilingual)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -4096,11 +4188,19 @@ export default function ScholarshipForm() {
                                 "journalLevel"
                               )}
                             >
-                              <SelectValue placeholder="期刊等級" />
+                              <SelectValue
+                                placeholder={
+                                  bilingual ? "Journal Level" : "期刊等級"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="I級期刊">I級期刊</SelectItem>
-                              <SelectItem value="非I級期刊">非I級期刊</SelectItem>
+                              <SelectItem value="I級期刊">
+                                {optionText("I級期刊", bilingual)}
+                              </SelectItem>
+                              <SelectItem value="非I級期刊">
+                                {optionText("非I級期刊", bilingual)}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <ValidationMessage
@@ -4132,7 +4232,9 @@ export default function ScholarshipForm() {
                                 "database"
                               )}
                             >
-                              <SelectValue placeholder="資料庫" />
+                              <SelectValue
+                                placeholder={bilingual ? "Database" : "資料庫"}
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="SSCI">SSCI</SelectItem>
@@ -4140,8 +4242,12 @@ export default function ScholarshipForm() {
                               <SelectItem value="SCI">SCI</SelectItem>
                               <SelectItem value="TSSCI">TSSCI</SelectItem>
                               <SelectItem value="SCOPUS">SCOPUS</SelectItem>
-                              <SelectItem value="其他">其他</SelectItem>
-                              <SelectItem value="否">否</SelectItem>
+                              <SelectItem value="其他">
+                                {optionText("其他", bilingual)}
+                              </SelectItem>
+                              <SelectItem value="否">
+                                {optionText("否", bilingual)}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <ValidationMessage
@@ -4473,8 +4579,12 @@ export default function ScholarshipForm() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="口頭發表">口頭發表</SelectItem>
-                              <SelectItem value="壁報發表">壁報發表</SelectItem>
+                              <SelectItem value="口頭發表">
+                                {optionText("口頭發表", bilingual)}
+                              </SelectItem>
+                              <SelectItem value="壁報發表">
+                                {optionText("壁報發表", bilingual)}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <ValidationMessage
@@ -4506,17 +4616,29 @@ export default function ScholarshipForm() {
                                 "database"
                               )}
                             >
-                              <SelectValue placeholder="資料庫" />
+                              <SelectValue
+                                placeholder={bilingual ? "Database" : "資料庫"}
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="WOS conference proceedings citation index">
-                                WOS proceedings
+                                {optionText(
+                                  "WOS conference proceedings citation index",
+                                  bilingual
+                                )}
                               </SelectItem>
                               <SelectItem value="SCOPUS conference proceedings citation index">
-                                SCOPUS proceedings
+                                {optionText(
+                                  "SCOPUS conference proceedings citation index",
+                                  bilingual
+                                )}
                               </SelectItem>
-                              <SelectItem value="其他">其他</SelectItem>
-                              <SelectItem value="否">否</SelectItem>
+                              <SelectItem value="其他">
+                                {optionText("其他", bilingual)}
+                              </SelectItem>
+                              <SelectItem value="否">
+                                {optionText("否", bilingual)}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <ValidationMessage
@@ -4701,13 +4823,23 @@ export default function ScholarshipForm() {
                               "role"
                             )}
                           >
-                            <SelectValue placeholder="職稱" />
+                            <SelectValue
+                              placeholder={bilingual ? "Role" : "職稱"}
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="研究者本人">研究者本人</SelectItem>
-                            <SelectItem value="研究助理">研究助理</SelectItem>
-                            <SelectItem value="工讀生">工讀生</SelectItem>
-                            <SelectItem value="其他">其他</SelectItem>
+                            <SelectItem value="研究者本人">
+                              {optionText("研究者本人", bilingual)}
+                            </SelectItem>
+                            <SelectItem value="研究助理">
+                              {optionText("研究助理", bilingual)}
+                            </SelectItem>
+                            <SelectItem value="工讀生">
+                              {optionText("工讀生", bilingual)}
+                            </SelectItem>
+                            <SelectItem value="其他">
+                              {optionText("其他", bilingual)}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <ValidationMessage
@@ -4739,13 +4871,23 @@ export default function ScholarshipForm() {
                               "nature"
                             )}
                           >
-                            <SelectValue placeholder="性質" />
+                            <SelectValue
+                              placeholder={bilingual ? "Project Type" : "性質"}
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="教師研究案">教師研究案</SelectItem>
-                            <SelectItem value="畢業專題">畢業專題</SelectItem>
-                            <SelectItem value="國際合作">國際合作</SelectItem>
-                            <SelectItem value="其他">其他</SelectItem>
+                            <SelectItem value="教師研究案">
+                              {optionText("教師研究案", bilingual)}
+                            </SelectItem>
+                            <SelectItem value="畢業專題">
+                              {optionText("畢業專題", bilingual)}
+                            </SelectItem>
+                            <SelectItem value="國際合作">
+                              {optionText("國際合作", bilingual)}
+                            </SelectItem>
+                            <SelectItem value="其他">
+                              {optionText("其他", bilingual)}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <ValidationMessage
@@ -5082,7 +5224,9 @@ export default function ScholarshipForm() {
                                 { section: "plannedResearch" }
                               )
                             }
-                            placeholder="期刊/研討會"
+                            placeholder={
+                              bilingual ? "Journal / Conference" : "期刊/研討會"
+                            }
                           />
                           <ValidationMessage
                             message={getRowFieldError(
@@ -5113,12 +5257,16 @@ export default function ScholarshipForm() {
                                 "database"
                               )}
                             >
-                              <SelectValue placeholder="選擇資料庫" />
+                              <SelectValue
+                                placeholder={
+                                  bilingual ? "Select database" : "選擇資料庫"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               {databaseOptions.map((database) => (
                                 <SelectItem key={database} value={database}>
-                                  {database}
+                                  {optionText(database, bilingual)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -5226,7 +5374,11 @@ export default function ScholarshipForm() {
 
               {!isFullTimeDoctoralGrant ? (
                 <section className="space-y-3">
-                  <h2 className="text-base font-semibold">其他有利審查文件</h2>
+                  <h2 className="text-base font-semibold">
+                    {bilingual
+                      ? "Optional Supporting Document"
+                      : "其他有利審查文件"}
+                  </h2>
                   <div
                     className={cn(
                       "grid grid-cols-1 gap-4 rounded-md border bg-white p-4 md:grid-cols-2",
@@ -5272,18 +5424,13 @@ export default function ScholarshipForm() {
               ) : null}
 
               <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
-                <span>
-                  {isFullTimeDoctoralGrant
+                {bilingual
+                  ? isFullTimeDoctoralGrant
+                    ? FORM_ENGLISH_COPY.uploadsNoteFullTime
+                    : FORM_ENGLISH_COPY.uploadsNoteScholarship
+                  : isFullTimeDoctoralGrant
                     ? "上傳檔名請依照「年度申請助學金_申請單/歷年成績單/個人研究方向說明_系所_名字」。"
                     : "上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。"}
-                </span>
-                {bilingual ? (
-                  <span className="mt-1 block text-xs leading-5 text-amber-900/80">
-                    {isFullTimeDoctoralGrant
-                      ? FORM_ENGLISH_COPY.uploadsNoteFullTime
-                      : FORM_ENGLISH_COPY.uploadsNoteScholarship}
-                  </span>
-                ) : null}
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {effectiveDocumentFields.map((document) => (
@@ -5301,18 +5448,24 @@ export default function ScholarshipForm() {
                         htmlFor={`document_${document.key}`}
                         className="font-medium"
                       >
-                        {document.label}
+                        {documentText(document, bilingual)}
                       </Label>
                       {document.required ? (
-                        <Badge variant="secondary">必繳</Badge>
+                        <Badge variant="secondary">
+                          {bilingual ? "Required" : "必繳"}
+                        </Badge>
                       ) : (
-                        <Badge variant="outline">選繳</Badge>
+                        <Badge variant="outline">
+                          {bilingual ? "Optional" : "選繳"}
+                        </Badge>
                       )}
                     </div>
                     {document.key === "advisorRecommendation" &&
                     isAdvisorPending ? (
                       <p className="mb-3 text-xs leading-5 text-slate-500">
-                        指導教授暫填「找尋中，待定」時，本項可免繳。
+                        {bilingual
+                          ? "If the advisor is temporarily entered as pending, this item is waived."
+                          : "指導教授暫填「找尋中，待定」時，本項可免繳。"}
                       </p>
                     ) : null}
                       <FileUploadControl
@@ -5416,21 +5569,25 @@ export default function ScholarshipForm() {
                 />
               </div>
               <p className="text-sm leading-6 text-slate-600">
-                獎學金相關辦法可參考
+                {bilingual
+                  ? "Scholarship regulations are available on the "
+                  : "獎學金相關辦法可參考"}
                 <a
                   className="mx-1 font-medium text-[#1f6f78] underline underline-offset-4"
                   href={otherScholarshipRuleUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  本院獎助學金頁面
+                  {bilingual
+                    ? "College scholarship page"
+                    : "本院獎助學金頁面"}
                 </a>
-                。
+                {bilingual ? "." : "。"}
               </p>
             </CardContent>
           </Card>
 
-          <div className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-300 bg-[#f4f7f6]/95 py-4 backdrop-blur sm:flex-row sm:justify-end">
+          <div className="flex flex-col gap-3 border-t border-slate-300 py-6 sm:flex-row sm:justify-end">
             <Button
               type="submit"
               disabled={isSubmitting}
@@ -5439,11 +5596,11 @@ export default function ScholarshipForm() {
               <Send className="size-4" />
               {isSubmitting
                 ? bilingual
-                  ? "處理中... Processing..."
+                  ? "Processing..."
                   : "處理中..."
                 : bilingual
-                ? "送出申請 Submit Application"
-                : "送出申請"}
+                  ? "Submit Application"
+                  : "送出申請"}
             </Button>
           </div>
           </form>
@@ -5471,13 +5628,8 @@ function Field({
   return (
     <div className="space-y-2">
       <Label htmlFor={htmlFor}>
-        {label}
+        {english ?? label}
         {required ? <span className="ml-1 text-red-600">*</span> : null}
-        {english ? (
-          <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
-            {english}
-          </span>
-        ) : null}
       </Label>
       {children}
       <ValidationMessage message={error} />
@@ -5533,7 +5685,7 @@ function FileUploadControl({
           onClick={() => inputRef.current?.click()}
         >
           <Upload className="size-4" />
-          {bilingual ? "上傳 PDF / Upload PDF" : "上傳 PDF"}
+          {bilingual ? "Upload PDF" : "上傳 PDF"}
         </Button>
         <Button
           type="button"
@@ -5548,7 +5700,7 @@ function FileUploadControl({
           }}
         >
           <Trash2 className="size-4" />
-          {bilingual ? "刪除 / Remove" : "刪除"}
+          {bilingual ? "Remove" : "刪除"}
         </Button>
       </div>
       {fileName ? (
@@ -5558,12 +5710,12 @@ function FileUploadControl({
       ) : existingFileName ? (
         <p className="min-h-5 truncate text-sm text-emerald-600">
           <CheckCircle2 className="mr-1 inline-block size-3.5" />
-          {bilingual ? "已上傳 / Uploaded: " : "已上傳："}
+          {bilingual ? "Uploaded: " : "已上傳："}
           {existingFileName}
         </p>
       ) : (
         <p className="min-h-5 truncate text-sm text-slate-600">
-          {bilingual ? "尚未選擇檔案 / No file selected" : "尚未選擇檔案"}
+          {bilingual ? "No file selected" : "尚未選擇檔案"}
         </p>
       )}
       <ValidationMessage message={error} />
@@ -5614,12 +5766,7 @@ function CheckField({
         onCheckedChange={(value) => onChange(value === true)}
       />
       <span className="space-y-1">
-        <span>{label}</span>
-        {english ? (
-          <span className="block text-xs leading-5 text-slate-500">
-            {english}
-          </span>
-        ) : null}
+        <span>{english ?? label}</span>
         <ValidationMessage message={error} />
       </span>
     </label>

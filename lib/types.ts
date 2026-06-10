@@ -234,3 +234,27 @@ export type DashboardAccountEntry = {
   /** Only meaningful for password accounts; google is always true */
   isActive: boolean;
 };
+
+export type JournalIndexRecord = {
+  id?: string;
+  journal_title: string;
+  issn: string | null;
+  eissn: string | null;
+  category: string | null;
+  edition: string;
+  jif: string | null;
+  jci: string | null;
+  quartile: string | null;
+  jcr_year: number | null;
+  source_file_name: string | null;
+  uploaded_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type JournalIndexImportSummary = {
+  count: number;
+  duplicatesSkipped: number;
+  errors: string[];
+  sourceFileName: string;
+};

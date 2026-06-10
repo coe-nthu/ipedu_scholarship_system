@@ -122,20 +122,14 @@ public.scholarship_applications
 期刊等級與資料庫判別方式：
 
 1. DOI 查詢會從 Crossref 帶回期刊名稱與 ISSN。
-2. 系統會用 `lib/journal-indexes.ts` 的期刊索引對照表比對 ISSN 或期刊名稱。
-3. 若命中對照表，會自動填入 `database` 與 `journalLevel`，並將 `indexSource` 設為「依期刊索引對照表自動判別」。
-4. 若未命中，會保留人工選擇，並將 `indexSource` 設為「未命中索引對照表，請人工選擇」。
+2. 系統會優先使用後台上傳的 `journal_index_records` 期刊索引比對 ISSN/eISSN 或期刊名稱。
+3. 若資料庫尚未上傳索引，才會退回使用 `lib/journal-indexes.ts` 的內建種子清單。
+4. 若命中對照表，會自動填入 `database` 與 `journalLevel`，並將 `indexSource` 記錄為 JCR 或內建索引來源。
+5. 若未命中，會保留人工選擇，並將 `indexSource` 設為「未命中索引對照表，請人工選擇」。
 
-`lib/journal-indexes.ts` 需要由系所或院辦維護官方認可清單，例如：
-
-```ts
-{
-  journalTitle: "Journal of Educational Psychology",
-  issns: ["0022-0663", "1939-2176"],
-  database: "SSCI",
-  level: "I級期刊",
-}
-```
+院辦可在後台「期刊索引」上傳 JCR `JournalResults` CSV。CSV 需包含
+`Journal name`、`ISSN`/`eISSN`、`Edition` 等欄位；JCR `CategoryResults`
+類別統計檔不含單本期刊資料，無法用於期刊查核。
 
 ## 國際研討會發表：`payload.conferences[]`
 
