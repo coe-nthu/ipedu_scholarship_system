@@ -134,6 +134,8 @@ type RowValidationErrors = Partial<
   Record<RepeatableSection, Record<number, Record<string, string>>>
 >;
 
+type TopLevelErrors = Record<string, string>;
+
 const ROW_FIELD_LABELS: Record<RepeatableSection, Record<string, string>> = {
   conferences: {
     author: "作者",
@@ -183,6 +185,97 @@ const INVALID_FIELD_CLASS =
 const PENDING_ADVISOR_NAME = "找尋中，待定";
 const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
 const FULL_TIME_APPLICATION_TYPES = ["指導教授配合款", "競爭型"] as const;
+const BILINGUAL_PROGRAM_KEYS = new Set<ScholarshipProgramKey>([
+  "nstc-doctoral",
+  "nstc-research-grant",
+  "full-time-doctoral-grant",
+]);
+
+const FORM_ENGLISH_COPY = {
+  academic: "Eligibility and Academic Records",
+  amount: {
+    "full-time-doctoral-grant":
+      "Grant amount and award period are determined by the college review committee.",
+    "nstc-doctoral": "NT$40,000 per month, up to 4 academic years.",
+    "nstc-research-grant": "NT$40,000 per month, up to 3 academic years.",
+  },
+  applicationType: "Application Type",
+  basic: "Personal Information",
+  declarations: "Declarations Before Submission",
+  department: "Department / Institute",
+  documents: "Other Achievements and Required PDF Uploads",
+  email: "Email",
+  employment: "Employment Status Survey",
+  employmentDescription: "Part-time Work Description",
+  employmentMonthlyIncome: "Average Monthly Part-time Income",
+  employmentStatus: "Employment Status",
+  fullName: "Applicant Name",
+  gpaScale: "GPA Scale",
+  journal: "Journal Publications",
+  moe: "",
+  nstc: "National Science and Technology Council (NSTC)",
+  phone: "Mobile Phone",
+  program: {
+    "full-time-doctoral-grant": "Full-Time Doctoral Student Grant",
+    "nstc-doctoral": "NSTC Scholarship for Outstanding Doctoral Students",
+    "nstc-research-grant": "NSTC Doctoral Research Grant",
+  },
+  researchExperience: "Research Experience",
+  submit: "Submit Application",
+  studyStatus: "Application Category",
+  taIncome: "Average Monthly Teaching Assistant Income",
+  uploadsNoteFullTime:
+    "Recommended filename format: year_grant_application/transcript/research statement_department_name. Filename format is recommended, not enforced.",
+  uploadsNoteScholarship:
+    "Recommended filename format: year_scholarship_transcript/recommendation/no full-time job declaration_department_name. Filename format is recommended, not enforced.",
+} as const;
+
+function isBilingualProgram(programKey: ScholarshipProgramKey) {
+  return BILINGUAL_PROGRAM_KEYS.has(programKey);
+}
+
+function getBilingualAmount(programKey: ScholarshipProgramKey) {
+  return isBilingualProgram(programKey)
+    ? FORM_ENGLISH_COPY.amount[
+        programKey as keyof typeof FORM_ENGLISH_COPY.amount
+      ]
+    : undefined;
+}
+
+function getBilingualProgramTitle(programKey: ScholarshipProgramKey) {
+  return isBilingualProgram(programKey)
+    ? FORM_ENGLISH_COPY.program[
+        programKey as keyof typeof FORM_ENGLISH_COPY.program
+      ]
+    : undefined;
+}
+
+function BiText({
+  children,
+  className,
+  enabled,
+  english,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  enabled: boolean;
+  english?: string;
+}) {
+  return (
+    <span className={className}>
+      <span>{children}</span>
+      {enabled && english ? (
+        <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
+          {english}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function bi(enabled: boolean, zh: string, en: string) {
+  return enabled ? `${zh}\n${en}` : zh;
+}
 
 const DEFAULT_SCHOLARSHIP_CONFIG: ScholarshipFormConfig = {
   academicForm: "standard",
@@ -558,6 +651,7 @@ export default function ScholarshipForm() {
   );
   const isFullTimeDoctoralGrant =
     config.programKey === FULL_TIME_DOCTORAL_GRANT_KEY;
+  const bilingual = isBilingualProgram(config.programKey);
   const [applicantInfo, setApplicantInfo] = useState<ApplicantInfo>({
     applicantName: "",
     studentId: "",
@@ -603,6 +697,8 @@ export default function ScholarshipForm() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [rowValidationErrors, setRowValidationErrors] =
     useState<RowValidationErrors>({});
+  const [topLevelErrors, setTopLevelErrors] = useState<TopLevelErrors>({});
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Existing application state
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
@@ -621,6 +717,32 @@ export default function ScholarshipForm() {
   const [importCandidates, setImportCandidates] = useState<PreviousApp[]>([]);
   const [showImportPrompt, setShowImportPrompt] = useState(false);
   const importPromptChecked = useRef(false);
+
+  const setSectionRef = (key: string) => (node: HTMLDivElement | null) => {
+    sectionRefs.current[key] = node;
+  };
+
+  const scrollToSection = (key: string) => {
+    window.setTimeout(() => {
+      sectionRefs.current[key]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  };
+
+  const sectionErrorClass = (key: string) =>
+    topLevelErrors[key] ? "ring-red-300 bg-red-50/20" : "";
+
+  const failValidation = (
+    sectionKey: string,
+    errors: TopLevelErrors,
+    message: string
+  ) => {
+    setTopLevelErrors(errors);
+    setSubmitMessage(message);
+    scrollToSection(sectionKey);
+  };
 
   useEffect(() => {
     hasLoadedExisting.current = false;
@@ -1097,6 +1219,12 @@ export default function ScholarshipForm() {
   );
 
   const updateApplicant = (field: keyof ApplicantInfo, value: string) => {
+    setTopLevelErrors((current) => {
+      const next = { ...current };
+      delete next.basic;
+      if (field === "applicationType") delete next.applicationType;
+      return next;
+    });
     setApplicantInfo((current) => {
       if (
         field === "studyStatus" &&
@@ -1118,6 +1246,26 @@ export default function ScholarshipForm() {
     field: keyof Eligibility,
     value: string | boolean
   ) => {
+    setTopLevelErrors((current) => {
+      const next = { ...current };
+      if (
+        field === "employmentStatus" ||
+        field === "taMonthlyIncome" ||
+        field === "employmentDescription" ||
+        field === "employmentMonthlyIncome"
+      ) {
+        delete next.employment;
+        delete next[field];
+      }
+      if (
+        field === "hasSpecialRecommendation" ||
+        field === "noFullTimeJob" ||
+        field === "notReceivingOtherScholarship"
+      ) {
+        delete next.declarations;
+      }
+      return next;
+    });
     setEligibility((current) => ({ ...current, [field]: value }));
   };
 
@@ -1125,6 +1273,11 @@ export default function ScholarshipForm() {
     field: keyof AcademicPerformance,
     value: string
   ) => {
+    setTopLevelErrors((current) => {
+      const next = { ...current };
+      delete next.academic;
+      return next;
+    });
     setAcademicPerformance((current) => ({ ...current, [field]: value }));
   };
 
@@ -1569,9 +1722,34 @@ export default function ScholarshipForm() {
     status: SubmissionStatus
   ) => {
     setSubmitMessage("");
+    setTopLevelErrors({});
 
     if (!applicantInfo.applicantName || !applicantInfo.department) {
-      setSubmitMessage("請至少填寫申請人姓名與所屬學系所。");
+      failValidation(
+        "basic",
+        {
+          applicantName: !applicantInfo.applicantName
+            ? bi(bilingual, "請填寫申請人姓名。", "Please enter your full name.")
+            : "",
+          basic: bi(
+            bilingual,
+            "請至少填寫申請人姓名與所屬學系所。",
+            "Please complete your full name and department/institute."
+          ),
+          department: !applicantInfo.department
+            ? bi(
+                bilingual,
+                "請選擇所屬學系所。",
+                "Please select your department/institute."
+              )
+            : "",
+        },
+        bi(
+          bilingual,
+          "請至少填寫申請人姓名與所屬學系所。",
+          "Please complete your full name and department/institute."
+        )
+      );
       return;
     }
 
@@ -1579,13 +1757,51 @@ export default function ScholarshipForm() {
       status === "submitted" &&
       !applicationTypeOptions.includes(applicantInfo.applicationType)
     ) {
-      setSubmitMessage("送出前請選擇申請類型。");
+      failValidation(
+        "basic",
+        {
+          applicationType: bi(
+            bilingual,
+            "送出前請選擇申請類型。",
+            "Please select an application type before submitting."
+          ),
+          basic: bi(
+            bilingual,
+            "送出前請選擇申請類型。",
+            "Please select an application type before submitting."
+          ),
+        },
+        bi(
+          bilingual,
+          "送出前請選擇申請類型。",
+          "Please select an application type before submitting."
+        )
+      );
       return;
     }
 
     if (status === "submitted" && isFullTimeDoctoralGrant) {
       if (!eligibility.employmentStatus) {
-        setSubmitMessage("送出前請完成兼職情形調查。");
+        failValidation(
+          "employment",
+          {
+            employment: bi(
+              bilingual,
+              "送出前請完成兼職情形調查。",
+              "Please complete the employment status survey before submitting."
+            ),
+            employmentStatus: bi(
+              bilingual,
+              "請選擇兼職情形。",
+              "Please select your employment status."
+            ),
+          },
+          bi(
+            bilingual,
+            "送出前請完成兼職情形調查。",
+            "Please complete the employment status survey before submitting."
+          )
+        );
         return;
       }
 
@@ -1593,7 +1809,26 @@ export default function ScholarshipForm() {
         eligibility.employmentStatus === EMPLOYMENT_STATUS_TA &&
         !eligibility.taMonthlyIncome.trim()
       ) {
-        setSubmitMessage("請填寫校內外教學助理平均月薪。");
+        failValidation(
+          "employment",
+          {
+            employment: bi(
+              bilingual,
+              "請填寫校內外教學助理平均月薪。",
+              "Please enter your average monthly teaching assistant income."
+            ),
+            taMonthlyIncome: bi(
+              bilingual,
+              "請填寫校內外教學助理平均月薪。",
+              "Please enter your average monthly teaching assistant income."
+            ),
+          },
+          bi(
+            bilingual,
+            "請填寫校內外教學助理平均月薪。",
+            "Please enter your average monthly teaching assistant income."
+          )
+        );
         return;
       }
 
@@ -1602,7 +1837,36 @@ export default function ScholarshipForm() {
         (!eligibility.employmentDescription.trim() ||
           !eligibility.employmentMonthlyIncome.trim())
       ) {
-        setSubmitMessage("請填寫兼職工作簡述與兼職平均月薪。");
+        failValidation(
+          "employment",
+          {
+            employment: bi(
+              bilingual,
+              "請填寫兼職工作簡述與兼職平均月薪。",
+              "Please describe your part-time work and enter the average monthly income."
+            ),
+            employmentDescription: !eligibility.employmentDescription.trim()
+              ? bi(
+                  bilingual,
+                  "請填寫兼職工作簡述。",
+                  "Please describe your part-time work."
+                )
+              : "",
+            employmentMonthlyIncome:
+              !eligibility.employmentMonthlyIncome.trim()
+                ? bi(
+                    bilingual,
+                    "請填寫兼職平均月薪。",
+                    "Please enter your average monthly part-time income."
+                  )
+                : "",
+          },
+          bi(
+            bilingual,
+            "請填寫兼職工作簡述與兼職平均月薪。",
+            "Please describe your part-time work and enter the average monthly income."
+          )
+        );
         return;
       }
     }
@@ -1628,10 +1892,24 @@ export default function ScholarshipForm() {
         : Boolean(academicPerformance.cumulativeGpa);
 
     if (status === "submitted" && !hasRequiredAcademicPerformance) {
-      setSubmitMessage(
+      const message =
         config.academicForm === "doctoralResearchGrant"
-          ? "送出前請填寫學業成績資料。"
-          : "送出前請填寫學業表現 GPA。"
+          ? bi(
+              bilingual,
+              "送出前請填寫學業成績資料。",
+              "Please complete academic record information before submitting."
+            )
+          : bi(
+              bilingual,
+              "送出前請填寫學業表現 GPA。",
+              "Please enter the required GPA before submitting."
+            );
+      failValidation(
+        "academic",
+        {
+          academic: message,
+        },
+        message
       );
       return;
     }
@@ -1642,7 +1920,21 @@ export default function ScholarshipForm() {
         !eligibility.noFullTimeJob ||
         !eligibility.notReceivingOtherScholarship)
     ) {
-      setSubmitMessage("送出前請勾選表單底部三項聲明。");
+      failValidation(
+        "declarations",
+        {
+          declarations: bi(
+            bilingual,
+            "送出前請勾選表單底部三項聲明。",
+            "Please check all three declarations before submitting."
+          ),
+        },
+        bi(
+          bilingual,
+          "送出前請勾選表單底部三項聲明。",
+          "Please check all three declarations before submitting."
+        )
+      );
       return;
     }
 
@@ -1659,10 +1951,31 @@ export default function ScholarshipForm() {
       });
 
     if (status === "submitted" && missingRequiredDocuments.length > 0) {
-      setSubmitMessage(
-        `送出前請上傳：${missingRequiredDocuments
-          .map((document) => document.label)
-          .join("、")}。`
+      const message = `送出前請上傳：${missingRequiredDocuments
+        .map((document) => document.label)
+        .join("、")}。${
+        bilingual
+          ? `\nPlease upload the required PDF file(s): ${missingRequiredDocuments
+              .map((document) => document.label)
+              .join(", ")}.`
+          : ""
+      }`;
+      failValidation(
+        "documents",
+        {
+          documents: message,
+          ...Object.fromEntries(
+            missingRequiredDocuments.map((document) => [
+              `document.${document.key}`,
+              bi(
+                bilingual,
+                `請上傳${document.label}。`,
+                `Please upload ${document.label}.`
+              ),
+            ])
+          ),
+        },
+        message
       );
       return;
     }
@@ -1676,7 +1989,26 @@ export default function ScholarshipForm() {
       (otherReviewDocumentFields.length > 1 ||
         (otherReviewDocuments.filter((d) => d.name.trim()).length || 0) > 1)
     ) {
-      setSubmitMessage("其他有利審查文件限上傳一件。");
+      failValidation(
+        "documents",
+        {
+          documents: bi(
+            bilingual,
+            "其他有利審查文件限上傳一件。",
+            "Only one optional supporting document may be uploaded."
+          ),
+          otherReviewDocuments: bi(
+            bilingual,
+            "其他有利審查文件限上傳一件。",
+            "Only one optional supporting document may be uploaded."
+          ),
+        },
+        bi(
+          bilingual,
+          "其他有利審查文件限上傳一件。",
+          "Only one optional supporting document may be uploaded."
+        )
+      );
       return;
     }
 
@@ -1891,14 +2223,24 @@ export default function ScholarshipForm() {
                     返回獎學金選擇
                   </Link>
                   <p className="text-sm font-medium text-emerald-700">
-                    {config.title}
+                    <BiText
+                      enabled={bilingual}
+                      english={getBilingualProgramTitle(config.programKey)}
+                    >
+                      {config.title}
+                    </BiText>
                   </p>
                   <h1 className="mt-2 text-3xl font-bold text-slate-950">
                     {config.description}
                   </h1>
                 </div>
-                <Badge className="w-fit bg-[#1f6f78] text-white">
-                  {config.amount}
+                <Badge className="w-fit whitespace-normal bg-[#1f6f78] py-2 text-left text-white">
+                  <BiText
+                    enabled={bilingual}
+                    english={getBilingualAmount(config.programKey)}
+                  >
+                    {config.amount}
+                  </BiText>
                 </Badge>
                 <AuthButton />
               </div>
@@ -1989,9 +2331,19 @@ export default function ScholarshipForm() {
 
             <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950">
               <FileText className="size-4" />
-              <AlertTitle>請領資格提醒</AlertTitle>
-              <AlertDescription>
+              <AlertTitle>
+                <BiText enabled={bilingual} english="Eligibility Reminder">
+                  請領資格提醒
+                </BiText>
+              </AlertTitle>
+              <AlertDescription className="space-y-1">
                 {config.eligibilityReminder}
+                {bilingual ? (
+                  <span className="block text-xs leading-5 text-emerald-900/80">
+                    Please review the eligibility requirements and required
+                    documents before submitting.
+                  </span>
+                ) : null}
               </AlertDescription>
             </Alert>
 
@@ -2087,23 +2439,48 @@ export default function ScholarshipForm() {
               submitApplication(event.currentTarget, "submitted");
             }}
           >
-          <Card className="shadow-sm">
+          <Card
+            ref={setSectionRef("basic")}
+            className={cn("shadow-sm", sectionErrorClass("basic"))}
+          >
             <CardHeader>
-              <CardTitle className="text-lg">一、基本資料</CardTitle>
+              <CardTitle className="text-lg">
+                <BiText enabled={bilingual} english={FORM_ENGLISH_COPY.basic}>
+                  一、基本資料
+                </BiText>
+              </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              <Field label="申請人姓名" htmlFor="applicantName" required>
+              {topLevelErrors.basic ? (
+                <div className="md:col-span-3">
+                  <ValidationMessage message={topLevelErrors.basic} />
+                </div>
+              ) : null}
+              <Field
+                label="申請人姓名"
+                english={bilingual ? FORM_ENGLISH_COPY.fullName : undefined}
+                htmlFor="applicantName"
+                required
+                error={topLevelErrors.applicantName}
+              >
                 <Input
                   id="applicantName"
                   value={applicantInfo.applicantName}
                   onChange={(event) =>
                     updateApplicant("applicantName", event.target.value)
                   }
-                  placeholder="請輸入姓名"
+                  className={cn(
+                    topLevelErrors.applicantName && INVALID_FIELD_CLASS
+                  )}
+                  placeholder={bilingual ? "請輸入姓名 / Full name" : "請輸入姓名"}
                   required
                 />
               </Field>
-              <Field label="學號" htmlFor="studentId">
+              <Field
+                label="學號"
+                english={bilingual ? "Student ID" : undefined}
+                htmlFor="studentId"
+              >
                 <Input
                   id="studentId"
                   value={applicantInfo.studentId}
@@ -2113,15 +2490,32 @@ export default function ScholarshipForm() {
                   placeholder="例：112xxxxxx"
                 />
               </Field>
-              <Field label="所屬學系所" htmlFor="department" required>
+              <Field
+                label="所屬學系所"
+                english={bilingual ? FORM_ENGLISH_COPY.department : undefined}
+                htmlFor="department"
+                required
+                error={topLevelErrors.department}
+              >
                 <Select
                   value={applicantInfo.department}
                   onValueChange={(value) =>
                     updateApplicant("department", value ?? "")
                   }
                 >
-                  <SelectTrigger id="department">
-                    <SelectValue placeholder="請選擇所屬學系所" />
+                  <SelectTrigger
+                    id="department"
+                    className={cn(
+                      topLevelErrors.department && INVALID_FIELD_CLASS
+                    )}
+                  >
+                    <SelectValue
+                      placeholder={
+                        bilingual
+                          ? "請選擇所屬學系所 / Department"
+                          : "請選擇所屬學系所"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {DEPARTMENT_OPTIONS.map((department) => (
@@ -2132,7 +2526,11 @@ export default function ScholarshipForm() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Email" htmlFor="email">
+              <Field
+                label="Email"
+                english={bilingual ? FORM_ENGLISH_COPY.email : undefined}
+                htmlFor="email"
+              >
                 <Input
                   id="email"
                   type="email"
@@ -2143,7 +2541,11 @@ export default function ScholarshipForm() {
                   placeholder="name@mx.nthu.edu.tw"
                 />
               </Field>
-              <Field label="手機" htmlFor="phone">
+              <Field
+                label="手機"
+                english={bilingual ? FORM_ENGLISH_COPY.phone : undefined}
+                htmlFor="phone"
+              >
                 <Input
                   id="phone"
                   value={applicantInfo.phone}
@@ -2153,7 +2555,11 @@ export default function ScholarshipForm() {
                   placeholder="09xx-xxx-xxx"
                 />
               </Field>
-              <Field label="指導教授" htmlFor="advisorName">
+              <Field
+                label="指導教授"
+                english={bilingual ? "Advisor" : undefined}
+                htmlFor="advisorName"
+              >
                 <Input
                   id="advisorName"
                   value={applicantInfo.advisorName}
@@ -2163,7 +2569,11 @@ export default function ScholarshipForm() {
                   placeholder="請輸入指導教授姓名"
                 />
               </Field>
-              <Field label="入學學年度" htmlFor="admissionAcademicYear">
+              <Field
+                label="入學學年度"
+                english={bilingual ? "Admission Academic Year" : undefined}
+                htmlFor="admissionAcademicYear"
+              >
                 <Input
                   id="admissionAcademicYear"
                   value={applicantInfo.admissionAcademicYear}
@@ -2173,7 +2583,11 @@ export default function ScholarshipForm() {
                   placeholder="111 或 112"
                 />
               </Field>
-              <Field label="請領別" htmlFor="studyStatus">
+              <Field
+                label="請領別"
+                english={bilingual ? FORM_ENGLISH_COPY.studyStatus : undefined}
+                htmlFor="studyStatus"
+              >
                 <Select
                   value={applicantInfo.studyStatus}
                   onValueChange={(value) =>
@@ -2192,14 +2606,24 @@ export default function ScholarshipForm() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="申請類別" htmlFor="applicationType">
+              <Field
+                label="申請類別"
+                english={bilingual ? FORM_ENGLISH_COPY.applicationType : undefined}
+                htmlFor="applicationType"
+                error={topLevelErrors.applicationType}
+              >
                 <Select
                   value={applicantInfo.applicationType}
                   onValueChange={(value) =>
                     updateApplicant("applicationType", value ?? "")
                   }
                 >
-                  <SelectTrigger id="applicationType">
+                  <SelectTrigger
+                    id="applicationType"
+                    className={cn(
+                      topLevelErrors.applicationType && INVALID_FIELD_CLASS
+                    )}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -2214,11 +2638,164 @@ export default function ScholarshipForm() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          {isFullTimeDoctoralGrant ? (
+            <Card
+              ref={setSectionRef("employment")}
+              className={cn("shadow-sm", sectionErrorClass("employment"))}
+            >
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  <BiText
+                    enabled={bilingual}
+                    english={FORM_ENGLISH_COPY.employment}
+                  >
+                    兼職情形調查
+                  </BiText>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm leading-6 text-slate-600">
+                  請依目前校內外工作情形填寫；若申請後有專職工作，應主動通知院辦公室。
+                  {bilingual ? (
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">
+                      Please report your current work status. If you take a
+                      full-time job after applying, notify the college office.
+                    </span>
+                  ) : null}
+                </p>
+                <ValidationMessage message={topLevelErrors.employment} />
+                <Field
+                  label="兼職情形"
+                  english={bilingual ? FORM_ENGLISH_COPY.employmentStatus : undefined}
+                  htmlFor="employmentStatus"
+                  required
+                  error={topLevelErrors.employmentStatus}
+                >
+                  <Select
+                    value={eligibility.employmentStatus}
+                    onValueChange={(value) =>
+                      updateEligibility("employmentStatus", value ?? "")
+                    }
+                  >
+                    <SelectTrigger
+                      id="employmentStatus"
+                      className={cn(
+                        topLevelErrors.employmentStatus && INVALID_FIELD_CLASS
+                      )}
+                    >
+                      <SelectValue placeholder="請選擇兼職情形" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMPLOYMENT_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                {eligibility.employmentStatus === EMPLOYMENT_STATUS_TA ? (
+                  <Field
+                    label="教學助理平均月薪"
+                    english={bilingual ? FORM_ENGLISH_COPY.taIncome : undefined}
+                    htmlFor="taMonthlyIncome"
+                    required
+                    error={topLevelErrors.taMonthlyIncome}
+                  >
+                    <Input
+                      id="taMonthlyIncome"
+                      value={eligibility.taMonthlyIncome}
+                      onChange={(event) =>
+                        updateEligibility(
+                          "taMonthlyIncome",
+                          event.target.value
+                        )
+                      }
+                      className={cn(
+                        topLevelErrors.taMonthlyIncome && INVALID_FIELD_CLASS
+                      )}
+                      placeholder="例：8000"
+                    />
+                  </Field>
+                ) : null}
+                {eligibility.employmentStatus === EMPLOYMENT_STATUS_PART_TIME ? (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field
+                      label="兼職工作簡述"
+                      english={
+                        bilingual
+                          ? FORM_ENGLISH_COPY.employmentDescription
+                          : undefined
+                      }
+                      htmlFor="employmentDescription"
+                      required
+                      error={topLevelErrors.employmentDescription}
+                    >
+                      <Input
+                        id="employmentDescription"
+                        value={eligibility.employmentDescription}
+                        onChange={(event) =>
+                          updateEligibility(
+                            "employmentDescription",
+                            event.target.value
+                          )
+                        }
+                        className={cn(
+                          topLevelErrors.employmentDescription &&
+                            INVALID_FIELD_CLASS
+                        )}
+                        placeholder="例：研究助理、課輔教師"
+                      />
+                    </Field>
+                    <Field
+                      label="兼職平均月薪"
+                      english={
+                        bilingual
+                          ? FORM_ENGLISH_COPY.employmentMonthlyIncome
+                          : undefined
+                      }
+                      htmlFor="employmentMonthlyIncome"
+                      required
+                      error={topLevelErrors.employmentMonthlyIncome}
+                    >
+                      <Input
+                        id="employmentMonthlyIncome"
+                        value={eligibility.employmentMonthlyIncome}
+                        onChange={(event) =>
+                          updateEligibility(
+                            "employmentMonthlyIncome",
+                            event.target.value
+                          )
+                        }
+                        className={cn(
+                          topLevelErrors.employmentMonthlyIncome &&
+                            INVALID_FIELD_CLASS
+                        )}
+                        placeholder="例：12000"
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card
+            ref={setSectionRef("academic")}
+            className={cn("shadow-sm", sectionErrorClass("academic"))}
+          >
             <CardHeader>
-              <CardTitle className="text-lg">二、請領資格與學業表現</CardTitle>
+              <CardTitle className="text-lg">
+                <BiText
+                  enabled={bilingual}
+                  english={FORM_ENGLISH_COPY.academic}
+                >
+                  二、請領資格與學業表現
+                </BiText>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              <ValidationMessage message={topLevelErrors.academic} />
               {config.academicForm === "presidentialScholarship" ? (
                 applicantInfo.studyStatus === STUDY_STATUS_NEW ? (
                   <>
@@ -2601,7 +3178,11 @@ export default function ScholarshipForm() {
                 applicantInfo.studyStatus === STUDY_STATUS_NEW ? (
                   <>
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                      <Field label="學士學校全稱" htmlFor="bachelorSchool">
+                      <Field
+                        label="學士學校全稱"
+                        english={bilingual ? "Bachelor's Institution" : undefined}
+                        htmlFor="bachelorSchool"
+                      >
                         <Input
                           id="bachelorSchool"
                           value={academicPerformance.bachelorSchool}
@@ -2614,7 +3195,11 @@ export default function ScholarshipForm() {
                           placeholder="例：國立清華大學"
                         />
                       </Field>
-                      <Field label="學士科系全稱" htmlFor="bachelorDepartment">
+                      <Field
+                        label="學士科系全稱"
+                        english={bilingual ? "Bachelor's Department" : undefined}
+                        htmlFor="bachelorDepartment"
+                      >
                         <Input
                           id="bachelorDepartment"
                           value={academicPerformance.bachelorDepartment}
@@ -2627,7 +3212,11 @@ export default function ScholarshipForm() {
                           placeholder="例：教育心理與諮商學系"
                         />
                       </Field>
-                      <Field label="碩士學校全稱" htmlFor="masterSchool">
+                      <Field
+                        label="碩士學校全稱"
+                        english={bilingual ? "Master's Institution" : undefined}
+                        htmlFor="masterSchool"
+                      >
                         <Input
                           id="masterSchool"
                           value={academicPerformance.masterSchool}
@@ -2640,7 +3229,11 @@ export default function ScholarshipForm() {
                           placeholder="例：國立清華大學"
                         />
                       </Field>
-                      <Field label="碩士科系全稱" htmlFor="masterDepartment">
+                      <Field
+                        label="碩士科系全稱"
+                        english={bilingual ? "Master's Department" : undefined}
+                        htmlFor="masterDepartment"
+                      >
                         <Input
                           id="masterDepartment"
                           value={academicPerformance.masterDepartment}
@@ -2656,7 +3249,11 @@ export default function ScholarshipForm() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-                      <Field label="學士班總學分數" htmlFor="bachelorTotalCredits">
+                      <Field
+                        label="學士班總學分數"
+                        english={bilingual ? "Bachelor's Total Credits" : undefined}
+                        htmlFor="bachelorTotalCredits"
+                      >
                         <Input
                           id="bachelorTotalCredits"
                           type="number"
@@ -2671,7 +3268,11 @@ export default function ScholarshipForm() {
                           placeholder="例：128"
                         />
                       </Field>
-                      <Field label="學士班 GPA" htmlFor="bachelorGpa">
+                      <Field
+                        label="學士班 GPA"
+                        english={bilingual ? "Bachelor's GPA" : undefined}
+                        htmlFor="bachelorGpa"
+                      >
                         <Input
                           id="bachelorGpa"
                           type="number"
@@ -2687,7 +3288,11 @@ export default function ScholarshipForm() {
                           placeholder="例：3.85"
                         />
                       </Field>
-                      <Field label="學士班排名百分比" htmlFor="newBachelorRankPercent">
+                      <Field
+                        label="學士班排名百分比"
+                        english={bilingual ? "Bachelor's Class Rank Percentile" : undefined}
+                        htmlFor="newBachelorRankPercent"
+                      >
                         <Input
                           id="newBachelorRankPercent"
                           type="number"
@@ -2704,7 +3309,11 @@ export default function ScholarshipForm() {
                           placeholder="例：15"
                         />
                       </Field>
-                      <Field label="碩士班畢業總學分數" htmlFor="masterGraduateTotalCredits">
+                      <Field
+                        label="碩士班畢業總學分數"
+                        english={bilingual ? "Master's Graduation Credits" : undefined}
+                        htmlFor="masterGraduateTotalCredits"
+                      >
                         <Input
                           id="masterGraduateTotalCredits"
                           type="number"
@@ -2719,7 +3328,11 @@ export default function ScholarshipForm() {
                           placeholder="例：32"
                         />
                       </Field>
-                      <Field label="碩士班畢業 GPA" htmlFor="masterGraduateGpa">
+                      <Field
+                        label="碩士班畢業 GPA"
+                        english={bilingual ? "Master's Graduation GPA" : undefined}
+                        htmlFor="masterGraduateGpa"
+                      >
                         <Input
                           id="masterGraduateGpa"
                           type="number"
@@ -2735,7 +3348,11 @@ export default function ScholarshipForm() {
                           placeholder="例：3.92"
                         />
                       </Field>
-                      <Field label="碩士班畢業排名百分比" htmlFor="masterGraduateRankPercent">
+                      <Field
+                        label="碩士班畢業排名百分比"
+                        english={bilingual ? "Master's Graduation Rank Percentile" : undefined}
+                        htmlFor="masterGraduateRankPercent"
+                      >
                         <Input
                           id="masterGraduateRankPercent"
                           type="number"
@@ -2985,7 +3602,11 @@ export default function ScholarshipForm() {
               ) : (
                 <>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
-                <Field label="學士班排名百分比" htmlFor="bachelorRankPercent">
+                <Field
+                  label="學士班排名百分比"
+                  english={bilingual ? "Bachelor's Class Rank Percentile" : undefined}
+                  htmlFor="bachelorRankPercent"
+                >
                   <Input
                     id="bachelorRankPercent"
                     type="number"
@@ -3002,7 +3623,11 @@ export default function ScholarshipForm() {
                     placeholder="20"
                   />
                 </Field>
-                <Field label="碩士班累計 GPA" htmlFor="masterGpa">
+                <Field
+                  label="碩士班累計 GPA"
+                  english={bilingual ? "Master's Cumulative GPA" : undefined}
+                  htmlFor="masterGpa"
+                >
                   <Input
                     id="masterGpa"
                     type="number"
@@ -3015,7 +3640,11 @@ export default function ScholarshipForm() {
                     placeholder="3.76"
                   />
                 </Field>
-                <Field label="GPA 滿分制" htmlFor="gpaScale">
+                <Field
+                  label="GPA 滿分制"
+                  english={bilingual ? FORM_ENGLISH_COPY.gpaScale : undefined}
+                  htmlFor="gpaScale"
+                >
                   <Select
                     value={eligibility.gpaScale}
                     onValueChange={(value) =>
@@ -3031,7 +3660,11 @@ export default function ScholarshipForm() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="百分制成績" htmlFor="masterPercentScore">
+                <Field
+                  label="百分制成績"
+                  english={bilingual ? "Percentage Score" : undefined}
+                  htmlFor="masterPercentScore"
+                >
                   <Input
                     id="masterPercentScore"
                     type="number"
@@ -3048,7 +3681,12 @@ export default function ScholarshipForm() {
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
-                <Field label="本獎學金 GPA" htmlFor="cumulativeGpa" required>
+                <Field
+                  label="本獎學金 GPA"
+                  english={bilingual ? "GPA for This Application" : undefined}
+                  htmlFor="cumulativeGpa"
+                  required
+                >
                   <Input
                     id="cumulativeGpa"
                     type="number"
@@ -3064,7 +3702,11 @@ export default function ScholarshipForm() {
                     placeholder="例：3.92"
                   />
                 </Field>
-                <Field label="GPA 滿分制" htmlFor="cumulativeGpaScale">
+                <Field
+                  label="GPA 滿分制"
+                  english={bilingual ? FORM_ENGLISH_COPY.gpaScale : undefined}
+                  htmlFor="cumulativeGpaScale"
+                >
                   <Select
                     value={academicPerformance.cumulativeGpaScale}
                     onValueChange={(value) =>
@@ -3083,7 +3725,11 @@ export default function ScholarshipForm() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="班排名百分比" htmlFor="classRankPercent">
+                <Field
+                  label="班排名百分比"
+                  english={bilingual ? "Class Rank Percentile" : undefined}
+                  htmlFor="classRankPercent"
+                >
                   <Input
                     id="classRankPercent"
                     type="number"
@@ -3100,7 +3746,11 @@ export default function ScholarshipForm() {
                     placeholder="例：12.5"
                   />
                 </Field>
-                <Field label="已修畢學分" htmlFor="completedCredits">
+                <Field
+                  label="已修畢學分"
+                  english={bilingual ? "Completed Credits" : undefined}
+                  htmlFor="completedCredits"
+                >
                   <Input
                     id="completedCredits"
                     type="number"
@@ -3118,7 +3768,11 @@ export default function ScholarshipForm() {
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <Field label="操行/其他學業表現" htmlFor="conductScore">
+                <Field
+                  label="操行/其他學業表現"
+                  english={bilingual ? "Conduct / Other Academic Performance" : undefined}
+                  htmlFor="conductScore"
+                >
                   <Input
                     id="conductScore"
                     value={academicPerformance.conductScore}
@@ -3133,91 +3787,6 @@ export default function ScholarshipForm() {
                 </div>
               </div>
 
-              {isFullTimeDoctoralGrant ? (
-                <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-slate-900">
-                      兼職情形調查
-                    </h2>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      請依目前校內外工作情形填寫；若申請後有專職工作，應主動通知院辦公室。
-                    </p>
-                  </div>
-                  <Field label="兼職情形" htmlFor="employmentStatus" required>
-                    <Select
-                      value={eligibility.employmentStatus}
-                      onValueChange={(value) =>
-                        updateEligibility("employmentStatus", value ?? "")
-                      }
-                    >
-                      <SelectTrigger id="employmentStatus">
-                        <SelectValue placeholder="請選擇兼職情形" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EMPLOYMENT_STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  {eligibility.employmentStatus === EMPLOYMENT_STATUS_TA ? (
-                    <Field label="教學助理平均月薪" htmlFor="taMonthlyIncome" required>
-                      <Input
-                        id="taMonthlyIncome"
-                        value={eligibility.taMonthlyIncome}
-                        onChange={(event) =>
-                          updateEligibility(
-                            "taMonthlyIncome",
-                            event.target.value
-                          )
-                        }
-                        placeholder="例：8000"
-                      />
-                    </Field>
-                  ) : null}
-                  {eligibility.employmentStatus ===
-                  EMPLOYMENT_STATUS_PART_TIME ? (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <Field
-                        label="兼職工作簡述"
-                        htmlFor="employmentDescription"
-                        required
-                      >
-                        <Input
-                          id="employmentDescription"
-                          value={eligibility.employmentDescription}
-                          onChange={(event) =>
-                            updateEligibility(
-                              "employmentDescription",
-                              event.target.value
-                            )
-                          }
-                          placeholder="例：研究助理、課輔教師"
-                        />
-                      </Field>
-                      <Field
-                        label="兼職平均月薪"
-                        htmlFor="employmentMonthlyIncome"
-                        required
-                      >
-                        <Input
-                          id="employmentMonthlyIncome"
-                          value={eligibility.employmentMonthlyIncome}
-                          onChange={(event) =>
-                            updateEligibility(
-                              "employmentMonthlyIncome",
-                              event.target.value
-                            )
-                          }
-                          placeholder="例：12000"
-                        />
-                      </Field>
-                    </div>
-                  ) : null}
-                </section>
-              ) : null}
               <Textarea
                 className="min-h-24"
                 value={academicPerformance.transcriptNotes}
@@ -3234,7 +3803,9 @@ export default function ScholarshipForm() {
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">
-                三、期刊發表（填 DOI 自動索引，可手動補登）
+                <BiText enabled={bilingual} english={FORM_ENGLISH_COPY.journal}>
+                  三、期刊發表（填 DOI 自動索引，可手動補登）
+                </BiText>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -3243,15 +3814,51 @@ export default function ScholarshipForm() {
                   <TableHeader className="bg-slate-50">
                     <TableRow>
                       <TableHead className="w-44">DOI</TableHead>
-                      <TableHead className="w-36">發表日期</TableHead>
-                      <TableHead className="w-44">申請人作者姓名</TableHead>
-                      <TableHead className="w-44">DOI 作者清單</TableHead>
-                      <TableHead>期刊/論文名稱</TableHead>
-                      <TableHead className="w-36">審查單位</TableHead>
-                      <TableHead className="w-36">期刊等級</TableHead>
-                      <TableHead className="w-40">資料庫</TableHead>
-                      <TableHead className="w-28">通訊作者</TableHead>
-                      <TableHead className="w-40">作者順位</TableHead>
+                      <TableHead className="w-36">
+                        <BiText enabled={bilingual} english="Publication Date">
+                          發表日期
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-44">
+                        <BiText enabled={bilingual} english="Applicant Author Name">
+                          申請人作者姓名
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-44">
+                        <BiText enabled={bilingual} english="DOI Author List">
+                          DOI 作者清單
+                        </BiText>
+                      </TableHead>
+                      <TableHead>
+                        <BiText enabled={bilingual} english="Journal / Paper Title">
+                          期刊/論文名稱
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-36">
+                        <BiText enabled={bilingual} english="Review Body">
+                          審查單位
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-36">
+                        <BiText enabled={bilingual} english="Journal Level">
+                          期刊等級
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-40">
+                        <BiText enabled={bilingual} english="Database">
+                          資料庫
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-28">
+                        <BiText enabled={bilingual} english="Corresponding Author">
+                          通訊作者
+                        </BiText>
+                      </TableHead>
+                      <TableHead className="w-40">
+                        <BiText enabled={bilingual} english="Author Order">
+                          作者順位
+                        </BiText>
+                      </TableHead>
                       <TableHead className="w-24" />
                     </TableRow>
                   </TableHeader>
@@ -3299,6 +3906,12 @@ export default function ScholarshipForm() {
                             </Button>
                             <p className="text-xs leading-5 text-slate-500">
                               DOI 查無資料時，右側欄位可自行補登。
+                              {bilingual ? (
+                                <span className="mt-1 block">
+                                  If DOI lookup fails, fill in the fields
+                                  manually.
+                                </span>
+                              ) : null}
                             </p>
                           </div>
                         </TableCell>
@@ -3672,7 +4285,9 @@ export default function ScholarshipForm() {
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">
-                四、國際研討會發表（口頭/壁報）
+                <BiText enabled={bilingual} english="Conference Presentations">
+                  四、國際研討會發表（口頭/壁報）
+                </BiText>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -3995,7 +4610,14 @@ export default function ScholarshipForm() {
 
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg">五、相關研究參與表現</CardTitle>
+              <CardTitle className="text-lg">
+                <BiText
+                  enabled={bilingual}
+                  english={FORM_ENGLISH_COPY.researchExperience}
+                >
+                  五、相關研究參與表現
+                </BiText>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <EditableTable
@@ -4164,6 +4786,7 @@ export default function ScholarshipForm() {
                       </TableCell>
                       <TableCell>
                         <FileUploadControl
+                          bilingual={bilingual}
                           id={`document_researchExperiences_${index}`}
                           name={`document_researchExperiences_${index}`}
                           existingFileName={getExistingFileName(`researchExperiences_${index}`)}
@@ -4334,6 +4957,7 @@ export default function ScholarshipForm() {
                       </TableCell>
                       <TableCell>
                         <FileUploadControl
+                          bilingual={bilingual}
                           id={`document_researchAwards_${index}`}
                           name={`document_researchAwards_${index}`}
                           existingFileName={getExistingFileName(`researchAwards_${index}`)}
@@ -4363,7 +4987,9 @@ export default function ScholarshipForm() {
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">
-                六、獲獎當學年預計研究議題（非畢業論文）
+                <BiText enabled={bilingual} english="Planned Research Topics">
+                  六、獲獎當學年預計研究議題（非畢業論文）
+                </BiText>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -4578,13 +5204,19 @@ export default function ScholarshipForm() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card
+            ref={setSectionRef("documents")}
+            className={cn("shadow-sm", sectionErrorClass("documents"))}
+          >
             <CardHeader>
               <CardTitle className="text-lg">
-                七、其他優秀事蹟與指定資料上傳
+                <BiText enabled={bilingual} english={FORM_ENGLISH_COPY.documents}>
+                  七、其他優秀事蹟與指定資料上傳
+                </BiText>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              <ValidationMessage message={topLevelErrors.documents} />
               <Textarea
                 className="min-h-28"
                 value={otherAchievements}
@@ -4595,7 +5227,14 @@ export default function ScholarshipForm() {
               {!isFullTimeDoctoralGrant ? (
                 <section className="space-y-3">
                   <h2 className="text-base font-semibold">其他有利審查文件</h2>
-                  <div className="grid grid-cols-1 gap-4 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-2">
+                  <div
+                    className={cn(
+                      "grid grid-cols-1 gap-4 rounded-md border bg-white p-4 md:grid-cols-2",
+                      topLevelErrors.otherReviewDocuments
+                        ? "border-red-300 bg-red-50/30"
+                        : "border-slate-200"
+                    )}
+                  >
                     <Field label="名稱" htmlFor="otherReviewDocumentName">
                       <Input
                         id="otherReviewDocumentName"
@@ -4611,8 +5250,18 @@ export default function ScholarshipForm() {
                       htmlFor="document_otherReviewDocuments_0"
                     >
                       <FileUploadControl
+                        bilingual={bilingual}
+                        error={topLevelErrors.otherReviewDocuments}
                         id="document_otherReviewDocuments_0"
                         name="document_otherReviewDocuments_0"
+                        onFileChange={() =>
+                          setTopLevelErrors((current) => {
+                            const next = { ...current };
+                            delete next.documents;
+                            delete next.otherReviewDocuments;
+                            return next;
+                          })
+                        }
                         existingFileName={getExistingFileName(
                           "otherReviewDocuments_0"
                         )}
@@ -4623,15 +5272,29 @@ export default function ScholarshipForm() {
               ) : null}
 
               <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
-                {isFullTimeDoctoralGrant
-                  ? "上傳檔名請依照「年度申請助學金_申請單/歷年成績單/個人研究方向說明_系所_名字」。"
-                  : "上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。"}
+                <span>
+                  {isFullTimeDoctoralGrant
+                    ? "上傳檔名請依照「年度申請助學金_申請單/歷年成績單/個人研究方向說明_系所_名字」。"
+                    : "上傳檔名請依照「年度申請獎學金_成績單/教授推薦函/無專職切結書_系所_名字」。"}
+                </span>
+                {bilingual ? (
+                  <span className="mt-1 block text-xs leading-5 text-amber-900/80">
+                    {isFullTimeDoctoralGrant
+                      ? FORM_ENGLISH_COPY.uploadsNoteFullTime
+                      : FORM_ENGLISH_COPY.uploadsNoteScholarship}
+                  </span>
+                ) : null}
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {effectiveDocumentFields.map((document) => (
                   <div
                     key={document.key}
-                    className="rounded-md border border-slate-200 bg-white p-4"
+                    className={cn(
+                      "rounded-md border bg-white p-4",
+                      topLevelErrors[`document.${document.key}`]
+                        ? "border-red-300 bg-red-50/30"
+                        : "border-slate-200"
+                    )}
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <Label
@@ -4652,9 +5315,19 @@ export default function ScholarshipForm() {
                         指導教授暫填「找尋中，待定」時，本項可免繳。
                       </p>
                     ) : null}
-                    <FileUploadControl
-                      id={`document_${document.key}`}
+                      <FileUploadControl
+                        bilingual={bilingual}
+                        error={topLevelErrors[`document.${document.key}`]}
+                        id={`document_${document.key}`}
                       name={`document_${document.key}`}
+                      onFileChange={() =>
+                        setTopLevelErrors((current) => {
+                          const next = { ...current };
+                          delete next.documents;
+                          delete next[`document.${document.key}`];
+                          return next;
+                        })
+                      }
                       existingFileName={getExistingFileName(document.key)}
                     />
                   </div>
@@ -4671,29 +5344,72 @@ export default function ScholarshipForm() {
             </Alert>
           ) : null}
 
-          <Card className="shadow-sm">
+          <Card
+            ref={setSectionRef("declarations")}
+            className={cn("shadow-sm", sectionErrorClass("declarations"))}
+          >
             <CardHeader>
-              <CardTitle className="text-lg">送出前聲明</CardTitle>
+              <CardTitle className="text-lg">
+                <BiText
+                  enabled={bilingual}
+                  english={FORM_ENGLISH_COPY.declarations}
+                >
+                  送出前聲明
+                </BiText>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <ValidationMessage message={topLevelErrors.declarations} />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <CheckField
                   checked={eligibility.hasSpecialRecommendation}
+                  error={
+                    topLevelErrors.declarations &&
+                    !eligibility.hasSpecialRecommendation
+                      ? bi(bilingual, "請勾選此聲明。", "Please check this declaration.")
+                      : undefined
+                  }
                   label="我保證以上內容皆為真實，否則後果自行承擔"
+                  english={
+                    bilingual
+                      ? "I certify that all information above is true and accurate."
+                      : undefined
+                  }
                   onChange={(checked) =>
                     updateEligibility("hasSpecialRecommendation", checked)
                   }
                 />
                 <CheckField
                   checked={eligibility.noFullTimeJob}
+                  error={
+                    topLevelErrors.declarations && !eligibility.noFullTimeJob
+                      ? bi(bilingual, "請勾選此聲明。", "Please check this declaration.")
+                      : undefined
+                  }
                   label="我目前未於公私立機構從事專職工作"
+                  english={
+                    bilingual
+                      ? "I am not currently employed full-time by any public or private institution."
+                      : undefined
+                  }
                   onChange={(checked) =>
                     updateEligibility("noFullTimeJob", checked)
                   }
                 />
                 <CheckField
                   checked={eligibility.notReceivingOtherScholarship}
+                  error={
+                    topLevelErrors.declarations &&
+                    !eligibility.notReceivingOtherScholarship
+                      ? bi(bilingual, "請勾選此聲明。", "Please check this declaration.")
+                      : undefined
+                  }
                   label="我已詳閱獎學金相關辦法，並了解相關規則"
+                  english={
+                    bilingual
+                      ? "I have read and understood the scholarship regulations."
+                      : undefined
+                  }
                   onChange={(checked) =>
                     updateEligibility("notReceivingOtherScholarship", checked)
                   }
@@ -4721,7 +5437,13 @@ export default function ScholarshipForm() {
               className="bg-[#1f6f78] hover:bg-[#185d65]"
             >
               <Send className="size-4" />
-              {isSubmitting ? "處理中..." : "送出申請"}
+              {isSubmitting
+                ? bilingual
+                  ? "處理中... Processing..."
+                  : "處理中..."
+                : bilingual
+                ? "送出申請 Submit Application"
+                : "送出申請"}
             </Button>
           </div>
           </form>
@@ -4733,11 +5455,15 @@ export default function ScholarshipForm() {
 
 function Field({
   children,
+  english,
+  error,
   htmlFor,
   label,
   required,
 }: {
   children: React.ReactNode;
+  english?: string;
+  error?: string;
   htmlFor: string;
   label: string;
   required?: boolean;
@@ -4747,25 +5473,39 @@ function Field({
       <Label htmlFor={htmlFor}>
         {label}
         {required ? <span className="ml-1 text-red-600">*</span> : null}
+        {english ? (
+          <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
+            {english}
+          </span>
+        ) : null}
       </Label>
       {children}
+      <ValidationMessage message={error} />
     </div>
   );
 }
 
 function ValidationMessage({ message }: { message?: string }) {
   return message ? (
-    <p className="mt-1 text-xs font-medium text-red-600">{message}</p>
+    <p className="mt-1 whitespace-pre-line text-xs font-medium text-red-600">
+      {message}
+    </p>
   ) : null;
 }
 
 function FileUploadControl({
+  bilingual,
+  error,
   id,
   name,
+  onFileChange,
   existingFileName,
 }: {
+  bilingual?: boolean;
+  error?: string;
   id: string;
   name: string;
+  onFileChange?: () => void;
   existingFileName?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -4780,9 +5520,10 @@ function FileUploadControl({
         type="file"
         accept=".pdf,application/pdf"
         className="sr-only"
-        onChange={(event) =>
-          setFileName(event.currentTarget.files?.[0]?.name ?? "")
-        }
+        onChange={(event) => {
+          setFileName(event.currentTarget.files?.[0]?.name ?? "");
+          onFileChange?.();
+        }}
       />
       <div className="flex flex-wrap gap-2">
         <Button
@@ -4792,7 +5533,7 @@ function FileUploadControl({
           onClick={() => inputRef.current?.click()}
         >
           <Upload className="size-4" />
-          上傳 PDF
+          {bilingual ? "上傳 PDF / Upload PDF" : "上傳 PDF"}
         </Button>
         <Button
           type="button"
@@ -4807,7 +5548,7 @@ function FileUploadControl({
           }}
         >
           <Trash2 className="size-4" />
-          刪除
+          {bilingual ? "刪除 / Remove" : "刪除"}
         </Button>
       </div>
       {fileName ? (
@@ -4817,13 +5558,15 @@ function FileUploadControl({
       ) : existingFileName ? (
         <p className="min-h-5 truncate text-sm text-emerald-600">
           <CheckCircle2 className="mr-1 inline-block size-3.5" />
-          已上傳：{existingFileName}
+          {bilingual ? "已上傳 / Uploaded: " : "已上傳："}
+          {existingFileName}
         </p>
       ) : (
         <p className="min-h-5 truncate text-sm text-slate-600">
-          尚未選擇檔案
+          {bilingual ? "尚未選擇檔案 / No file selected" : "尚未選擇檔案"}
         </p>
       )}
+      <ValidationMessage message={error} />
     </div>
   );
 }
@@ -4848,20 +5591,37 @@ function JournalLevelSummary({
 
 function CheckField({
   checked,
+  english,
+  error,
   label,
   onChange,
 }: {
   checked: boolean;
+  english?: string;
+  error?: string;
   label: string;
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-16 items-start gap-3 rounded-md border border-slate-200 bg-white p-4 text-sm leading-6">
+    <label
+      className={cn(
+        "flex min-h-16 items-start gap-3 rounded-md border bg-white p-4 text-sm leading-6",
+        error ? "border-red-300 bg-red-50/30" : "border-slate-200"
+      )}
+    >
       <Checkbox
         checked={checked}
         onCheckedChange={(value) => onChange(value === true)}
       />
-      <span>{label}</span>
+      <span className="space-y-1">
+        <span>{label}</span>
+        {english ? (
+          <span className="block text-xs leading-5 text-slate-500">
+            {english}
+          </span>
+        ) : null}
+        <ValidationMessage message={error} />
+      </span>
     </label>
   );
 }

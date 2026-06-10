@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import {
@@ -16,6 +17,62 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/client";
+
+const BILINGUAL_PROGRAM_KEYS = new Set([
+  "nstc-doctoral",
+  "nstc-research-grant",
+  "full-time-doctoral-grant",
+]);
+
+const PROGRAM_ENGLISH_COPY: Record<
+  string,
+  { amount: string; description: string; period: string; title: string }
+> = {
+  "full-time-doctoral-grant": {
+    amount:
+      "The final amount and award period are determined by the college review committee.",
+    description:
+      "Application for full-time doctoral students. Complete personal information, employment status, academic records, and required PDF uploads.",
+    period: "For full-time doctoral students in the College.",
+    title: "Full-Time Doctoral Student Grant",
+  },
+  "nstc-doctoral": {
+    amount: "NT$40,000 per month, up to 4 academic years.",
+    description:
+      "NSTC scholarship application for outstanding doctoral students. Complete personal information, eligibility, academic achievements, research experience, and required PDF uploads.",
+    period: "For eligible 111-112 academic year students.",
+    title:
+      "NSTC Scholarship for Outstanding Doctoral Students",
+  },
+  "nstc-research-grant": {
+    amount: "NT$40,000 per month, up to 3 academic years.",
+    description:
+      "NSTC doctoral research grant application for incoming doctoral students. Complete personal information, academic records, research achievements, and required PDF uploads.",
+    period: "For incoming doctoral students in the specified academic year.",
+    title: "NSTC Doctoral Research Grant",
+  },
+};
+
+function ProgramText({
+  children,
+  enabled,
+  english,
+}: {
+  children: ReactNode;
+  enabled: boolean;
+  english?: string;
+}) {
+  return (
+    <>
+      <span>{children}</span>
+      {enabled && english ? (
+        <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">
+          {english}
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 export function ScholarshipSelectionClient({
   initialPrograms,
@@ -87,72 +144,110 @@ export function ScholarshipSelectionClient({
             </header>
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {visiblePrograms.map((program) => (
-                <Card
-                  key={program.program_key}
-                  className={`shadow-sm ${
-                    program.is_open
-                      ? "border-[#1f6f78]/30"
-                      : "border-slate-200 opacity-75"
-                  }`}
-                >
-                  <CardHeader className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="rounded-md border border-slate-200 bg-white p-2 text-[#1f6f78]">
-                        {program.is_open ? (
-                          <GraduationCap className="size-5" />
-                        ) : (
-                          <Award className="size-5" />
-                        )}
+              {visiblePrograms.map((program) => {
+                const bilingual = BILINGUAL_PROGRAM_KEYS.has(
+                  program.program_key
+                );
+                const english = PROGRAM_ENGLISH_COPY[program.program_key];
+
+                return (
+                  <Card
+                    key={program.program_key}
+                    className={`shadow-sm ${
+                      program.is_open
+                        ? "border-[#1f6f78]/30"
+                        : "border-slate-200 opacity-75"
+                    }`}
+                  >
+                    <CardHeader className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="rounded-md border border-slate-200 bg-white p-2 text-[#1f6f78]">
+                          {program.is_open ? (
+                            <GraduationCap className="size-5" />
+                          ) : (
+                            <Award className="size-5" />
+                          )}
+                        </div>
+                        <Badge
+                          className={
+                            program.is_open
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-slate-100 text-slate-600"
+                          }
+                        >
+                          {program.status_label}
+                        </Badge>
                       </div>
-                      <Badge
-                        className={
-                          program.is_open
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-100 text-slate-600"
-                        }
-                      >
-                        {program.status_label}
-                      </Badge>
-                    </div>
-                    <CardTitle className="text-lg leading-7">
-                      {program.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm leading-6 text-slate-600">
-                      {program.description}
-                    </p>
-                    <div className="space-y-2 text-sm text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays className="size-4 text-slate-400" />
-                        <span>{program.period}</span>
+                      <CardTitle className="text-lg leading-7">
+                        <ProgramText
+                          enabled={bilingual}
+                          english={english?.title}
+                        >
+                          {program.title}
+                        </ProgramText>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm leading-6 text-slate-600">
+                        <ProgramText
+                          enabled={bilingual}
+                          english={english?.description}
+                        >
+                          {program.description}
+                        </ProgramText>
+                      </p>
+                      <div className="space-y-2 text-sm text-slate-600">
+                        <div className="flex items-start gap-2">
+                          <CalendarDays className="mt-0.5 size-4 text-slate-400" />
+                          <span>
+                            <ProgramText
+                              enabled={bilingual}
+                              english={english?.period}
+                            >
+                              {program.period}
+                            </ProgramText>
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-0.5 size-4 text-slate-400" />
+                          <span>
+                            <ProgramText
+                              enabled={bilingual}
+                              english={english?.amount}
+                            >
+                              {program.amount}
+                            </ProgramText>
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="size-4 text-slate-400" />
-                        <span>{program.amount}</span>
-                      </div>
-                    </div>
-                    {program.is_open ? (
-                      <Link
-                        href={program.route_path}
-                        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#1f6f78] px-3 text-sm font-medium text-white hover:bg-[#185d65]"
-                      >
-                        開始填寫
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    ) : (
-                      <div
-                        aria-disabled="true"
-                        className="inline-flex h-9 w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-500"
-                      >
-                        尚未開放
-                        <Clock className="size-4" />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      {program.is_open ? (
+                        <Link
+                          href={program.route_path}
+                          className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#1f6f78] px-3 py-2 text-sm font-medium text-white hover:bg-[#185d65]"
+                        >
+                          <span>
+                            開始填寫
+                            {bilingual ? (
+                              <span className="ml-1 text-xs font-normal">
+                                Start application
+                              </span>
+                            ) : null}
+                          </span>
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      ) : (
+                        <div
+                          aria-disabled="true"
+                          className="inline-flex h-9 w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-500"
+                        >
+                          尚未開放
+                          <Clock className="size-4" />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </section>
           </>
         ) : (
