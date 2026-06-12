@@ -114,7 +114,7 @@ export function parseJournalIndexCsv(
   }
 
   const records: JournalIndexRecord[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   const errors: string[] = [];
   let duplicatesSkipped = 0;
 
@@ -136,10 +136,24 @@ export function parseJournalIndexCsv(
 
     const key = `${title.toLowerCase()}|${issn}|${eissn}|${edition}`;
     if (seen.has(key)) {
+      const existingIndex = seen.get(key);
+      const category =
+        categoryIndex >= 0 ? normalizeCell(cells[categoryIndex] ?? "") : "";
+      const existing =
+        existingIndex !== undefined ? records[existingIndex] : undefined;
+      if (
+        category &&
+        existing &&
+        !existing.category?.split(";").map((item) => item.trim()).includes(category)
+      ) {
+        existing.category = existing.category
+          ? `${existing.category}; ${category}`
+          : category;
+      }
       duplicatesSkipped += 1;
       continue;
     }
-    seen.add(key);
+    seen.set(key, records.length);
 
     records.push({
       category:

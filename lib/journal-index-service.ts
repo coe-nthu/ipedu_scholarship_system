@@ -84,21 +84,32 @@ async function fetchJournalIndexRecords() {
   const config = getSupabaseConfig();
   if (!config) return [];
 
-  const response = await fetch(
-    `${config.url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name&limit=10000`,
-    {
-      headers: {
-        apikey: config.serviceRoleKey,
-        authorization: `Bearer ${config.serviceRoleKey}`,
-      },
-    }
-  );
+  const pageSize = 5000;
+  const records: JournalIndexRecord[] = [];
 
-  if (!response.ok) {
-    return [];
+  for (let offset = 0; offset < 100000; offset += pageSize) {
+    const response = await fetch(
+      `${config.url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name&limit=${pageSize}&offset=${offset}`,
+      {
+        headers: {
+          apikey: config.serviceRoleKey,
+          authorization: `Bearer ${config.serviceRoleKey}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const page = (await response.json()) as JournalIndexRecord[];
+    records.push(...page);
+    if (page.length < pageSize) {
+      break;
+    }
   }
 
-  return (await response.json()) as JournalIndexRecord[];
+  return records;
 }
 
 export async function findJournalIndexMatch({

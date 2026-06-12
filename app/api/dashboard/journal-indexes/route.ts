@@ -21,6 +21,65 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
 }
 
+const MAX_CSV_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_CSV_BYTES = 100 * 1024 * 1024;
+const INSERT_CHUNK_SIZE = 1000;
+
+function mergeRecords(
+  batches: {
+    records: JournalIndexRecord[];
+    summary: { duplicatesSkipped: number; errors: string[] };
+  }[]
+) {
+  const records: JournalIndexRecord[] = [];
+  const seen = new Map<string, number>();
+  let duplicatesSkipped = 0;
+  const errors: string[] = [];
+
+  for (const batch of batches) {
+    duplicatesSkipped += batch.summary.duplicatesSkipped;
+    errors.push(...batch.summary.errors);
+
+    for (const record of batch.records) {
+      const key = [
+        record.journal_title.toLowerCase(),
+        record.issn ?? "",
+        record.eissn ?? "",
+        record.edition.toUpperCase(),
+      ].join("|");
+
+      if (seen.has(key)) {
+        const existingIndex = seen.get(key);
+        const existing =
+          existingIndex !== undefined ? records[existingIndex] : undefined;
+        if (existing && record.category) {
+          const categories = new Set(
+            (existing.category ?? "")
+              .split(";")
+              .map((item) => item.trim())
+              .filter(Boolean)
+          );
+          if (!categories.has(record.category)) {
+            categories.add(record.category);
+            existing.category = Array.from(categories).join("; ");
+          }
+        }
+        duplicatesSkipped += 1;
+        continue;
+      }
+
+      seen.set(key, records.length);
+      records.push(record);
+    }
+  }
+
+  return {
+    duplicatesSkipped,
+    errors: errors.slice(0, 20),
+    records,
+  };
+}
+
 function authError(reason: "not_authenticated" | "not_authorized") {
   return jsonError(
     reason === "not_authenticated" ? "請先登入。" : "無權限存取。",
@@ -112,26 +171,37 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    const files = [...formData.getAll("files"), formData.get("file")]
+      .filter((file): file is File => file instanceof File)
+      .filter((file, index, allFiles) => allFiles.indexOf(file) === index);
+
+    if (files.length === 0) {
       return jsonError("請選擇 CSV 檔案。");
     }
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      return jsonError("僅支援 CSV 檔案。");
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      return jsonError("CSV 檔案不可超過 5MB。");
+
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > MAX_TOTAL_CSV_BYTES) {
+      return jsonError("CSV 檔案總大小不可超過 100MB。");
     }
 
-    const csvText = await file.text();
-    let parsed;
+    const parsedBatches = [];
     try {
-      parsed = parseJournalIndexCsv(csvText, file.name);
+      for (const file of files) {
+        if (!file.name.toLowerCase().endsWith(".csv")) {
+          return jsonError(`僅支援 CSV 檔案：${file.name}`);
+        }
+        if (file.size > MAX_CSV_BYTES) {
+          return jsonError(`單一 CSV 檔案不可超過 50MB：${file.name}`);
+        }
+        parsedBatches.push(parseJournalIndexCsv(await file.text(), file.name));
+      }
     } catch (error) {
       return jsonError(
         error instanceof Error ? error.message : "CSV 解析失敗。"
       );
     }
+
+    const merged = mergeRecords(parsedBatches);
 
     const { serviceRoleKey, url } = getSupabaseConfig();
     const deleteResponse = await fetch(
@@ -149,29 +219,38 @@ export async function POST(request: Request) {
       throw new Error(await deleteResponse.text());
     }
 
-    const records = parsed.records.map((record) => ({
+    const records = merged.records.map((record) => ({
       ...record,
       uploaded_by: auth.userId,
     }));
 
-    const insertResponse = await fetch(`${url}/rest/v1/journal_index_records`, {
-      method: "POST",
-      headers: {
-        apikey: serviceRoleKey,
-        authorization: `Bearer ${serviceRoleKey}`,
-        "content-type": "application/json",
-        prefer: "return=minimal",
-      },
-      body: JSON.stringify(records),
-    });
+    for (let index = 0; index < records.length; index += INSERT_CHUNK_SIZE) {
+      const chunk = records.slice(index, index + INSERT_CHUNK_SIZE);
+      const insertResponse = await fetch(`${url}/rest/v1/journal_index_records`, {
+        method: "POST",
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+          "content-type": "application/json",
+          prefer: "return=minimal",
+        },
+        body: JSON.stringify(chunk),
+      });
 
-    if (!insertResponse.ok) {
-      throw new Error(await insertResponse.text());
+      if (!insertResponse.ok) {
+        throw new Error(await insertResponse.text());
+      }
     }
 
     return NextResponse.json({
       success: true,
-      summary: parsed.summary,
+      summary: {
+        count: records.length,
+        duplicatesSkipped: merged.duplicatesSkipped,
+        errors: merged.errors,
+        sourceFileName:
+          files.length === 1 ? files[0].name : `${files.length} 個 CSV 檔案`,
+      },
       preview: records.slice(0, 10),
     });
   } catch (error) {

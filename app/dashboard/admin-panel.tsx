@@ -545,7 +545,7 @@ function JournalIndexesPanel() {
   const [state, setState] = useState<JournalIndexState | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [lastSummary, setLastSummary] =
     useState<JournalIndexImportSummary | null>(null);
 
@@ -578,13 +578,13 @@ function JournalIndexesPanel() {
   }, [load]);
 
   const handleUpload = () => {
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       toast.error("請先選擇 CSV 檔案。");
       return;
     }
 
     const formData = new FormData();
-    formData.set("file", selectedFile);
+    selectedFiles.forEach((file) => formData.append("files", file));
     setUploading(true);
     setLastSummary(null);
 
@@ -596,7 +596,7 @@ function JournalIndexesPanel() {
       .then((data) => {
         if (data.success) {
           setLastSummary(data.summary);
-          setSelectedFile(null);
+          setSelectedFiles([]);
           toast.success(`已匯入 ${data.summary.count} 筆期刊索引。`);
           return load();
         }
@@ -701,17 +701,24 @@ function JournalIndexesPanel() {
             <Input
               type="file"
               accept=".csv,text/csv"
+              multiple
               disabled={!state?.canUpload || uploading}
               onChange={(event) =>
-                setSelectedFile(event.currentTarget.files?.[0] ?? null)
+                setSelectedFiles(Array.from(event.currentTarget.files ?? []))
               }
             />
             <p className="text-xs leading-5 text-slate-500">
-              請使用 JCR 匯出的 JournalResults CSV。匯入會整批取代目前索引。
+              請使用 JCR 匯出的 JournalResults CSV，可一次選取多個 category
+              CSV。匯入會合併去重並整批取代目前索引。
             </p>
+            {selectedFiles.length > 0 ? (
+              <p className="text-xs text-slate-500">
+                已選擇 {selectedFiles.length} 個檔案
+              </p>
+            ) : null}
             <Button
               className="w-full gap-1.5 bg-[#1f6f78] hover:bg-[#185d65]"
-              disabled={!state?.canUpload || uploading || !selectedFile}
+              disabled={!state?.canUpload || uploading || selectedFiles.length === 0}
               onClick={handleUpload}
             >
               <Upload className="size-4" />

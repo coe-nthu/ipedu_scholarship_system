@@ -127,9 +127,10 @@ public.scholarship_applications
 4. 若命中對照表，會自動填入 `database` 與 `journalLevel`，並將 `indexSource` 記錄為 JCR 或內建索引來源。
 5. 若未命中，會保留人工選擇，並將 `indexSource` 設為「未命中索引對照表，請人工選擇」。
 
-院辦可在後台「期刊索引」上傳 JCR `JournalResults` CSV。CSV 需包含
-`Journal name`、`ISSN`/`eISSN`、`Edition` 等欄位；JCR `CategoryResults`
-類別統計檔不含單本期刊資料，無法用於期刊查核。
+院辦可在後台「期刊索引」上傳 JCR `JournalResults` CSV。可上傳單一全量
+CSV，或一次選取多個 category CSV，系統會合併去重並保留多個 category。
+CSV 需包含 `Journal name`、`ISSN`/`eISSN`、`Edition` 等欄位；JCR
+`CategoryResults` 類別統計檔不含單本期刊資料，無法用於期刊查核。
 
 ## 國際研討會發表：`payload.conferences[]`
 
