@@ -3,8 +3,15 @@ import type { JournalIndexImportSummary, JournalIndexRecord } from "@/lib/types"
 const FIELD_ALIASES = {
   category: ["category", "categories", "web of science categories"],
   edition: ["edition", "database", "web of science edition"],
-  eissn: ["eissn", "e-issn", "electronic issn"],
-  issn: ["issn"],
+  eissn: [
+    "eissn",
+    "e-issn",
+    "e issn",
+    "electronic issn",
+    "online issn",
+    "issn (online)",
+  ],
+  issn: ["issn", "print issn", "issn (print)"],
   jci: ["2024 jci", "jci"],
   jcrYear: ["jcr year", "jcryear", "year"],
   jif: ["2024 jif", "jif", "journal impact factor"],

@@ -30,8 +30,39 @@ function normalizeIssn(value: string) {
   return value.replace(/[^0-9xX]/g, "").toUpperCase();
 }
 
-function normalizeTitle(value: string) {
-  return value.toLocaleLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, "");
+/** Split a cell that may hold several ISSNs (e.g. "0027-8424; 1091-6490"). */
+function splitIssns(value: string | null | undefined) {
+  return (value ?? "")
+    .split(/[;,/|\s]+/)
+    .map(normalizeIssn)
+    .filter(Boolean);
+}
+
+/** Title normalised to lowercase words separated by single spaces. */
+function normalizeTitleWords(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether two journal titles refer to the same journal. Besides an exact
+ * match, tolerate a trailing sub-title difference such as
+ * "Proceedings of the National Academy of Sciences" vs
+ * "... of the United States of America". The shorter title must be a
+ * word-boundary prefix of the longer one and be specific enough (\u22653 words)
+ * to avoid generic prefixes matching unrelated journals.
+ */
+function titlesMatch(a: string, b: string) {
+  const na = normalizeTitleWords(a);
+  const nb = normalizeTitleWords(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+
+  const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
+  if (shorter.split(" ").length < 3) return false;
+  return longer.startsWith(`${shorter} `);
 }
 
 function editionRank(edition: string) {
@@ -125,18 +156,15 @@ export async function findJournalIndexMatch({
 }): Promise<JournalIndexMatch | undefined> {
   const records = await fetchJournalIndexRecords();
   const normalizedIssns = new Set(issns.map(normalizeIssn).filter(Boolean));
-  const normalizedJournalTitle = normalizeTitle(journalTitle);
 
   const matches = records
     .filter((record) => {
-      const issnMatches = [record.issn, record.eissn]
-        .filter((value): value is string => Boolean(value))
-        .some((value) => normalizedIssns.has(normalizeIssn(value)));
-      const titleMatches =
-        normalizedJournalTitle.length > 0 &&
-        normalizeTitle(record.journal_title) === normalizedJournalTitle;
+      const issnMatches = [
+        ...splitIssns(record.issn),
+        ...splitIssns(record.eissn),
+      ].some((value) => normalizedIssns.has(value));
 
-      return issnMatches || titleMatches;
+      return issnMatches || titlesMatch(record.journal_title, journalTitle);
     })
     .sort((a, b) => editionRank(a.edition) - editionRank(b.edition));
 
