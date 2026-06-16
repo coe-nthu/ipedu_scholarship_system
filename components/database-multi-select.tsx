@@ -68,7 +68,10 @@ export function DatabaseMultiSelect({
         </span>
         <ChevronDown className="size-4 shrink-0 opacity-60" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-44 gap-0.5 p-1.5">
+      <PopoverContent
+        align="start"
+        className="w-44 gap-0.5 bg-white p-1.5 text-slate-900"
+      >
         {options.map((option) => {
           const isSelected = selected.has(option);
           return (
