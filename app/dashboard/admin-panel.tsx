@@ -675,7 +675,7 @@ function JournalIndexesPanel() {
           </div>
 
           <div className="max-h-[60vh] overflow-auto rounded-md border border-slate-200">
-            <Table>
+            <table className="w-full min-w-[720px] caption-bottom text-sm">
               <TableHeader className="sticky top-0 z-10 bg-slate-50">
                 <TableRow>
                   <TableHead>期刊名稱</TableHead>
@@ -720,7 +720,7 @@ function JournalIndexesPanel() {
                   ))
                 )}
               </TableBody>
-            </Table>
+            </table>
           </div>
         </section>
 
