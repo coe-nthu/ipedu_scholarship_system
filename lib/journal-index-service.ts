@@ -121,36 +121,67 @@ function buildMatch(
   };
 }
 
-async function fetchJournalIndexRecords() {
+const SELECT_COLUMNS =
+  "journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name";
+
+async function queryJournalIndex(filter: string): Promise<JournalIndexRecord[]> {
   const config = getSupabaseConfig();
   if (!config) return [];
 
-  const pageSize = 5000;
-  const records: JournalIndexRecord[] = [];
-
-  for (let offset = 0; offset < 100000; offset += pageSize) {
-    const response = await fetch(
-      `${config.url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name&limit=${pageSize}&offset=${offset}`,
-      {
-        headers: {
-          apikey: config.serviceRoleKey,
-          authorization: `Bearer ${config.serviceRoleKey}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      return [];
+  // Query Supabase directly with a filter instead of downloading the whole
+  // table — the index can hold tens of thousands of rows, so fetching all of
+  // them per lookup is slow and breaks under row caps.
+  const response = await fetch(
+    `${config.url}/rest/v1/journal_index_records?select=${SELECT_COLUMNS}&${filter}`,
+    {
+      headers: {
+        apikey: config.serviceRoleKey,
+        authorization: `Bearer ${config.serviceRoleKey}`,
+      },
     }
+  );
 
-    const page = (await response.json()) as JournalIndexRecord[];
-    records.push(...page);
-    if (page.length < pageSize) {
-      break;
-    }
+  if (!response.ok) {
+    return [];
   }
 
-  return records;
+  return (await response.json()) as JournalIndexRecord[];
+}
+
+/** Find records whose ISSN or eISSN matches any of the given ISSNs. */
+async function fetchRecordsByIssn(
+  issns: string[]
+): Promise<JournalIndexRecord[]> {
+  // Query both the hyphenated form (e.g. 0027-8424) and the compact form so
+  // the lookup tolerates whichever way the index stored the ISSN.
+  const variants = new Set<string>();
+  for (const issn of issns) {
+    const trimmed = issn.trim();
+    if (!trimmed) continue;
+    variants.add(trimmed);
+    const compact = normalizeIssn(trimmed);
+    if (compact) variants.add(compact);
+    if (compact.length === 8) {
+      variants.add(`${compact.slice(0, 4)}-${compact.slice(4)}`);
+    }
+  }
+  if (variants.size === 0) return [];
+
+  const list = Array.from(variants).join(",");
+  return queryJournalIndex(
+    `or=(issn.in.(${list}),eissn.in.(${list}))&limit=2000`
+  );
+}
+
+/** Find candidate records whose stored title starts with the given title. */
+async function fetchRecordsByTitle(
+  journalTitle: string
+): Promise<JournalIndexRecord[]> {
+  const term = journalTitle.trim().replace(/[%*,()]/g, " ").trim();
+  if (term.length < 3) return [];
+  return queryJournalIndex(
+    `journal_title=ilike.${encodeURIComponent(`${term}*`)}&limit=50`
+  );
 }
 
 export async function findJournalIndexMatch({
@@ -160,19 +191,26 @@ export async function findJournalIndexMatch({
   issns: string[];
   journalTitle: string;
 }): Promise<JournalIndexMatch | undefined> {
-  const records = await fetchJournalIndexRecords();
   const normalizedIssns = new Set(issns.map(normalizeIssn).filter(Boolean));
 
-  const matches = records
-    .filter((record) => {
-      const issnMatches = [
-        ...splitIssns(record.issn),
-        ...splitIssns(record.eissn),
-      ].some((value) => normalizedIssns.has(value));
+  // 1) Fast path: match by ISSN via a direct query.
+  let matches = (await fetchRecordsByIssn(issns)).filter((record) =>
+    [...splitIssns(record.issn), ...splitIssns(record.eissn)].some((value) =>
+      normalizedIssns.has(value)
+    )
+  );
 
-      return issnMatches || titlesMatch(record.journal_title, journalTitle);
-    })
-    .sort((a, b) => editionRank(a.edition) - editionRank(b.edition));
+  // 2) Fallback: match by title (covers records with no ISSN, e.g. the wide
+  //    edition-matrix import) — only when the ISSN lookup found nothing.
+  if (matches.length === 0 && journalTitle.trim()) {
+    matches = (await fetchRecordsByTitle(journalTitle)).filter((record) =>
+      titlesMatch(record.journal_title, journalTitle)
+    );
+  }
+
+  matches = matches.sort(
+    (a, b) => editionRank(a.edition) - editionRank(b.edition)
+  );
 
   if (matches[0]) {
     // Collect every edition this journal belongs to (e.g. both SSCI and SCIE),
