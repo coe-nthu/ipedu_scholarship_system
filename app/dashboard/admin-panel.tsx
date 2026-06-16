@@ -580,6 +580,14 @@ function JournalIndexesPanel() {
   }, [load]);
 
   const records = useMemo(() => state?.preview ?? [], [state?.preview]);
+  const editionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const record of records) {
+      const edition = (record.edition || "未標示").toUpperCase();
+      counts.set(edition, (counts.get(edition) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [records]);
   const filteredRecords = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return records;
@@ -661,6 +669,18 @@ function JournalIndexesPanel() {
                 {query.trim() ? `（符合搜尋 ${filteredRecords.length} 筆）` : ""}
                 ；來源：{state?.latest?.source_file_name ?? "尚未匯入"}
               </p>
+              {editionCounts.length > 0 ? (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {editionCounts.map(([edition, n]) => (
+                    <span
+                      key={edition}
+                      className="inline-flex items-center rounded-full bg-[#1f6f78]/10 px-2 py-0.5 text-xs font-medium text-[#1f6f78]"
+                    >
+                      {edition}：{n}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -740,8 +760,12 @@ function JournalIndexesPanel() {
               }
             />
             <p className="text-xs leading-5 text-slate-500">
-              請使用 JCR 匯出的 JournalResults CSV，可一次選取多個 category
-              CSV。匯入會合併去重並整批取代目前索引。
+              支援 JCR JournalResults 或 Web of Science MJL CSV（無 Edition
+              欄位時依檔名判斷，例如「… (SSCI).csv」「… (SCIE).csv」）。
+            </p>
+            <p className="text-xs leading-5 font-medium text-amber-700">
+              注意：每次匯入會「整批取代」整個索引（先清空再寫入）。請一次選取所有
+              edition 的 CSV（SSCI、SCIE…）一起上傳；分次上傳會把前一次的資料覆蓋掉。
             </p>
             {selectedFiles.length > 0 ? (
               <p className="text-xs text-slate-500">
