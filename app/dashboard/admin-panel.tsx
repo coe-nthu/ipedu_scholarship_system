@@ -603,6 +603,11 @@ function JournalIndexesPanel() {
         .some((value) => value!.toLowerCase().includes(keyword))
     );
   }, [records, query]);
+  // Cap the rendered rows so a large index (tens of thousands) stays responsive;
+  // the search box reaches everything that isn't rendered.
+  const RENDER_LIMIT = 500;
+  const visibleRecords = filteredRecords.slice(0, RENDER_LIMIT);
+  const hiddenCount = filteredRecords.length - visibleRecords.length;
 
   const handleUpload = () => {
     if (selectedFiles.length === 0) {
@@ -718,26 +723,39 @@ function JournalIndexesPanel() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRecords.map((record, index) => (
-                    <TableRow
-                      key={`${record.journal_title}-${record.issn}-${index}`}
-                    >
-                      <TableCell>
-                        <div className="font-medium text-slate-900">
-                          {record.journal_title}
-                        </div>
-                        {record.category ? (
-                          <div className="text-xs text-slate-500">
-                            {record.category}
+                  <>
+                    {visibleRecords.map((record, index) => (
+                      <TableRow
+                        key={`${record.journal_title}-${record.issn}-${index}`}
+                      >
+                        <TableCell>
+                          <div className="font-medium text-slate-900">
+                            {record.journal_title}
                           </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>{record.issn || "—"}</TableCell>
-                      <TableCell>{record.eissn || "—"}</TableCell>
-                      <TableCell>{record.edition}</TableCell>
-                      <TableCell>{record.quartile || "—"}</TableCell>
-                    </TableRow>
-                  ))
+                          {record.category ? (
+                            <div className="text-xs text-slate-500">
+                              {record.category}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>{record.issn || "—"}</TableCell>
+                        <TableCell>{record.eissn || "—"}</TableCell>
+                        <TableCell>{record.edition}</TableCell>
+                        <TableCell>{record.quartile || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                    {hiddenCount > 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          className="py-3 text-center text-xs text-slate-500"
+                        >
+                          僅顯示前 {RENDER_LIMIT} 筆，另有 {hiddenCount}{" "}
+                          筆未顯示，請用上方搜尋縮小範圍。
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </>
                 )}
               </TableBody>
             </table>

@@ -106,6 +106,27 @@ function findColumn(headers: string[], aliases: readonly string[]) {
   return headers.findIndex((header) => aliases.includes(normalizeHeader(header)));
 }
 
+// Some exports use a "wide" layout where each edition is its own column and an
+// "X" marks membership (e.g. "Title20,Title,Country,SCIE,SSCI,AHCI,ESCI").
+const EDITION_COLUMN_CODES = [
+  "ssci",
+  "scie",
+  "sci",
+  "tssci",
+  "scopus",
+  "esci",
+  "ahci",
+] as const;
+
+function findEditionMatrixColumns(headers: string[]) {
+  return headers
+    .map((header, index) => ({ index, code: normalizeHeader(header) }))
+    .filter((column) =>
+      (EDITION_COLUMN_CODES as readonly string[]).includes(column.code)
+    )
+    .map((column) => ({ index: column.index, edition: column.code.toUpperCase() }));
+}
+
 function parseYear(value: string) {
   const match = value.match(/\b(20\d{2}|19\d{2})\b/);
   return match ? Number(match[1]) : null;
@@ -114,12 +135,93 @@ function parseYear(value: string) {
 function findHeaderIndex(lines: string[]) {
   return lines.findIndex((line) => {
     const headers = parseCsvLine(line).map(normalizeHeader);
-    return (
+    const hasNamedTitle =
       headers.includes("journal name") ||
       headers.includes("journal title") ||
-      headers.includes("full journal title")
-    );
+      headers.includes("full journal title");
+    // Wide edition-matrix layout: a generic "title" column plus edition columns.
+    const hasEditionMatrix =
+      headers.includes("title") &&
+      headers.some((header) =>
+        (EDITION_COLUMN_CODES as readonly string[]).includes(header)
+      );
+    return hasNamedTitle || hasEditionMatrix;
   });
+}
+
+/**
+ * Parse a "wide" edition-matrix CSV where membership is marked per edition
+ * column (e.g. an "X" under SCIE/SSCI/AHCI/ESCI). One record is produced per
+ * (journal, marked edition). These rows carry no ISSN, so matching relies on
+ * the journal title.
+ */
+function parseEditionMatrixCsv(
+  lines: string[],
+  headerIndex: number,
+  headers: string[],
+  matrixColumns: { index: number; edition: string }[],
+  sourceFileName: string
+): { records: JournalIndexRecord[]; summary: JournalIndexImportSummary } {
+  const titleIndex = findColumn(headers, [
+    ...FIELD_ALIASES.journalTitle,
+    "title",
+  ]);
+  if (titleIndex < 0) {
+    throw new Error(
+      `CSV「${sourceFileName}」為版本矩陣格式，但找不到期刊名稱（Title）欄位。`
+    );
+  }
+
+  const records: JournalIndexRecord[] = [];
+  const seen = new Set<string>();
+  let duplicatesSkipped = 0;
+
+  for (const line of lines.slice(headerIndex + 1)) {
+    const cells = parseCsvLine(line);
+    const title = normalizeCell(cells[titleIndex] ?? "");
+    if (!title) continue;
+
+    for (const column of matrixColumns) {
+      const marked = normalizeCell(cells[column.index] ?? "");
+      if (!marked) continue;
+
+      const key = `${title.toLowerCase()}|${column.edition}`;
+      if (seen.has(key)) {
+        duplicatesSkipped += 1;
+        continue;
+      }
+      seen.add(key);
+
+      records.push({
+        category: null,
+        edition: column.edition,
+        eissn: null,
+        issn: null,
+        jci: null,
+        jcr_year: null,
+        jif: null,
+        journal_title: title,
+        quartile: null,
+        source_file_name: sourceFileName,
+      });
+    }
+  }
+
+  if (records.length === 0) {
+    throw new Error(
+      `CSV「${sourceFileName}」沒有可匯入的期刊資料（版本矩陣格式）。`
+    );
+  }
+
+  return {
+    records,
+    summary: {
+      count: records.length,
+      duplicatesSkipped,
+      errors: [],
+      sourceFileName,
+    },
+  };
 }
 
 function extractYearFromIntro(lines: string[]) {
@@ -148,6 +250,20 @@ export function parseJournalIndexCsv(
   }
 
   const headers = parseCsvLine(lines[headerIndex]);
+
+  // Wide edition-matrix layout (edition columns marked with "X") is parsed
+  // separately because membership is encoded across columns, not in one cell.
+  const matrixColumns = findEditionMatrixColumns(headers);
+  if (matrixColumns.length > 0) {
+    return parseEditionMatrixCsv(
+      lines,
+      headerIndex,
+      headers,
+      matrixColumns,
+      sourceFileName
+    );
+  }
+
   const titleIndex = findColumn(headers, FIELD_ALIASES.journalTitle);
   const issnIndex = findColumn(headers, FIELD_ALIASES.issn);
   const eissnIndex = findColumn(headers, FIELD_ALIASES.eissn);

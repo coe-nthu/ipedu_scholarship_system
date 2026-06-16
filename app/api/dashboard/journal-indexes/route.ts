@@ -209,20 +209,31 @@ export async function POST(request: Request) {
       return jsonError("CSV 檔案總大小不可超過 100MB。");
     }
 
+    // Parse each file independently so one malformed file does not block the
+    // rest of a multi-file upload; collect per-file errors to report back.
     const parsedBatches = [];
-    try {
-      for (const file of files) {
-        if (!file.name.toLowerCase().endsWith(".csv")) {
-          return jsonError(`僅支援 CSV 檔案：${file.name}`);
-        }
-        if (file.size > MAX_CSV_BYTES) {
-          return jsonError(`單一 CSV 檔案不可超過 50MB：${file.name}`);
-        }
-        parsedBatches.push(parseJournalIndexCsv(await file.text(), file.name));
+    const fileErrors: string[] = [];
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        fileErrors.push(`僅支援 CSV 檔案：${file.name}`);
+        continue;
       }
-    } catch (error) {
+      if (file.size > MAX_CSV_BYTES) {
+        fileErrors.push(`單一 CSV 檔案不可超過 50MB：${file.name}`);
+        continue;
+      }
+      try {
+        parsedBatches.push(parseJournalIndexCsv(await file.text(), file.name));
+      } catch (error) {
+        fileErrors.push(
+          `${file.name}：${error instanceof Error ? error.message : "解析失敗"}`
+        );
+      }
+    }
+
+    if (parsedBatches.length === 0) {
       return jsonError(
-        error instanceof Error ? error.message : "CSV 解析失敗。"
+        fileErrors.length > 0 ? fileErrors.join("\n") : "CSV 解析失敗。"
       );
     }
 
@@ -272,7 +283,7 @@ export async function POST(request: Request) {
       summary: {
         count: records.length,
         duplicatesSkipped: merged.duplicatesSkipped,
-        errors: merged.errors,
+        errors: [...fileErrors, ...merged.errors].slice(0, 20),
         sourceFileName:
           files.length === 1 ? files[0].name : `${files.length} 個 CSV 檔案`,
       },
