@@ -35,12 +35,19 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
   EMPLOYMENT_STATUS_PART_TIME,
 ] as const;
 
+/**
+ * Edition / 資料庫別 options. The system auto-detects only the edition
+ * (SSCI / SCIE / …) from the journal index; whether a journal counts as
+ * I級期刊 is always chosen manually, never inferred from the edition.
+ */
 export const DATABASE_OPTIONS = [
   "SSCI",
   "SCIE",
   "SCI",
   "TSSCI",
   "SCOPUS",
+  "ESCI",
+  "AHCI",
   "其他",
   "否",
 ] as const;

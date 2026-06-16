@@ -50,7 +50,11 @@ function editionRank(edition: string) {
 
 function databaseFromEdition(edition: string) {
   const normalized = edition.toUpperCase();
-  if (["SSCI", "SCIE", "SCI", "TSSCI", "SCOPUS"].includes(normalized)) {
+  if (
+    ["SSCI", "SCIE", "SCI", "TSSCI", "SCOPUS", "ESCI", "AHCI"].includes(
+      normalized
+    )
+  ) {
     return normalized;
   }
   return "其他";
@@ -179,13 +183,18 @@ export async function applyJournalIndexMatch(
   if (!match) {
     return journal.indexSource
       ? journal
-      : { ...journal, indexSource: "未命中索引對照表，請人工選擇" };
+      : {
+          ...journal,
+          indexSource:
+            "未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級",
+        };
   }
 
+  // Only the Edition / 資料庫別 is auto-filled. `journalLevel`（I級/非I級）is
+  // always a manual decision and is intentionally left untouched here.
   return {
     ...journal,
     database: match.database || journal.database,
     indexSource: match.indexSource,
-    journalLevel: match.level || journal.journalLevel,
   };
 }

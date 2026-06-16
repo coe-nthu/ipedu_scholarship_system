@@ -1,7 +1,7 @@
 import type { JournalIndexImportSummary, JournalIndexRecord } from "@/lib/types";
 
 const FIELD_ALIASES = {
-  category: ["category"],
+  category: ["category", "categories", "web of science categories"],
   edition: ["edition", "database", "web of science edition"],
   eissn: ["eissn", "e-issn", "electronic issn"],
   issn: ["issn"],
@@ -11,6 +11,54 @@ const FIELD_ALIASES = {
   journalTitle: ["journal name", "journal title", "full journal title"],
   quartile: ["jif quartile", "quartile"],
 } as const;
+
+const KNOWN_EDITIONS = [
+  "SSCI",
+  "SCIE",
+  "SCI",
+  "TSSCI",
+  "SCOPUS",
+  "ESCI",
+  "AHCI",
+] as const;
+
+/**
+ * Infer the Web of Science edition from a CSV file name. MJL (Master Journal
+ * List) exports have no `Edition` column, so we read it from the file name,
+ * e.g. `Social Sciences Citation Index (SSCI).csv` → `SSCI`.
+ * Returns null when no edition can be confidently determined.
+ */
+export function inferEditionFromFileName(fileName: string): string | null {
+  const base = fileName.replace(/\.csv$/i, "");
+
+  // 1) Prefer an explicit code in parentheses, e.g. "... (SSCI)".
+  const paren = base.match(/\(([A-Za-z]{2,6})\)/);
+  if (paren) {
+    const code = paren[1].toUpperCase();
+    if ((KNOWN_EDITIONS as readonly string[]).includes(code)) {
+      return code;
+    }
+  }
+
+  // 2) Fall back to full-name / bare-code matching. Order matters: more
+  //    specific editions (SSCI/SCIE) are tested before the broader SCI.
+  const patterns: [RegExp, string][] = [
+    [/social sciences? citation index|\bSSCI\b/i, "SSCI"],
+    [/science citation index expanded|\bSCIE\b/i, "SCIE"],
+    [/emerging sources citation index|\bESCI\b/i, "ESCI"],
+    [/arts?\s*(?:and|&)?\s*humanities citation index|\bAHCI\b/i, "AHCI"],
+    [/taiwan social sciences citation index|\bTSSCI\b/i, "TSSCI"],
+    [/\bSCOPUS\b/i, "SCOPUS"],
+    [/science citation index|\bSCI\b/i, "SCI"],
+  ];
+  for (const [pattern, edition] of patterns) {
+    if (pattern.test(base)) {
+      return edition;
+    }
+  }
+
+  return null;
+}
 
 function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/^\uFEFF/, "");
@@ -109,8 +157,15 @@ export function parseJournalIndexCsv(
       "不是有效的期刊清單 CSV：缺少期刊名稱或 ISSN/eISSN 欄位。"
     );
   }
-  if (editionIndex < 0) {
-    throw new Error("不是有效的期刊清單 CSV：缺少 Edition 欄位。");
+
+  // JCR JournalResults carry an `Edition` column. MJL exports do not — in that
+  // case infer the edition from the file name (e.g. "... (SSCI).csv").
+  const inferredEdition =
+    editionIndex < 0 ? inferEditionFromFileName(sourceFileName) : null;
+  if (editionIndex < 0 && !inferredEdition) {
+    throw new Error(
+      `CSV「${sourceFileName}」缺少 Edition 欄位，且無法從檔名推斷 Edition。請將檔名改為含版本代碼的格式（例如「Social Sciences Citation Index (SSCI).csv」），或改用含 Edition 欄位的 JCR CSV。`
+    );
   }
 
   const records: JournalIndexRecord[] = [];
@@ -124,7 +179,10 @@ export function parseJournalIndexCsv(
     const title = normalizeCell(cells[titleIndex] ?? "");
     const issn = issnIndex >= 0 ? normalizeCell(cells[issnIndex] ?? "") : "";
     const eissn = eissnIndex >= 0 ? normalizeCell(cells[eissnIndex] ?? "") : "";
-    const edition = normalizeCell(cells[editionIndex] ?? "");
+    const edition =
+      editionIndex >= 0
+        ? normalizeCell(cells[editionIndex] ?? "")
+        : inferredEdition ?? "";
 
     if (!title && !issn && !eissn) {
       continue;

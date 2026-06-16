@@ -108,28 +108,39 @@ public.scholarship_applications
 | `title` | 論文名稱 |
 | `journal` | 期刊名稱與期數 |
 | `reviewUnit` | 審查單位 |
-| `journalLevel` | 期刊等級：I級期刊、非I級期刊 |
-| `indexSource` | 期刊等級/資料庫判別來源 |
+| `journalLevel` | 期刊等級：I級期刊、非I級期刊。**永遠由使用者/後台人工選擇，系統不會自動判定** |
+| `indexSource` | Edition / 資料庫別 判別來源 |
 | `isCorrespondingAuthor` | 是否標記為通訊作者 |
 | `hasTrustedDatabase` | 是否發表於具公信力之資料庫 |
-| `database` | 資料庫名稱，如 SSCI、SCIE、TSSCI、SCOPUS |
+| `database` | Edition / 資料庫別，如 SSCI、SCIE、SCI、TSSCI、SCOPUS、ESCI、AHCI；命中期刊索引時由系統自動填入 |
 | `authorOrder` | 作者順位，例如第一作者、第二作者、通訊作者 |
 | `authorOrderOriginal` | 系統依 DOI 比對出的原始作者順位 |
 | `authorOrderModified` | 是否由申請人手動更改作者順位 |
 | `authorOrderChangeNote` | 作者順位更改註記 |
 | `attachmentNote` | 附件或佐證資料備註 |
 
-期刊等級與資料庫判別方式：
+Edition / 資料庫別 判別方式：
 
 1. DOI 查詢會從 Crossref 帶回期刊名稱與 ISSN。
 2. 系統會優先使用後台上傳的 `journal_index_records` 期刊索引比對 ISSN/eISSN 或期刊名稱。
 3. 若資料庫尚未上傳索引，才會退回使用 `lib/journal-indexes.ts` 的內建種子清單。
-4. 若命中對照表，會自動填入 `database` 與 `journalLevel`，並將 `indexSource` 記錄為 JCR 或內建索引來源。
-5. 若未命中，會保留人工選擇，並將 `indexSource` 設為「未命中索引對照表，請人工選擇」。
+4. 若命中對照表，**只會自動填入 `database`（Edition / 資料庫別，如 SSCI、SCIE）**，並將 `indexSource` 記錄為 JCR 或內建索引來源。
+5. **`journalLevel`（I級 / 非I級）永遠不由 SSCI/SCIE 命中結果自動判定，必須由使用者或後台人工選擇。**
+6. 若未命中，會保留現有人工選擇值，並將 `indexSource` 設為「未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級」。
 
-院辦可在後台「期刊索引」上傳 JCR `JournalResults` CSV。可上傳單一全量
-CSV，或一次選取多個 category CSV，系統會合併去重並保留多個 category。
-CSV 需包含 `Journal name`、`ISSN`/`eISSN`、`Edition` 等欄位；JCR
+院辦可在後台「期刊索引」上傳 CSV，採整批取代（每次上傳會清空既有索引再寫入）。
+可上傳單一全量 CSV，或一次選取多個 edition CSV（例如同時選取
+`Social Sciences Citation Index (SSCI).csv` 與
+`Science Citation Index Expanded (SCIE).csv`），系統會合併去重並保留多個
+category。支援兩種格式：
+
+- JCR `JournalResults`：含 `Edition` 欄位者直接採用。
+- MJL 類型 CSV：若沒有 `Edition` 欄位，會從**檔名**推斷 edition（例如檔名含
+  `(SSCI)` → `SSCI`、`(SCIE)` → `SCIE`）。
+
+CSV 需含 `Journal name`/`Journal title`、`ISSN`/`eISSN` 等欄位（`category`
+亦接受 `Web of Science Categories`）。若既無 `Edition` 欄位、檔名也無法推斷
+edition，匯入會回傳明確錯誤，要求改檔名或改用含 Edition 欄位的 CSV。JCR
 `CategoryResults` 類別統計檔不含單本期刊資料，無法用於期刊查核。
 
 ## 國際研討會發表：`payload.conferences[]`

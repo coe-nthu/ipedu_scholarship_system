@@ -156,7 +156,7 @@ const ROW_FIELD_LABELS: Record<RepeatableSection, Record<string, string>> = {
     applicantAuthorName: "申請人作者姓名",
     author: "DOI 作者清單",
     authorOrder: "作者順位",
-    database: "資料庫",
+    database: "Edition / 資料庫別",
     date: "發表日期",
     doi: "DOI",
     journal: "期刊名稱",
@@ -1751,11 +1751,13 @@ export default function ScholarshipForm() {
                 author: result.data.authorString,
             doiAuthorNames,
             issns,
+            // Auto-fill only the Edition / 資料庫別. 期刊等級（I級/非I級）is always
+            // chosen manually, so the student's existing choice is preserved.
             database: journalIndexMatch?.database || journal.database,
-            journalLevel: journalIndexMatch?.level || journal.journalLevel,
+            journalLevel: journal.journalLevel,
             indexSource: journalIndexMatch
               ? journalIndexMatch.indexSource || "依期刊索引對照表自動判別"
-              : "未命中索引對照表，請人工選擇",
+              : "未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級",
             authorOrder: journal.authorOrderModified
               ? journal.authorOrder
               : inferredOrder,
@@ -3937,8 +3939,8 @@ export default function ScholarshipForm() {
                         </BiText>
                       </TableHead>
                       <TableHead className="w-40">
-                        <BiText enabled={bilingual} english="Database">
-                          資料庫
+                        <BiText enabled={bilingual} english="Edition / Database">
+                          Edition / 資料庫別
                         </BiText>
                       </TableHead>
                       <TableHead className="w-28">
@@ -4233,21 +4235,17 @@ export default function ScholarshipForm() {
                               )}
                             >
                               <SelectValue
-                                placeholder={bilingual ? "Database" : "資料庫"}
+                                placeholder={
+                                  bilingual ? "Edition / Database" : "Edition / 資料庫別"
+                                }
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="SSCI">SSCI</SelectItem>
-                              <SelectItem value="SCIE">SCIE</SelectItem>
-                              <SelectItem value="SCI">SCI</SelectItem>
-                              <SelectItem value="TSSCI">TSSCI</SelectItem>
-                              <SelectItem value="SCOPUS">SCOPUS</SelectItem>
-                              <SelectItem value="其他">
-                                {optionText("其他", bilingual)}
-                              </SelectItem>
-                              <SelectItem value="否">
-                                {optionText("否", bilingual)}
-                              </SelectItem>
+                              {databaseOptions.map((database) => (
+                                <SelectItem key={database} value={database}>
+                                  {optionText(database, bilingual)}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <ValidationMessage

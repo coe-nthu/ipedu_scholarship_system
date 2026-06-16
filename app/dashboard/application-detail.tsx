@@ -1396,7 +1396,7 @@ export function ApplicationDetail({
                             }
                           />
                           <SelectRow
-                            label="資料庫別"
+                            label="Edition / 資料庫別"
                             value={j.database}
                             options={DATABASE_OPTIONS}
                             onChange={(v) =>
