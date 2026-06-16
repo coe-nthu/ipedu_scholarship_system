@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Building2,
   Database,
@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   Settings,
   Shield,
   Trash2,
@@ -546,11 +547,12 @@ function JournalIndexesPanel() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [query, setQuery] = useState("");
   const [lastSummary, setLastSummary] =
     useState<JournalIndexImportSummary | null>(null);
 
   const load = useCallback(() => {
-    return fetch("/api/dashboard/journal-indexes")
+    return fetch("/api/dashboard/journal-indexes?all=1")
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -576,6 +578,23 @@ function JournalIndexesPanel() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const records = useMemo(() => state?.preview ?? [], [state?.preview]);
+  const filteredRecords = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return records;
+    return records.filter((record) =>
+      [
+        record.journal_title,
+        record.issn,
+        record.eissn,
+        record.edition,
+        record.category,
+      ]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(keyword))
+    );
+  }, [records, query]);
 
   const handleUpload = () => {
     if (selectedFiles.length === 0) {
@@ -638,15 +657,26 @@ function JournalIndexesPanel() {
             <div>
               <h3 className="font-semibold text-slate-900">目前索引狀態</h3>
               <p className="text-xs text-slate-500">
-                共 {state?.count ?? 0} 筆；來源：
-                {state?.latest?.source_file_name ?? "尚未匯入"}
+                共 {state?.count ?? 0} 筆
+                {query.trim() ? `（符合搜尋 ${filteredRecords.length} 筆）` : ""}
+                ；來源：{state?.latest?.source_file_name ?? "尚未匯入"}
               </p>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-md border border-slate-200">
+          <div className="relative mb-3">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜尋期刊名稱、ISSN、Edition 或類別"
+              className="pl-8"
+            />
+          </div>
+
+          <div className="max-h-[60vh] overflow-auto rounded-md border border-slate-200">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-slate-50">
                 <TableRow>
                   <TableHead>期刊名稱</TableHead>
                   <TableHead className="w-28">ISSN</TableHead>
@@ -656,17 +686,19 @@ function JournalIndexesPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!state || state.preview.length === 0 ? (
+                {filteredRecords.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={5}
                       className="py-8 text-center text-slate-400"
                     >
-                      尚無期刊索引資料
+                      {records.length === 0
+                        ? "尚無期刊索引資料"
+                        : "沒有符合搜尋的期刊"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  state.preview.map((record, index) => (
+                  filteredRecords.map((record, index) => (
                     <TableRow
                       key={`${record.journal_title}-${record.issn}-${index}`}
                     >

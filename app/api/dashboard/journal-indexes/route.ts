@@ -104,6 +104,25 @@ async function fetchJson<T>(url: string, serviceRoleKey: string, init?: RequestI
   return (await response.json()) as T;
 }
 
+async function fetchAllRecords(url: string, serviceRoleKey: string) {
+  const pageSize = 1000;
+  const maxRecords = 100000;
+  const records: JournalIndexRecord[] = [];
+
+  for (let offset = 0; offset < maxRecords; offset += pageSize) {
+    const page = await fetchJson<JournalIndexRecord[]>(
+      `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name&order=journal_title.asc&limit=${pageSize}&offset=${offset}`,
+      serviceRoleKey
+    );
+    records.push(...page);
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return records;
+}
+
 async function fetchCount(url: string, serviceRoleKey: string) {
   const response = await fetch(
     `${url}/rest/v1/journal_index_records?select=id&limit=1`,
@@ -125,7 +144,7 @@ async function fetchCount(url: string, serviceRoleKey: string) {
   return total ? Number(total) : 0;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const auth = await checkDashboardAccess();
     if (!auth.authorized) {
@@ -133,7 +152,11 @@ export async function GET() {
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
-    const [count, latestRows, preview] = await Promise.all([
+    // `?all=1` returns every record so the dashboard panel can scroll through
+    // the full index; the default view returns only a small preview.
+    const wantAll = new URL(request.url).searchParams.get("all") === "1";
+
+    const [count, latestRows, records] = await Promise.all([
       fetchCount(url, serviceRoleKey),
       fetchJson<
         Pick<JournalIndexRecord, "created_at" | "source_file_name" | "uploaded_by">[]
@@ -141,10 +164,12 @@ export async function GET() {
         `${url}/rest/v1/journal_index_records?select=created_at,source_file_name,uploaded_by&order=created_at.desc&limit=1`,
         serviceRoleKey
       ),
-      fetchJson<JournalIndexRecord[]>(
-        `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name,created_at&order=journal_title.asc&limit=10`,
-        serviceRoleKey
-      ),
+      wantAll
+        ? fetchAllRecords(url, serviceRoleKey)
+        : fetchJson<JournalIndexRecord[]>(
+            `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name,created_at&order=journal_title.asc&limit=10`,
+            serviceRoleKey
+          ),
     ]);
 
     return NextResponse.json({
@@ -152,7 +177,7 @@ export async function GET() {
       canUpload: auth.role === "admin",
       count,
       latest: latestRows[0] ?? null,
-      preview,
+      preview: records,
     });
   } catch (error) {
     console.error("Journal indexes GET error:", error);
