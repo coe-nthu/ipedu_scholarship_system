@@ -4,6 +4,8 @@ import type { Journal, JournalIndexRecord } from "@/lib/types";
 export type JournalIndexMatch = {
   database: string;
   edition: string;
+  /** Every edition this journal belongs to, best-ranked first (e.g. SSCI、SCIE). */
+  editions: string[];
   indexSource: string;
   level: "I級期刊" | "非I級期刊";
   record?: Pick<
@@ -91,7 +93,10 @@ function databaseFromEdition(edition: string) {
   return "其他";
 }
 
-function buildMatch(record: JournalIndexRecord): JournalIndexMatch {
+function buildMatch(
+  record: JournalIndexRecord,
+  editions: string[]
+): JournalIndexMatch {
   const edition = record.edition.toUpperCase();
   const meta = [
     record.jcr_year ? `${record.jcr_year} JCR` : null,
@@ -102,7 +107,8 @@ function buildMatch(record: JournalIndexRecord): JournalIndexMatch {
   return {
     database: databaseFromEdition(edition),
     edition,
-    indexSource: `JCR 匯入索引：${edition}${meta.length ? `（${meta.join("，")}）` : ""}`,
+    editions,
+    indexSource: `依期刊索引判別所屬資料庫：${editions.join("、")}${meta.length ? `（${meta.join("，")}）` : ""}`,
     level: "I級期刊",
     record: {
       category: record.category,
@@ -169,7 +175,12 @@ export async function findJournalIndexMatch({
     .sort((a, b) => editionRank(a.edition) - editionRank(b.edition));
 
   if (matches[0]) {
-    return buildMatch(matches[0]);
+    // Collect every edition this journal belongs to (e.g. both SSCI and SCIE),
+    // best-ranked first, so the UI can show all of them — not just one.
+    const editions = Array.from(
+      new Set(matches.map((record) => record.edition.toUpperCase()))
+    ).sort((a, b) => editionRank(a) - editionRank(b));
+    return buildMatch(matches[0], editions);
   }
 
   const seedMatch = findSeedJournalIndexMatch({ issns, journalTitle });
@@ -180,7 +191,8 @@ export async function findJournalIndexMatch({
   return {
     database: seedMatch.database,
     edition: seedMatch.database,
-    indexSource: "內建期刊索引對照表自動判別",
+    editions: [seedMatch.database],
+    indexSource: `依內建索引判別所屬資料庫：${seedMatch.database}`,
     level: seedMatch.level,
   };
 }
