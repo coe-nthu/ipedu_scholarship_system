@@ -11,6 +11,7 @@ import {
   EMPLOYMENT_STATUS_OPTIONS,
   GPA_SCALE_OPTIONS,
   STUDY_STATUS_OPTIONS,
+  isAllowedMultiOption,
   isAllowedOption,
 } from "@/lib/scholarship-form-options";
 import type { Journal, ScholarshipPayload } from "@/lib/types";
@@ -75,7 +76,8 @@ function validateAndMergePayload(
     return { ok: false, error: "兼職情形不合法。" };
   }
   for (const j of journals) {
-    if (!isAllowedOption(j?.database, DATABASE_OPTIONS)) {
+    // Journal Edition / 資料庫別 may hold several editions joined by "、".
+    if (!isAllowedMultiOption(j?.database, DATABASE_OPTIONS)) {
       return { ok: false, error: "期刊資料庫別不合法。" };
     }
   }

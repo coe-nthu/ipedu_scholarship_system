@@ -27,6 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { DatabaseMultiSelect } from "@/components/database-multi-select";
 import {
   Table,
   TableBody,
@@ -325,6 +326,25 @@ function SelectRow({
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+function MultiSelectRow({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+}) {
+  return (
+    <div className="grid grid-cols-[120px_1fr] items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
+      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <DatabaseMultiSelect value={value} onChange={onChange} options={options} />
     </div>
   );
 }
@@ -1395,7 +1415,7 @@ export function ApplicationDetail({
                               )
                             }
                           />
-                          <SelectRow
+                          <MultiSelectRow
                             label="Edition / 資料庫別"
                             value={j.database}
                             options={DATABASE_OPTIONS}

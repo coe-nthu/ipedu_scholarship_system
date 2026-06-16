@@ -49,6 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { DatabaseMultiSelect } from "@/components/database-multi-select";
 import { isValidDoi, normalizeDoi } from "@/lib/doi";
 import {
   getInitialScholarshipLanguage,
@@ -1751,9 +1752,13 @@ export default function ScholarshipForm() {
                 author: result.data.authorString,
             doiAuthorNames,
             issns,
-            // Auto-fill only the Edition / 資料庫別. 期刊等級（I級/非I級）is always
-            // chosen manually, so the student's existing choice is preserved.
-            database: journalIndexMatch?.database || journal.database,
+            // Auto-fill only the Edition / 資料庫別 — every edition the journal
+            // belongs to. 期刊等級（I級/非I級）is always chosen manually, so the
+            // student's existing choice is preserved.
+            database:
+              journalIndexMatch?.editions?.length > 0
+                ? journalIndexMatch.editions.join("、")
+                : journalIndexMatch?.database || journal.database,
             journalLevel: journal.journalLevel,
             indexSource: journalIndexMatch
               ? journalIndexMatch.indexSource || "依期刊索引對照表自動判別"
@@ -4214,40 +4219,31 @@ export default function ScholarshipForm() {
                           />
                         </TableCell>
                         <TableCell className="align-top">
-                          <Select
+                          <DatabaseMultiSelect
                             value={journal.database}
-                            onValueChange={(value) =>
+                            onChange={(value) =>
                               updateRow(
                                 journals,
                                 setJournals,
                                 index,
                                 "database",
-                                value ?? "",
+                                value,
                                 { section: "journals" }
                               )
                             }
-                          >
-                            <SelectTrigger
-                              className={getRowFieldClassName(
-                                "journals",
-                                index,
-                                "database"
-                              )}
-                            >
-                              <SelectValue
-                                placeholder={
-                                  bilingual ? "Edition / Database" : "Edition / 資料庫別"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {databaseOptions.map((database) => (
-                                <SelectItem key={database} value={database}>
-                                  {optionText(database, bilingual)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={databaseOptions}
+                            renderOption={(option) =>
+                              optionText(option, bilingual)
+                            }
+                            placeholder={
+                              bilingual ? "Edition / Database" : "Edition / 資料庫別"
+                            }
+                            className={getRowFieldClassName(
+                              "journals",
+                              index,
+                              "database"
+                            )}
+                          />
                           <ValidationMessage
                             message={getRowFieldError(
                               "journals",

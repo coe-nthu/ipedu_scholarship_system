@@ -64,3 +64,36 @@ export function isAllowedOption(
   if (value === undefined || value === null || value === "") return true;
   return typeof value === "string" && allowed.includes(value);
 }
+
+/**
+ * The Edition / 資料庫別 field can hold several editions (a journal may be
+ * indexed in more than one). Multiple values are stored as a single string
+ * joined by "、".
+ */
+export const DATABASE_MULTI_DELIMITER = "、";
+
+export function parseDatabaseValues(
+  value: string | null | undefined
+): string[] {
+  return (value ?? "")
+    .split(/[、,;/|\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+export function joinDatabaseValues(values: string[]): string {
+  return Array.from(new Set(values)).join(DATABASE_MULTI_DELIMITER);
+}
+
+/**
+ * Like {@link isAllowedOption}, but for a multi-value field: every selected
+ * value must be in the allowed list. Empty is treated as "not set" → valid.
+ */
+export function isAllowedMultiOption(
+  value: unknown,
+  allowed: readonly string[]
+): boolean {
+  if (value === undefined || value === null || value === "") return true;
+  if (typeof value !== "string") return false;
+  return parseDatabaseValues(value).every((item) => allowed.includes(item));
+}

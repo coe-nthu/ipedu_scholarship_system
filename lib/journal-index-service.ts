@@ -230,11 +230,15 @@ export async function applyJournalIndexMatch(
         };
   }
 
-  // Only the Edition / 資料庫別 is auto-filled. `journalLevel`（I級/非I級）is
-  // always a manual decision and is intentionally left untouched here.
+  // Only the Edition / 資料庫別 is auto-filled — every edition the journal
+  // belongs to, joined by "、". `journalLevel`（I級/非I級）is always a manual
+  // decision and is intentionally left untouched here.
   return {
     ...journal,
-    database: match.database || journal.database,
+    database:
+      match.editions.length > 0
+        ? match.editions.join("、")
+        : match.database || journal.database,
     indexSource: match.indexSource,
   };
 }
