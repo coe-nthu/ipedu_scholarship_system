@@ -54,6 +54,7 @@ import {
   STUDY_STATUS_OPTIONS,
 } from "@/lib/scholarship-form-options";
 import {
+  formatSubmittedAt,
   getAcademicDisplayRows,
   getEligibilityDisplayRows,
 } from "@/lib/dashboard-application-display";
@@ -714,6 +715,10 @@ export function ApplicationDetail({
                         label="申請項目"
                         value={application.scholarship_program}
                       />
+                      <InfoRow
+                        label="送出時間"
+                        value={formatSubmittedAt(application.submitted_at)}
+                      />
                       <TextRow
                         label="姓名"
                         value={draft.applicantInfo.applicantName}
@@ -876,6 +881,10 @@ export function ApplicationDetail({
                       <InfoRow
                         label="申請項目"
                         value={application.scholarship_program}
+                      />
+                      <InfoRow
+                        label="送出時間"
+                        value={formatSubmittedAt(application.submitted_at)}
                       />
                       <InfoRow label="姓名" value={applicantInfo.applicantName} />
                       <InfoRow label="學號" value={applicantInfo.studentId} />

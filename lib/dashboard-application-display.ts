@@ -18,6 +18,15 @@ const MASTER_GRADUATE_GPA_PROGRAMS = new Set([
 ]);
 
 const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
+const TAIPEI_TIME_FORMATTER = new Intl.DateTimeFormat("zh-TW", {
+  day: "2-digit",
+  hour: "2-digit",
+  hour12: false,
+  minute: "2-digit",
+  month: "2-digit",
+  timeZone: "Asia/Taipei",
+  year: "numeric",
+});
 
 function getProgramKey(application: ScholarshipApplication) {
   return application.program_key ?? "";
@@ -43,6 +52,13 @@ function formatPercent(value: string) {
 
 function formatGpa(value: string, scale = "4.3") {
   return value ? `${value} / ${scale}` : "";
+}
+
+export function formatSubmittedAt(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return TAIPEI_TIME_FORMATTER.format(date);
 }
 
 function parseList(value: string) {
