@@ -1241,7 +1241,7 @@ export function AdminPanel() {
         </Table>
       </div>
       <p className="text-xs text-slate-400">
-        帳密帳號的新增與密碼設定由系統 script 管理，此處僅能調整其角色與系所範圍。
+        帳密帳號的新增與重設仍由系統管理；使用者可登入後自行修改自己的密碼。
       </p>
     </div>
   );

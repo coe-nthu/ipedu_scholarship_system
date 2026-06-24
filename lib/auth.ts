@@ -25,6 +25,7 @@ export type AuthResult =
       displayName: string;
       email: string;
       role: DashboardRole;
+      username?: string;
       userId: string | null;
     }
   | { authorized: false; reason: "not_authenticated" | "not_authorized" };
@@ -271,6 +272,7 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
       displayName: passwordSession.displayName,
       email: `${passwordSession.username}@dashboard.local`,
       role: passwordSession.role,
+      username: passwordSession.username,
       userId: null,
     };
   }

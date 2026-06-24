@@ -30,7 +30,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStatus, ScholarshipApplication } from "@/lib/types";
 import { REVIEW_STATUS_LABELS } from "@/lib/types";
-import { getDashboardGpaSummary } from "@/lib/dashboard-application-display";
+import {
+  formatSubmittedAt,
+  getDashboardGpaSummary,
+} from "@/lib/dashboard-application-display";
 import { ApplicationDetail } from "./application-detail";
 
 /* ------------------------------------------------------------------ */
@@ -42,6 +45,7 @@ type SortColumn =
   | "department"
   | "studentId"
   | "name"
+  | "submittedAt"
   | "gpa"
   | "journalCount"
   | "levelOneJournalCount"
@@ -55,6 +59,8 @@ type DashboardRow = {
   department: string;
   studentId: string;
   name: string;
+  submittedAt: string | null;
+  submittedAtTime: number | null;
   gpa: number | null;
   completedCredits: string;
   journalCount: number;
@@ -70,12 +76,20 @@ type DashboardRow = {
 function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
   return apps.map((app, idx) => {
     const gpaSummary = getDashboardGpaSummary(app);
+    const submittedAtTime = app.submitted_at
+      ? new Date(app.submitted_at).getTime()
+      : null;
     return {
       rowNumber: idx + 1,
       application: app,
       department: app.department,
       studentId: app.student_id,
       name: app.applicant_name,
+      submittedAt: app.submitted_at,
+      submittedAtTime:
+        submittedAtTime !== null && Number.isFinite(submittedAtTime)
+          ? submittedAtTime
+          : null,
       gpa: gpaSummary.gpa,
       completedCredits: gpaSummary.completedCredits,
       journalCount: app.payload.journals?.length ?? 0,
@@ -374,6 +388,12 @@ export function DashboardTable({
           return comparePrimitive(a.studentId, b.studentId, sortDirection);
         case "name":
           return comparePrimitive(a.name, b.name, sortDirection);
+        case "submittedAt":
+          return comparePrimitive(
+            a.submittedAtTime,
+            b.submittedAtTime,
+            sortDirection,
+          );
         case "gpa":
           return comparePrimitive(a.gpa, b.gpa, sortDirection);
         case "journalCount":
@@ -415,7 +435,7 @@ export function DashboardTable({
   return (
     <>
       <div className="w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <Table className="min-w-[1180px]">
+        <Table className="min-w-[1300px]">
           <TableHeader>
             {/* ── Row 1: grouped header ── */}
             <TableRow className="bg-slate-50">
@@ -464,6 +484,18 @@ export function DashboardTable({
                 姓名
                 <SortIcon
                   column="name"
+                  current={sortColumn}
+                  direction={sortDirection}
+                />
+              </TableHead>
+              <TableHead
+                rowSpan={2}
+                className={thClass}
+                onClick={() => handleSort("submittedAt")}
+              >
+                最新送出時間
+                <SortIcon
+                  column="submittedAt"
                   current={sortColumn}
                   direction={sortDirection}
                 />
@@ -532,7 +564,7 @@ export function DashboardTable({
             {sortedRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={11}
+                  colSpan={12}
                   className="h-28 text-center text-sm text-slate-500"
                 >
                   目前沒有此獎學金項目的已送出申請案。
@@ -568,6 +600,9 @@ export function DashboardTable({
                     >
                       {row.name}
                     </button>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap font-mono text-xs text-slate-600">
+                    {formatSubmittedAt(row.submittedAt)}
                   </TableCell>
                   <TableCell>
                     {row.gpa != null ? (
