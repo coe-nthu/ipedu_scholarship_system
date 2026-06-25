@@ -4395,14 +4395,30 @@ export default function ScholarshipForm() {
                 <Table className="min-w-[980px]">
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="w-36">發表日期</TableHead>
-                      <TableHead className="w-36">作者</TableHead>
-                      <TableHead>論文名稱</TableHead>
-                      <TableHead>研討會名稱</TableHead>
-                      <TableHead className="w-36">主辦單位</TableHead>
-                      <TableHead className="w-36">發表類別</TableHead>
-                      <TableHead className="w-44">資料庫</TableHead>
-                      <TableHead className="w-32">順位</TableHead>
+                      <TableHead className="w-36">
+                        {bi(bilingual, "發表日期", "Presentation Date")}
+                      </TableHead>
+                      <TableHead className="w-36">
+                        {bi(bilingual, "作者", "Author")}
+                      </TableHead>
+                      <TableHead>
+                        {bi(bilingual, "論文名稱", "Paper Title")}
+                      </TableHead>
+                      <TableHead>
+                        {bi(bilingual, "研討會名稱", "Conference Name")}
+                      </TableHead>
+                      <TableHead className="w-36">
+                        {bi(bilingual, "主辦單位", "Organizer")}
+                      </TableHead>
+                      <TableHead className="w-36">
+                        {bi(bilingual, "發表類別", "Presentation Type")}
+                      </TableHead>
+                      <TableHead className="w-44">
+                        {bi(bilingual, "資料庫", "Database")}
+                      </TableHead>
+                      <TableHead className="w-32">
+                        {bi(bilingual, "順位", "Author Order")}
+                      </TableHead>
                       <TableHead className="w-24" />
                     </TableRow>
                   </TableHeader>
@@ -4455,7 +4471,7 @@ export default function ScholarshipForm() {
                                 { section: "conferences" }
                               )
                             }
-                            placeholder="作者"
+                            placeholder={bi(bilingual, "作者", "Author")}
                           />
                           <ValidationMessage
                             message={getRowFieldError(
@@ -4483,7 +4499,11 @@ export default function ScholarshipForm() {
                                 { section: "conferences" }
                               )
                             }
-                            placeholder="論文名稱"
+                            placeholder={bi(
+                              bilingual,
+                              "論文名稱",
+                              "Paper Title"
+                            )}
                           />
                           <ValidationMessage
                             message={getRowFieldError(
@@ -4511,7 +4531,11 @@ export default function ScholarshipForm() {
                                 { section: "conferences" }
                               )
                             }
-                            placeholder="研討會名稱"
+                            placeholder={bi(
+                              bilingual,
+                              "研討會名稱",
+                              "Conference Name"
+                            )}
                           />
                           <ValidationMessage
                             message={getRowFieldError(
@@ -4539,7 +4563,11 @@ export default function ScholarshipForm() {
                                 { section: "conferences" }
                               )
                             }
-                            placeholder="主辦單位"
+                            placeholder={bi(
+                              bilingual,
+                              "主辦單位",
+                              "Organizer"
+                            )}
                           />
                           <ValidationMessage
                             message={getRowFieldError(
@@ -4661,7 +4689,11 @@ export default function ScholarshipForm() {
                                 { section: "conferences" }
                               )
                             }
-                            placeholder="第一作者/通訊作者"
+                            placeholder={bi(
+                              bilingual,
+                              "第一作者/通訊作者",
+                              "First Author / Corresponding Author"
+                            )}
                           />
                           <ValidationMessage
                             message={getRowFieldError(
@@ -4685,7 +4717,11 @@ export default function ScholarshipForm() {
                                 "conferences"
                               )
                             }
-                            aria-label="刪除研討會列"
+                            aria-label={bi(
+                              bilingual,
+                              "刪除研討會列",
+                              "Delete conference row"
+                            )}
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -4719,7 +4755,11 @@ export default function ScholarshipForm() {
                 }
               >
                 <Plus className="size-4" />
-                新增研討會發表
+                {bi(
+                  bilingual,
+                  "新增研討會發表",
+                  "Add Conference Presentation"
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -4737,8 +4777,12 @@ export default function ScholarshipForm() {
             </CardHeader>
             <CardContent className="space-y-6">
               <EditableTable
-                title="研究經歷"
-                actionLabel="新增研究經歷"
+                title={bi(bilingual, "研究經歷", "Research Experience")}
+                actionLabel={bi(
+                  bilingual,
+                  "新增研究經歷",
+                  "Add Research Experience"
+                )}
                 minWidth="900px"
                 onAdd={() =>
                   addRowWhenComplete(
@@ -4757,11 +4801,25 @@ export default function ScholarshipForm() {
               >
                 <TableHeader className="bg-slate-50">
                   <TableRow>
-                    <TableHead>機構/主持人</TableHead>
-                    <TableHead className="w-40">職稱</TableHead>
-                    <TableHead className="w-44">研究案性質</TableHead>
-                    <TableHead className="w-44">起訖日期</TableHead>
-                    <TableHead className="w-40">證明文件</TableHead>
+                    <TableHead>
+                      {bi(
+                        bilingual,
+                        "機構/主持人",
+                        "Institution / Principal Investigator"
+                      )}
+                    </TableHead>
+                    <TableHead className="w-40">
+                      {bi(bilingual, "職稱", "Role")}
+                    </TableHead>
+                    <TableHead className="w-44">
+                      {bi(bilingual, "研究案性質", "Project Type")}
+                    </TableHead>
+                    <TableHead className="w-44">
+                      {bi(bilingual, "起訖日期", "Period")}
+                    </TableHead>
+                    <TableHead className="w-40">
+                      {bi(bilingual, "證明文件", "Supporting Document")}
+                    </TableHead>
                     <TableHead className="w-20" />
                   </TableRow>
                 </TableHeader>
@@ -4786,7 +4844,11 @@ export default function ScholarshipForm() {
                               { section: "researchExperiences" }
                             )
                           }
-                          placeholder="機構/主持人"
+                          placeholder={bi(
+                            bilingual,
+                            "機構/主持人",
+                            "Institution / Principal Investigator"
+                          )}
                         />
                         <ValidationMessage
                           message={getRowFieldError(
@@ -4930,7 +4992,11 @@ export default function ScholarshipForm() {
                       </TableCell>
                       <TableCell>
                         <DeleteButton
-                          label="刪除研究經歷"
+                          label={bi(
+                            bilingual,
+                            "刪除研究經歷",
+                            "Delete research experience"
+                          )}
                           onClick={() =>
                             removeRow(
                               researchExperiences,
@@ -4948,8 +5014,12 @@ export default function ScholarshipForm() {
               </EditableTable>
 
               <EditableTable
-                title="研究獲獎/獎助"
-                actionLabel="新增研究獲獎"
+                title={bi(bilingual, "研究獲獎/獎助", "Research Awards / Grants")}
+                actionLabel={bi(
+                  bilingual,
+                  "新增研究獲獎",
+                  "Add Research Award"
+                )}
                 minWidth="900px"
                 onAdd={() =>
                   addRowWhenComplete(
@@ -4968,11 +5038,23 @@ export default function ScholarshipForm() {
               >
                 <TableHeader className="bg-slate-50">
                   <TableRow>
-                    <TableHead>名稱</TableHead>
-                    <TableHead className="w-40">計畫/成果編號</TableHead>
-                    <TableHead className="w-40">獎助金額/項目</TableHead>
-                    <TableHead>主要參與部分</TableHead>
-                    <TableHead className="w-40">證明文件</TableHead>
+                    <TableHead>{bi(bilingual, "名稱", "Name")}</TableHead>
+                    <TableHead className="w-40">
+                      {bi(
+                        bilingual,
+                        "計畫/成果編號",
+                        "Project / Result No."
+                      )}
+                    </TableHead>
+                    <TableHead className="w-40">
+                      {bi(bilingual, "獎助金額/項目", "Amount / Item")}
+                    </TableHead>
+                    <TableHead>
+                      {bi(bilingual, "主要參與部分", "Main Contribution")}
+                    </TableHead>
+                    <TableHead className="w-40">
+                      {bi(bilingual, "證明文件", "Supporting Document")}
+                    </TableHead>
                     <TableHead className="w-20" />
                   </TableRow>
                 </TableHeader>
@@ -4997,7 +5079,11 @@ export default function ScholarshipForm() {
                               { section: "researchAwards" }
                             )
                           }
-                          placeholder="獎項/獎助名稱"
+                          placeholder={bi(
+                            bilingual,
+                            "獎項/獎助名稱",
+                            "Award / Grant Name"
+                          )}
                         />
                         <ValidationMessage
                           message={getRowFieldError(
@@ -5025,7 +5111,7 @@ export default function ScholarshipForm() {
                               { section: "researchAwards" }
                             )
                           }
-                          placeholder="編號"
+                          placeholder={bi(bilingual, "編號", "Number")}
                         />
                         <ValidationMessage
                           message={getRowFieldError(
@@ -5053,7 +5139,11 @@ export default function ScholarshipForm() {
                               { section: "researchAwards" }
                             )
                           }
-                          placeholder="金額/項目"
+                          placeholder={bi(
+                            bilingual,
+                            "金額/項目",
+                            "Amount / Item"
+                          )}
                         />
                         <ValidationMessage
                           message={getRowFieldError(
@@ -5081,7 +5171,11 @@ export default function ScholarshipForm() {
                               { section: "researchAwards" }
                             )
                           }
-                          placeholder="主要參與部分"
+                          placeholder={bi(
+                            bilingual,
+                            "主要參與部分",
+                            "Main Contribution"
+                          )}
                         />
                         <ValidationMessage
                           message={getRowFieldError(
@@ -5101,7 +5195,11 @@ export default function ScholarshipForm() {
                       </TableCell>
                       <TableCell>
                         <DeleteButton
-                          label="刪除研究獲獎"
+                          label={bi(
+                            bilingual,
+                            "刪除研究獲獎",
+                            "Delete research award"
+                          )}
                           onClick={() =>
                             removeRow(
                               researchAwards,
