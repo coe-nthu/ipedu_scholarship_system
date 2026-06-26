@@ -43,11 +43,10 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
 export const DATABASE_OPTIONS = [
   "SSCI",
   "SCIE",
+  "AHCI",
   "SCI",
   "TSSCI",
   "SCOPUS",
-  "ESCI",
-  "AHCI",
   "其他",
   "否",
 ] as const;

@@ -16,16 +16,12 @@ const FIELD_ALIASES = {
   jcrYear: ["jcr year", "jcryear", "year"],
   jif: ["2024 jif", "jif", "journal impact factor"],
   journalTitle: ["journal name", "journal title", "full journal title"],
-  quartile: ["jif quartile", "quartile"],
+  publisherName: ["publisher name", "publisher", "publisher_name"],
 } as const;
 
 const KNOWN_EDITIONS = [
   "SSCI",
   "SCIE",
-  "SCI",
-  "TSSCI",
-  "SCOPUS",
-  "ESCI",
   "AHCI",
 ] as const;
 
@@ -52,11 +48,7 @@ export function inferEditionFromFileName(fileName: string): string | null {
   const patterns: [RegExp, string][] = [
     [/social sciences? citation index|\bSSCI\b/i, "SSCI"],
     [/science citation index expanded|\bSCIE\b/i, "SCIE"],
-    [/emerging sources citation index|\bESCI\b/i, "ESCI"],
     [/arts?\s*(?:and|&)?\s*humanities citation index|\bAHCI\b/i, "AHCI"],
-    [/taiwan social sciences citation index|\bTSSCI\b/i, "TSSCI"],
-    [/\bSCOPUS\b/i, "SCOPUS"],
-    [/science citation index|\bSCI\b/i, "SCI"],
   ];
   for (const [pattern, edition] of patterns) {
     if (pattern.test(base)) {
@@ -107,14 +99,13 @@ function findColumn(headers: string[], aliases: readonly string[]) {
 }
 
 // Some exports use a "wide" layout where each edition is its own column and an
-// "X" marks membership (e.g. "Title20,Title,Country,SCIE,SSCI,AHCI,ESCI").
+// "X" marks membership (e.g. "Title20,Title,Country,SCIE,SSCI,AHCI").
 const EDITION_COLUMN_CODES = [
   "ssci",
   "scie",
   "sci",
   "tssci",
   "scopus",
-  "esci",
   "ahci",
 ] as const;
 
@@ -151,7 +142,7 @@ function findHeaderIndex(lines: string[]) {
 
 /**
  * Parse a "wide" edition-matrix CSV where membership is marked per edition
- * column (e.g. an "X" under SCIE/SSCI/AHCI/ESCI). One record is produced per
+ * column (e.g. an "X" under SCIE/SSCI/AHCI). One record is produced per
  * (journal, marked edition). These rows carry no ISSN, so matching relies on
  * the journal title.
  */
@@ -201,7 +192,7 @@ function parseEditionMatrixCsv(
         jcr_year: null,
         jif: null,
         journal_title: title,
-        quartile: null,
+        publisher_name: null,
         source_file_name: sourceFileName,
       });
     }
@@ -271,9 +262,9 @@ export function parseJournalIndexCsv(
   const categoryIndex = findColumn(headers, FIELD_ALIASES.category);
   const jifIndex = findColumn(headers, FIELD_ALIASES.jif);
   const jciIndex = findColumn(headers, FIELD_ALIASES.jci);
-  const quartileIndex = findColumn(headers, FIELD_ALIASES.quartile);
+  const publisherNameIndex = findColumn(headers, FIELD_ALIASES.publisherName);
   const jcrYearIndex = findColumn(headers, FIELD_ALIASES.jcrYear);
-  const fallbackYear = extractYearFromIntro(lines);
+  const fallbackYear = extractYearFromIntro(lines.slice(0, headerIndex));
 
   if (titleIndex < 0 && issnIndex < 0 && eissnIndex < 0) {
     throw new Error(
@@ -349,9 +340,9 @@ export function parseJournalIndexCsv(
           : fallbackYear,
       jif: jifIndex >= 0 ? normalizeCell(cells[jifIndex] ?? "") || null : null,
       journal_title: title,
-      quartile:
-        quartileIndex >= 0
-          ? normalizeCell(cells[quartileIndex] ?? "") || null
+      publisher_name:
+        publisherNameIndex >= 0
+          ? normalizeCell(cells[publisherNameIndex] ?? "") || null
           : null,
       source_file_name: sourceFileName,
     });

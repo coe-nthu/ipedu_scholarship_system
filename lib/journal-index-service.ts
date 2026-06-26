@@ -10,8 +10,14 @@ export type JournalIndexMatch = {
   level: "I級期刊" | "非I級期刊";
   record?: Pick<
     JournalIndexRecord,
-    "category" | "eissn" | "issn" | "jcr_year" | "journal_title" | "quartile"
+    | "category"
+    | "eissn"
+    | "issn"
+    | "jcr_year"
+    | "journal_title"
+    | "publisher_name"
   >;
+  publisherName: string;
 };
 
 function getSupabaseConfig() {
@@ -72,22 +78,17 @@ function editionRank(edition: string) {
   const ranks: Record<string, number> = {
     SSCI: 1,
     SCIE: 2,
-    SCI: 3,
-    TSSCI: 4,
-    SCOPUS: 5,
-    ESCI: 6,
-    AHCI: 7,
+    AHCI: 3,
+    SCI: 4,
+    TSSCI: 5,
+    SCOPUS: 6,
   };
   return ranks[normalized] ?? 99;
 }
 
 function databaseFromEdition(edition: string) {
   const normalized = edition.toUpperCase();
-  if (
-    ["SSCI", "SCIE", "SCI", "TSSCI", "SCOPUS", "ESCI", "AHCI"].includes(
-      normalized
-    )
-  ) {
+  if (["SSCI", "SCIE", "AHCI", "SCI", "TSSCI", "SCOPUS"].includes(normalized)) {
     return normalized;
   }
   return "其他";
@@ -100,7 +101,6 @@ function buildMatch(
   const edition = record.edition.toUpperCase();
   const meta = [
     record.jcr_year ? `${record.jcr_year} JCR` : null,
-    record.quartile,
     record.category,
   ].filter(Boolean);
 
@@ -110,19 +110,20 @@ function buildMatch(
     editions,
     indexSource: `依期刊索引判別所屬資料庫：${editions.join("、")}${meta.length ? `（${meta.join("，")}）` : ""}`,
     level: "I級期刊",
+    publisherName: record.publisher_name ?? "",
     record: {
       category: record.category,
       eissn: record.eissn,
       issn: record.issn,
       jcr_year: record.jcr_year,
       journal_title: record.journal_title,
-      quartile: record.quartile,
+      publisher_name: record.publisher_name,
     },
   };
 }
 
 const SELECT_COLUMNS =
-  "journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name";
+  "journal_title,issn,eissn,category,edition,jif,jci,publisher_name,jcr_year,source_file_name";
 
 async function queryJournalIndex(filter: string): Promise<JournalIndexRecord[]> {
   const config = getSupabaseConfig();
@@ -232,6 +233,7 @@ export async function findJournalIndexMatch({
     editions: [seedMatch.database],
     indexSource: `依內建索引判別所屬資料庫：${seedMatch.database}`,
     level: seedMatch.level,
+    publisherName: "",
   };
 }
 
@@ -278,5 +280,6 @@ export async function applyJournalIndexMatch(
         ? match.editions.join("、")
         : match.database || journal.database,
     indexSource: match.indexSource,
+    reviewUnit: match.publisherName || journal.reviewUnit,
   };
 }

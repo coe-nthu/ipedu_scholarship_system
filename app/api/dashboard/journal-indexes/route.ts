@@ -64,6 +64,9 @@ function mergeRecords(
             existing.category = Array.from(categories).join("; ");
           }
         }
+        if (existing && !existing.publisher_name && record.publisher_name) {
+          existing.publisher_name = record.publisher_name;
+        }
         duplicatesSkipped += 1;
         continue;
       }
@@ -111,7 +114,7 @@ async function fetchAllRecords(url: string, serviceRoleKey: string) {
 
   for (let offset = 0; offset < maxRecords; offset += pageSize) {
     const page = await fetchJson<JournalIndexRecord[]>(
-      `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name&order=journal_title.asc&limit=${pageSize}&offset=${offset}`,
+      `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,publisher_name,jcr_year,source_file_name&order=journal_title.asc&limit=${pageSize}&offset=${offset}`,
       serviceRoleKey
     );
     records.push(...page);
@@ -167,7 +170,7 @@ export async function GET(request: Request) {
       wantAll
         ? fetchAllRecords(url, serviceRoleKey)
         : fetchJson<JournalIndexRecord[]>(
-            `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,quartile,jcr_year,source_file_name,created_at&order=journal_title.asc&limit=10`,
+            `${url}/rest/v1/journal_index_records?select=journal_title,issn,eissn,category,edition,jif,jci,publisher_name,jcr_year,source_file_name,created_at&order=journal_title.asc&limit=10`,
             serviceRoleKey
           ),
     ]);

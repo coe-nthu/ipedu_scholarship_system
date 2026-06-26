@@ -393,6 +393,7 @@ create table if not exists public.journal_index_records (
   edition text not null,
   jif text,
   jci text,
+  publisher_name text,
   quartile text,
   jcr_year integer,
   source_file_name text,
@@ -409,6 +410,7 @@ alter table public.journal_index_records
   add column if not exists edition text,
   add column if not exists jif text,
   add column if not exists jci text,
+  add column if not exists publisher_name text,
   add column if not exists quartile text,
   add column if not exists jcr_year integer,
   add column if not exists source_file_name text,
@@ -432,7 +434,8 @@ alter table public.journal_index_records
   alter column updated_at set default now();
 
 comment on table public.journal_index_records is '院辦上傳的 JCR JournalResults 期刊索引';
-comment on column public.journal_index_records.edition is 'JCR Edition，例如 SSCI、SCIE、ESCI、AHCI';
+comment on column public.journal_index_records.edition is 'JCR Edition，例如 SSCI、SCIE、AHCI';
+comment on column public.journal_index_records.publisher_name is '出版單位／Publisher name';
 
 create index if not exists idx_journal_index_records_title
   on public.journal_index_records(lower(journal_title));

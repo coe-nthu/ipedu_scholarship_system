@@ -707,7 +707,7 @@ function JournalIndexesPanel() {
                   <TableHead className="w-28">ISSN</TableHead>
                   <TableHead className="w-28">eISSN</TableHead>
                   <TableHead className="w-24">Edition</TableHead>
-                  <TableHead className="w-24">Quartile</TableHead>
+                  <TableHead className="w-44">Publisher name</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -741,7 +741,7 @@ function JournalIndexesPanel() {
                         <TableCell>{record.issn || "—"}</TableCell>
                         <TableCell>{record.eissn || "—"}</TableCell>
                         <TableCell>{record.edition}</TableCell>
-                        <TableCell>{record.quartile || "—"}</TableCell>
+                        <TableCell>{record.publisher_name || "—"}</TableCell>
                       </TableRow>
                     ))}
                     {hiddenCount > 0 ? (

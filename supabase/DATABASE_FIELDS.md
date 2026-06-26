@@ -107,12 +107,12 @@ public.scholarship_applications
 | `issns` | DOI 回傳的 ISSN 陣列，用於期刊索引對照 |
 | `title` | 論文名稱 |
 | `journal` | 期刊名稱與期數 |
-| `reviewUnit` | 審查單位 |
+| `reviewUnit` | 出版單位（沿用既有欄位名稱） |
 | `journalLevel` | 期刊等級：I級期刊、非I級期刊。**永遠由使用者/後台人工選擇，系統不會自動判定** |
 | `indexSource` | Edition / 資料庫別 判別來源 |
 | `isCorrespondingAuthor` | 是否標記為通訊作者 |
 | `hasTrustedDatabase` | 是否發表於具公信力之資料庫 |
-| `database` | Edition / 資料庫別，如 SSCI、SCIE、SCI、TSSCI、SCOPUS、ESCI、AHCI；命中期刊索引時由系統自動填入 |
+| `database` | Edition / 資料庫別，如 SSCI、SCIE、AHCI、SCI、TSSCI、SCOPUS；命中期刊索引時由系統自動填入 |
 | `authorOrder` | 作者順位，例如第一作者、第二作者、通訊作者 |
 | `authorOrderOriginal` | 系統依 DOI 比對出的原始作者順位 |
 | `authorOrderModified` | 是否由申請人手動更改作者順位 |
@@ -131,14 +131,14 @@ Edition / 資料庫別 判別方式：
 院辦可在後台「期刊索引」上傳 CSV，採整批取代（每次上傳會清空既有索引再寫入）。
 可上傳單一全量 CSV，或一次選取多個 edition CSV（例如同時選取
 `Social Sciences Citation Index (SSCI).csv` 與
-`Science Citation Index Expanded (SCIE).csv`），系統會合併去重並保留多個
+`Science Citation Index Expanded (SCIE).csv`、`Arts & Humanities Citation Index (AHCI).csv`），系統會合併去重並保留多個
 category。支援兩種格式：
 
 - JCR `JournalResults`：含 `Edition` 欄位者直接採用。
 - MJL 類型 CSV：若沒有 `Edition` 欄位，會從**檔名**推斷 edition（例如檔名含
-  `(SSCI)` → `SSCI`、`(SCIE)` → `SCIE`）。
+  `(SSCI)` → `SSCI`、`(SCIE)` → `SCIE`、`(AHCI)` → `AHCI`）。
 
-CSV 需含 `Journal name`/`Journal title`、`ISSN`/`eISSN` 等欄位（`category`
+CSV 需含 `Journal name`/`Journal title`、`ISSN`/`eISSN`、`Publisher name` 等欄位（`category`
 亦接受 `Web of Science Categories`）。若既無 `Edition` 欄位、檔名也無法推斷
 edition，匯入會回傳明確錯誤，要求改檔名或改用含 Edition 欄位的 CSV。JCR
 `CategoryResults` 類別統計檔不含單本期刊資料，無法用於期刊查核。

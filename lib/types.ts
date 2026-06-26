@@ -244,7 +244,7 @@ export type JournalIndexRecord = {
   edition: string;
   jif: string | null;
   jci: string | null;
-  quartile: string | null;
+  publisher_name: string | null;
   jcr_year: number | null;
   source_file_name: string | null;
   uploaded_by?: string | null;

@@ -1760,6 +1760,10 @@ export default function ScholarshipForm() {
                 ? journalIndexMatch.editions.join("、")
                 : journalIndexMatch?.database || journal.database,
             journalLevel: journal.journalLevel,
+            reviewUnit:
+              journalIndexMatch?.publisherName ||
+              result.data.publisher ||
+              journal.reviewUnit,
             indexSource: journalIndexMatch
               ? journalIndexMatch.indexSource || "依期刊索引對照表自動判別"
               : "未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級",
@@ -3934,8 +3938,8 @@ export default function ScholarshipForm() {
                         </BiText>
                       </TableHead>
                       <TableHead className="w-36">
-                        <BiText enabled={bilingual} english="Review Body">
-                          審查單位
+                        <BiText enabled={bilingual} english="Publisher">
+                          出版單位
                         </BiText>
                       </TableHead>
                       <TableHead className="w-36">
@@ -4171,7 +4175,7 @@ export default function ScholarshipForm() {
                                 event.target.value
                               )
                             }
-                            placeholder="審查單位"
+                            placeholder="出版單位"
                           />
                         </TableCell>
                         <TableCell className="align-top">
