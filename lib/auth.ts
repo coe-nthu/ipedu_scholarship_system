@@ -46,6 +46,11 @@ type DashboardSessionPayload = {
   username: string;
 };
 
+type AuthorizedEmailAccess = {
+  departmentScope: DashboardDepartmentScope;
+  role: DashboardRole;
+};
+
 const DASHBOARD_SESSION_COOKIE = "dashboard_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
 
@@ -293,59 +298,43 @@ export async function checkDashboardAccess(): Promise<AuthResult> {
     return { authorized: false, reason: "not_authorized" };
   }
 
-  const res = await fetch(
-    `${config.url}/rest/v1/profiles?id=eq.${user.id}&select=role,full_name`,
-    {
-      headers: {
-        apikey: config.serviceRoleKey,
-        authorization: `Bearer ${config.serviceRoleKey}`,
-      },
-    }
-  );
+  const [profile, authorizedEmailAccess] = await Promise.all([
+    getProfileAccess(config, user.id),
+    getAuthorizedEmailAccess(config, user.email),
+  ]);
 
-  if (res.ok) {
-    const profiles = (await res.json()) as {
-      full_name: string | null;
-      role: string;
-    }[];
-    const profile = profiles[0];
-    const role = profile?.role;
-    if (role === "teacher" || role === "admin") {
-      const departmentScope = await getAuthorizedEmailScope(
-        config,
-        user.email,
-        role
-      );
-      return {
-        authorized: true,
-        authProvider: "google",
-        departmentScope,
-        displayName: profile.full_name || user.email,
-        email: user.email,
-        role: role as DashboardRole,
-        userId: user.id,
-      };
-    }
+  const role = authorizedEmailAccess?.role ?? profile?.role;
+  if (role === "teacher" || role === "admin") {
+    return {
+      authorized: true,
+      authProvider: "google",
+      departmentScope:
+        authorizedEmailAccess?.departmentScope ??
+        resolveDashboardScope(undefined, user.email, role),
+      displayName: profile?.full_name || user.email,
+      email: user.email,
+      role,
+      userId: user.id,
+    };
   }
 
   return { authorized: false, reason: "not_authorized" };
 }
 
 /**
- * Read a Google account's department scope from authorized_emails.
- * Falls back to "all" when no scope is set (admins keep full access; teachers
- * default to all until an admin narrows them).
+ * Read a Google account's role and department scope from authorized_emails.
+ * This is the dashboard account-management source of truth; profiles remains a
+ * legacy fallback for older deployments where authorized_emails is not filled.
  */
-async function getAuthorizedEmailScope(
+async function getAuthorizedEmailAccess(
   config: { serviceRoleKey: string; url: string },
-  email: string,
-  role: DashboardRole
-): Promise<DashboardDepartmentScope> {
+  email: string
+): Promise<AuthorizedEmailAccess | null> {
   try {
     const response = await fetch(
       `${config.url}/rest/v1/authorized_emails?email=eq.${encodeURIComponent(
         email.toLowerCase()
-      )}&select=department_scope&limit=1`,
+      )}&select=role,department_scope&limit=1`,
       {
         headers: {
           apikey: config.serviceRoleKey,
@@ -356,12 +345,53 @@ async function getAuthorizedEmailScope(
     );
     if (response.ok) {
       const [row] = (await response.json()) as {
+        role: string;
         department_scope: unknown;
       }[];
-      return resolveDashboardScope(row?.department_scope, email, role);
+      if (row?.role === "teacher" || row?.role === "admin") {
+        return {
+          departmentScope: resolveDashboardScope(
+            row.department_scope,
+            email,
+            row.role
+          ),
+          role: row.role,
+        };
+      }
     }
   } catch {
     // best-effort; fall through to default
   }
-  return resolveDashboardScope(undefined, email, role);
+  return null;
+}
+
+async function getProfileAccess(
+  config: { serviceRoleKey: string; url: string },
+  userId: string
+): Promise<{ full_name: string | null; role: DashboardRole } | null> {
+  const res = await fetch(
+    `${config.url}/rest/v1/profiles?id=eq.${userId}&select=role,full_name`,
+    {
+      headers: {
+        apikey: config.serviceRoleKey,
+        authorization: `Bearer ${config.serviceRoleKey}`,
+      },
+    }
+  );
+
+  if (!res.ok) return null;
+
+  const [profile] = (await res.json()) as {
+    full_name: string | null;
+    role: string;
+  }[];
+
+  if (profile?.role === "teacher" || profile?.role === "admin") {
+    return {
+      full_name: profile.full_name,
+      role: profile.role,
+    };
+  }
+
+  return null;
 }
