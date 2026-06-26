@@ -108,6 +108,8 @@ const EMPTY_JOURNAL: Journal = {
   authorOrderOriginal: "",
   authorOrderModified: false,
   authorOrderChangeNote: "",
+  publicationAutofillBaseline: {},
+  publicationChangeNotes: [],
   attachmentNote: "",
 };
 
@@ -155,6 +157,10 @@ function updateAt<T>(list: T[], idx: number, patch: Partial<T>): T[] {
 
 function removeAt<T>(list: T[], idx: number): T[] {
   return list.filter((_, i) => i !== idx);
+}
+
+function formatPublicationChangeValue(value: string) {
+  return value.trim() || "（空白）";
 }
 
 /* ------------------------------------------------------------------ */
@@ -1579,6 +1585,25 @@ export function ApplicationDetail({
                               作者順位變更：{j.authorOrderChangeNote}
                             </p>
                           )}
+                          {j.publicationChangeNotes &&
+                            j.publicationChangeNotes.length > 0 && (
+                              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                <p className="mb-1 font-semibold">學生修改</p>
+                                <div className="space-y-1">
+                                  {j.publicationChangeNotes.map((note) => (
+                                    <p key={`${note.field}-${note.label}`}>
+                                      {note.label}：原為「
+                                      {formatPublicationChangeValue(
+                                        note.original
+                                      )}
+                                      」，改為「
+                                      {formatPublicationChangeValue(note.current)}
+                                      」
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           {/* ── Verification details ── */}
                           {j.verification && (
                             <VerificationChecks v={j.verification} />

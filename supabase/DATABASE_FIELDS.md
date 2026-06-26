@@ -117,6 +117,8 @@ public.scholarship_applications
 | `authorOrderOriginal` | 系統依 DOI 比對出的原始作者順位 |
 | `authorOrderModified` | 是否由申請人手動更改作者順位 |
 | `authorOrderChangeNote` | 作者順位更改註記 |
+| `publicationAutofillBaseline` | DOI 自動帶入後保存的原始欄位值，用於判斷學生後續是否修改期刊欄位 |
+| `publicationChangeNotes` | 學生修改 DOI 自動帶入欄位的註記陣列，包含欄位名稱、原始值、修改後值與來源 |
 | `attachmentNote` | 附件或佐證資料備註 |
 
 Edition / 資料庫別 判別方式：

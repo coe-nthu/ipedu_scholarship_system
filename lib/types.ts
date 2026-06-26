@@ -78,8 +78,18 @@ export type Journal = {
   authorOrderOriginal: string;
   authorOrderModified: boolean;
   authorOrderChangeNote: string;
+  publicationAutofillBaseline?: Record<string, string>;
+  publicationChangeNotes?: PublicationChangeNote[];
   attachmentNote: string;
   verification?: PublicationVerification;
+};
+
+export type PublicationChangeNote = {
+  field: string;
+  label: string;
+  original: string;
+  current: string;
+  source: "doi-autofill";
 };
 
 export type Conference = {

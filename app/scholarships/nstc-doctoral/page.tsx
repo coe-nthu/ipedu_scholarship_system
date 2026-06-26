@@ -500,6 +500,8 @@ const emptyJournal = (): Journal => ({
   authorOrderOriginal: "",
   authorOrderModified: false,
   authorOrderChangeNote: "",
+  publicationAutofillBaseline: {},
+  publicationChangeNotes: [],
   attachmentNote: "",
 });
 
@@ -578,6 +580,10 @@ function isFilled(value: unknown) {
     return value.length > 0;
   }
 
+  if (value && typeof value === "object") {
+    return Object.values(value).some(isFilled);
+  }
+
   return typeof value === "string" ? value.trim().length > 0 : Boolean(value);
 }
 
@@ -639,6 +645,70 @@ function getAuthorOrderBucket(authorOrder: string) {
   }
 
   return "other";
+}
+
+const JOURNAL_AUTOFILL_FIELD_LABELS = {
+  date: "發表日期",
+  author: "作者",
+  title: "論文名稱",
+  journal: "期刊名稱與期數",
+  reviewUnit: "出版單位",
+  database: "Edition / 資料庫別",
+  authorOrder: "作者順位",
+} as const satisfies Partial<Record<keyof Journal, string>>;
+
+type JournalAutofillField = keyof typeof JOURNAL_AUTOFILL_FIELD_LABELS;
+
+function normalizePublicationChangeValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.join("、").trim();
+  }
+
+  return typeof value === "string" ? value.trim() : String(value ?? "").trim();
+}
+
+function createJournalAutofillBaseline(
+  values: Partial<Record<JournalAutofillField, unknown>>
+) {
+  return Object.entries(values).reduce<Record<string, string>>(
+    (baseline, [field, value]) => {
+      const normalizedValue = normalizePublicationChangeValue(value);
+      if (normalizedValue) {
+        baseline[field] = normalizedValue;
+      }
+      return baseline;
+    },
+    {}
+  );
+}
+
+function syncJournalPublicationChangeNotes(journal: Journal): Journal {
+  const baseline = journal.publicationAutofillBaseline ?? {};
+  const publicationChangeNotes = (
+    Object.keys(JOURNAL_AUTOFILL_FIELD_LABELS) as JournalAutofillField[]
+  ).flatMap((field) => {
+    const original = baseline[field];
+    if (!original) {
+      return [];
+    }
+
+    const current = normalizePublicationChangeValue(journal[field]);
+    if (current === original) {
+      return [];
+    }
+
+    return [
+      {
+        field,
+        label: JOURNAL_AUTOFILL_FIELD_LABELS[field],
+        original,
+        current,
+        source: "doi-autofill" as const,
+      },
+    ];
+  });
+
+  return { ...journal, publicationChangeNotes };
 }
 
 function createJournalLevelStats() {
@@ -1553,6 +1623,30 @@ export default function ScholarshipForm() {
     }
   };
 
+  const updateJournalRow = <K extends keyof Journal>(
+    index: number,
+    field: K,
+    value: Journal[K],
+    validation?: {
+      section: RepeatableSection;
+    }
+  ) => {
+    setJournals((current) =>
+      current.map((journal, rowIndex) =>
+        rowIndex === index
+          ? syncJournalPublicationChangeNotes({
+              ...journal,
+              [field]: value,
+            })
+          : journal
+      )
+    );
+
+    if (validation && isFilled(value)) {
+      clearRowFieldError(validation.section, index, String(field));
+    }
+  };
+
   const addRowWhenComplete = <T extends Record<string, unknown>>(
     section: RepeatableSection,
     rows: T[],
@@ -1589,7 +1683,7 @@ export default function ScholarshipForm() {
           journal.isCorrespondingAuthor
         );
 
-        return {
+        return syncJournalPublicationChangeNotes({
           ...journal,
           applicantAuthorName: value,
           authorOrder: journal.authorOrderModified
@@ -1599,7 +1693,7 @@ export default function ScholarshipForm() {
           authorOrderChangeNote: journal.authorOrderModified
             ? `原系統比對為「${inferredOrder}」，申請人改為「${journal.authorOrder}」。`
             : "",
-        };
+        });
       })
     );
   };
@@ -1617,7 +1711,7 @@ export default function ScholarshipForm() {
           checked
         );
 
-        return {
+        return syncJournalPublicationChangeNotes({
           ...journal,
           isCorrespondingAuthor: checked,
           authorOrder: journal.authorOrderModified
@@ -1627,7 +1721,7 @@ export default function ScholarshipForm() {
           authorOrderChangeNote: journal.authorOrderModified
             ? `原系統比對為「${inferredOrder}」，申請人改為「${journal.authorOrder}」。`
             : "",
-        };
+        });
       })
     );
   };
@@ -1647,14 +1741,14 @@ export default function ScholarshipForm() {
           Boolean(journal.authorOrderOriginal) &&
           value.trim() !== journal.authorOrderOriginal;
 
-        return {
+        return syncJournalPublicationChangeNotes({
           ...journal,
           authorOrder: value,
           authorOrderModified,
           authorOrderChangeNote: authorOrderModified
             ? `原系統比對為「${journal.authorOrderOriginal}」，申請人改為「${value}」。`
             : "",
-        };
+        });
       })
     );
   };
@@ -1692,9 +1786,7 @@ export default function ScholarshipForm() {
 
     // Write the cleaned DOI back into the field so verification later uses it.
     if (doiValue !== rawDoi) {
-      updateRow(journals, setJournals, index, "doi", doiValue, {
-        section: "journals",
-      });
+      updateJournalRow(index, "doi", doiValue, { section: "journals" });
     } else {
       clearRowFieldError("journals", index, "doi");
     }
@@ -1744,37 +1836,51 @@ export default function ScholarshipForm() {
             journal.isCorrespondingAuthor
           );
 
-          return {
-                ...journal,
-                title: result.data.title,
-                journal: `${result.data.journalName} (${result.data.volumeIssue})`,
-                date: result.data.publishDate,
-                author: result.data.authorString,
+          const nextDatabase =
+            journalIndexMatch?.editions?.length > 0
+              ? journalIndexMatch.editions.join("、")
+              : journalIndexMatch?.database || journal.database;
+          const nextReviewUnit =
+            journalIndexMatch?.publisherName ||
+            result.data.publisher ||
+            journal.reviewUnit;
+          const nextAuthorOrder = journal.authorOrderModified
+            ? journal.authorOrder
+            : inferredOrder;
+          const nextJournal: Journal = {
+            ...journal,
+            title: result.data.title,
+            journal: `${result.data.journalName} (${result.data.volumeIssue})`,
+            date: result.data.publishDate,
+            author: result.data.authorString,
             doiAuthorNames,
             issns,
             // Auto-fill only the Edition / 資料庫別 — every edition the journal
             // belongs to. 期刊等級（I級/非I級）is always chosen manually, so the
             // student's existing choice is preserved.
-            database:
-              journalIndexMatch?.editions?.length > 0
-                ? journalIndexMatch.editions.join("、")
-                : journalIndexMatch?.database || journal.database,
+            database: nextDatabase,
             journalLevel: journal.journalLevel,
-            reviewUnit:
-              journalIndexMatch?.publisherName ||
-              result.data.publisher ||
-              journal.reviewUnit,
+            reviewUnit: nextReviewUnit,
             indexSource: journalIndexMatch
               ? journalIndexMatch.indexSource || "依期刊索引對照表自動判別"
               : "未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級",
-            authorOrder: journal.authorOrderModified
-              ? journal.authorOrder
-              : inferredOrder,
+            authorOrder: nextAuthorOrder,
             authorOrderOriginal: inferredOrder,
             authorOrderChangeNote: journal.authorOrderModified
               ? `原系統比對為「${inferredOrder}」，申請人改為「${journal.authorOrder}」。`
               : "",
+            publicationAutofillBaseline: createJournalAutofillBaseline({
+              title: result.data.title,
+              journal: `${result.data.journalName} (${result.data.volumeIssue})`,
+              date: result.data.publishDate,
+              author: result.data.authorString,
+              reviewUnit: nextReviewUnit,
+              database: nextDatabase,
+              authorOrder: inferredOrder,
+            }),
           };
+
+          return syncJournalPublicationChangeNotes(nextJournal);
         })
       );
     } catch {
@@ -3978,9 +4084,7 @@ export default function ScholarshipForm() {
                               )}
                               value={journal.doi}
                               onChange={(event) =>
-                                updateRow(
-                                  journals,
-                                  setJournals,
+                                updateJournalRow(
                                   index,
                                   "doi",
                                   event.target.value,
@@ -4028,9 +4132,7 @@ export default function ScholarshipForm() {
                             type="date"
                             value={journal.date}
                             onChange={(event) =>
-                              updateRow(
-                                journals,
-                                setJournals,
+                              updateJournalRow(
                                 index,
                                 "date",
                                 event.target.value,
@@ -4078,9 +4180,7 @@ export default function ScholarshipForm() {
                             )}
                             value={journal.author}
                             onChange={(event) =>
-                              updateRow(
-                                journals,
-                                setJournals,
+                              updateJournalRow(
                                 index,
                                 "author",
                                 event.target.value,
@@ -4107,9 +4207,7 @@ export default function ScholarshipForm() {
                               )}
                               value={journal.title}
                               onChange={(event) =>
-                                updateRow(
-                                  journals,
-                                  setJournals,
+                                updateJournalRow(
                                   index,
                                   "title",
                                   event.target.value,
@@ -4133,9 +4231,7 @@ export default function ScholarshipForm() {
                               )}
                               value={journal.journal}
                               onChange={(event) =>
-                                updateRow(
-                                  journals,
-                                  setJournals,
+                                updateJournalRow(
                                   index,
                                   "journal",
                                   event.target.value,
@@ -4167,9 +4263,7 @@ export default function ScholarshipForm() {
                           <Input
                             value={journal.reviewUnit}
                             onChange={(event) =>
-                              updateRow(
-                                journals,
-                                setJournals,
+                              updateJournalRow(
                                 index,
                                 "reviewUnit",
                                 event.target.value
@@ -4182,9 +4276,7 @@ export default function ScholarshipForm() {
                           <Select
                             value={journal.journalLevel}
                             onValueChange={(value) =>
-                              updateRow(
-                                journals,
-                                setJournals,
+                              updateJournalRow(
                                 index,
                                 "journalLevel",
                                 value ?? "",
@@ -4226,9 +4318,7 @@ export default function ScholarshipForm() {
                           <DatabaseMultiSelect
                             value={journal.database}
                             onChange={(value) =>
-                              updateRow(
-                                journals,
-                                setJournals,
+                              updateJournalRow(
                                 index,
                                 "database",
                                 value,

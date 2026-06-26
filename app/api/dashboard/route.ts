@@ -19,9 +19,10 @@ import type { Journal, ScholarshipPayload } from "@/lib/types";
 /**
  * Validate the reviewer-edited payload and merge it over the existing one.
  * - Enforces fixed-option fields against the shared option lists.
- * - Protects server-owned verification data: `verificationSummary` is kept from
- *   the DB, and each journal's `verification` is re-attached from the existing
- *   record by DOI (dropped when the DOI changed / is new).
+ * - Protects server-owned verification data and student-change metadata:
+ *   `verificationSummary` is kept from the DB, and each journal's
+ *   `verification` plus DOI autofill change notes are re-attached from the
+ *   existing record when a matching journal is found.
  * Returns `{ ok: false, error }` on validation failure.
  */
 function validateAndMergePayload(
@@ -93,14 +94,26 @@ function validateAndMergePayload(
   }
 
   // ── Protect server-owned verification data ──
-  const verificationByDoi = new Map(
+  const existingJournalByDoi = new Map(
     (existing.journals ?? [])
-      .filter((j) => j?.doi && j.verification)
-      .map((j) => [j.doi, j.verification])
+      .filter((j) => j?.doi)
+      .map((j) => [j.doi, j])
   );
-  const mergedJournals: Journal[] = journals.map((j) => {
-    const verification = j?.doi ? verificationByDoi.get(j.doi) : undefined;
-    return verification ? { ...j, verification } : { ...j, verification: undefined };
+  const existingJournals = existing.journals ?? [];
+  const mergedJournals: Journal[] = journals.map((j, index) => {
+    const existingJournal =
+      (j?.doi ? existingJournalByDoi.get(j.doi) : undefined) ??
+      existingJournals[index];
+
+    return {
+      ...j,
+      verification: existingJournal?.verification,
+      publicationAutofillBaseline:
+        existingJournal?.publicationAutofillBaseline ??
+        j.publicationAutofillBaseline,
+      publicationChangeNotes:
+        existingJournal?.publicationChangeNotes ?? j.publicationChangeNotes,
+    };
   });
 
   const merged: ScholarshipPayload = {

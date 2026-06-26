@@ -273,13 +273,19 @@ export async function applyJournalIndexMatch(
   // Only the Edition / 資料庫別 is auto-filled — every edition the journal
   // belongs to, joined by "、". `journalLevel`（I級/非I級）is always a manual
   // decision and is intentionally left untouched here.
+  const studentChangedFields = new Set(
+    journal.publicationChangeNotes?.map((note) => note.field) ?? []
+  );
   return {
     ...journal,
-    database:
-      match.editions.length > 0
+    database: studentChangedFields.has("database")
+      ? journal.database
+      : match.editions.length > 0
         ? match.editions.join("、")
         : match.database || journal.database,
     indexSource: match.indexSource,
-    reviewUnit: match.publisherName || journal.reviewUnit,
+    reviewUnit: studentChangedFields.has("reviewUnit")
+      ? journal.reviewUnit
+      : match.publisherName || journal.reviewUnit,
   };
 }
