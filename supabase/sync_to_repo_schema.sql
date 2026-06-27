@@ -637,10 +637,11 @@ as $$
 begin
   new.updated_at = now();
 
-  if new.submission_status = 'submitted' then
-    if tg_op = 'INSERT' or old.submission_status is distinct from 'submitted' then
-      new.submitted_at = coalesce(new.submitted_at, now());
-    end if;
+  -- 新送出或草稿轉已送出時補送出時間；若 API 已提供重送時間則不覆蓋。
+  if new.submission_status = 'submitted'
+     and (tg_op = 'INSERT' or old.submission_status is distinct from 'submitted')
+     and new.submitted_at is null then
+    new.submitted_at = now();
   end if;
 
   if tg_op = 'UPDATE' and new.review_status is distinct from old.review_status then

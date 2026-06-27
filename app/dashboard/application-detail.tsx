@@ -58,6 +58,7 @@ import {
   formatSubmittedAt,
   getAcademicDisplayRows,
   getEligibilityDisplayRows,
+  isNstcDoctoralProgram,
 } from "@/lib/dashboard-application-display";
 import { Button } from "@/components/ui/button";
 import {
@@ -603,6 +604,7 @@ export function ApplicationDetail({
     applicantInfo.email || `${application.applicant_name} 的 Email 未填寫`;
   const eligibilityDisplayRows = getEligibilityDisplayRows(application);
   const academicDisplayRows = getAcademicDisplayRows(application);
+  const showEmploymentRows = !isNstcDoctoralProgram(application);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -1090,75 +1092,79 @@ export function ApplicationDetail({
                           )
                         }
                       />
-                      <SelectRow
-                        label="兼職情形"
-                        value={draft.eligibility.employmentStatus}
-                        options={EMPLOYMENT_STATUS_OPTIONS}
-                        onChange={(v) =>
-                          setDraft((d) =>
-                            d
-                              ? {
-                                  ...d,
-                                  eligibility: {
-                                    ...d.eligibility,
-                                    employmentStatus: v,
-                                  },
-                                }
-                              : d
-                          )
-                        }
-                      />
-                      <TextRow
-                        label="教學助理月薪"
-                        value={draft.eligibility.taMonthlyIncome}
-                        onChange={(v) =>
-                          setDraft((d) =>
-                            d
-                              ? {
-                                  ...d,
-                                  eligibility: {
-                                    ...d.eligibility,
-                                    taMonthlyIncome: v,
-                                  },
-                                }
-                              : d
-                          )
-                        }
-                      />
-                      <TextRow
-                        label="兼職工作"
-                        value={draft.eligibility.employmentDescription}
-                        onChange={(v) =>
-                          setDraft((d) =>
-                            d
-                              ? {
-                                  ...d,
-                                  eligibility: {
-                                    ...d.eligibility,
-                                    employmentDescription: v,
-                                  },
-                                }
-                              : d
-                          )
-                        }
-                      />
-                      <TextRow
-                        label="兼職平均月薪"
-                        value={draft.eligibility.employmentMonthlyIncome}
-                        onChange={(v) =>
-                          setDraft((d) =>
-                            d
-                              ? {
-                                  ...d,
-                                  eligibility: {
-                                    ...d.eligibility,
-                                    employmentMonthlyIncome: v,
-                                  },
-                                }
-                              : d
-                          )
-                        }
-                      />
+                      {showEmploymentRows ? (
+                        <>
+                          <SelectRow
+                            label="兼職情形"
+                            value={draft.eligibility.employmentStatus}
+                            options={EMPLOYMENT_STATUS_OPTIONS}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        employmentStatus: v,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="教學助理月薪"
+                            value={draft.eligibility.taMonthlyIncome}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        taMonthlyIncome: v,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="兼職工作"
+                            value={draft.eligibility.employmentDescription}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        employmentDescription: v,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="兼職平均月薪"
+                            value={draft.eligibility.employmentMonthlyIncome}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        employmentMonthlyIncome: v,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                        </>
+                      ) : null}
                       <TextRow
                         label="補充說明"
                         textarea

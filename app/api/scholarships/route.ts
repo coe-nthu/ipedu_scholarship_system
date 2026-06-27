@@ -228,6 +228,32 @@ export async function POST(request: Request) {
     const submissionStatus =
       status === "submitted" ? "submitted" : "draft";
     const academic = payload.academicPerformance || {};
+    const submittedAt =
+      submissionStatus === "submitted" ? new Date().toISOString() : undefined;
+    const upsertBody: Record<string, unknown> = {
+      id: applicationId,
+      user_id: user.id,
+      program_key: programKey,
+      scholarship_program: scholarshipProgram,
+      applicant_name: applicantInfo.applicantName,
+      student_id: applicantInfo.studentId || null,
+      department: applicantInfo.department,
+      email: applicantInfo.email || null,
+      phone: applicantInfo.phone || null,
+      advisor_name: applicantInfo.advisorName || null,
+      admission_academic_year:
+        applicantInfo.admissionAcademicYear || null,
+      application_type: applicantInfo.applicationType || null,
+      gpa: academic.cumulativeGpa || null,
+      gpa_scale: academic.cumulativeGpaScale || null,
+      submission_status: submissionStatus,
+      review_status: "未審核",
+      reviewer_remarks: "",
+      payload,
+    };
+    if (submittedAt) {
+      upsertBody.submitted_at = submittedAt;
+    }
 
     // Use upsert: if same (user_id, program_key) exists, update it
     const upsertResponse = await fetch(
@@ -240,27 +266,7 @@ export async function POST(request: Request) {
           "content-type": "application/json",
           prefer: "return=representation,resolution=merge-duplicates",
         },
-        body: JSON.stringify({
-          id: applicationId,
-          user_id: user.id,
-          program_key: programKey,
-          scholarship_program: scholarshipProgram,
-          applicant_name: applicantInfo.applicantName,
-          student_id: applicantInfo.studentId || null,
-          department: applicantInfo.department,
-          email: applicantInfo.email || null,
-          phone: applicantInfo.phone || null,
-          advisor_name: applicantInfo.advisorName || null,
-          admission_academic_year:
-            applicantInfo.admissionAcademicYear || null,
-          application_type: applicantInfo.applicationType || null,
-          gpa: academic.cumulativeGpa || null,
-          gpa_scale: academic.cumulativeGpaScale || null,
-          submission_status: submissionStatus,
-          review_status: "未審核",
-          reviewer_remarks: "",
-          payload,
-        }),
+        body: JSON.stringify(upsertBody),
       }
     );
 

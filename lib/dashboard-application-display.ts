@@ -18,6 +18,7 @@ const MASTER_GRADUATE_GPA_PROGRAMS = new Set([
 ]);
 
 const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
+const NSTC_DOCTORAL_KEY = "nstc-doctoral";
 const TAIPEI_TIME_FORMATTER = new Intl.DateTimeFormat("zh-TW", {
   day: "2-digit",
   hour: "2-digit",
@@ -38,6 +39,10 @@ function isMasterGraduateGpaProgram(application: ScholarshipApplication) {
 
 function isFullTimeDoctoralGrant(application: ScholarshipApplication) {
   return getProgramKey(application) === FULL_TIME_DOCTORAL_GRANT_KEY;
+}
+
+export function isNstcDoctoralProgram(application: ScholarshipApplication) {
+  return getProgramKey(application) === NSTC_DOCTORAL_KEY;
 }
 
 function toNumber(value: string | number | null | undefined) {
@@ -171,11 +176,11 @@ export function getEligibilityDisplayRows(
     ];
   }
 
-  if (isMasterGraduateGpaProgram(application)) {
+  if (isMasterGraduateGpaProgram(application) && !isNstcDoctoralProgram(application)) {
     return declarationRows;
   }
 
-  return [
+  const qualificationRows = [
     {
       label: "學士班排名",
       value: formatPercent(eligibility.bachelorRankPercent),
@@ -186,6 +191,17 @@ export function getEligibilityDisplayRows(
     },
     { label: "碩士百分制", value: eligibility.masterPercentScore },
     ...declarationRows,
+  ];
+
+  if (isNstcDoctoralProgram(application)) {
+    return [
+      ...qualificationRows,
+      { label: "補充說明", value: eligibility.eligibilityNotes },
+    ];
+  }
+
+  return [
+    ...qualificationRows,
     { label: "兼職情形", value: eligibility.employmentStatus },
     { label: "教學助理月薪", value: eligibility.taMonthlyIncome },
     { label: "兼職工作", value: eligibility.employmentDescription },
