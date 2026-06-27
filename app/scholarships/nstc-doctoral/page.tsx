@@ -1167,6 +1167,74 @@ export default function ScholarshipForm() {
     setEligibility(fillScalar<Eligibility>(p.eligibility));
     setAcademicPerformance(fillScalar<AcademicPerformance>(p.academicPerformance));
 
+    // ── Cross-variant academic mapping ──
+    // The nstc-doctoral (standard) form stores some 請領資格/學業表現 values under
+    // different field names than the other programs' variants. Fill empty target
+    // fields from the source's equivalent field so the data carries across
+    // scholarship types. Each group lists fields that mean the same thing; the
+    // first non-empty source value fills every still-empty target field in the
+    // group (fill-empty only, never overwrites).
+    const academicEquivalences: ["eligibility" | "academicPerformance", string][][] = [
+      // 學士班排名 %
+      [
+        ["eligibility", "bachelorRankPercent"],
+        ["academicPerformance", "bachelorRankPercent"],
+      ],
+      // 碩士 GPA（請領資格碩士累計 GPA / 學業表現累計 GPA / 其他表單碩士 GPA）
+      [
+        ["eligibility", "masterGpa"],
+        ["academicPerformance", "cumulativeGpa"],
+        ["academicPerformance", "masterGraduateGpa"],
+      ],
+      // 班排名 % / 碩士排名 %
+      [
+        ["academicPerformance", "classRankPercent"],
+        ["academicPerformance", "masterGraduateRankPercent"],
+      ],
+    ];
+
+    const sourceValue = (
+      section: "eligibility" | "academicPerformance",
+      key: string
+    ): string => {
+      const obj = (
+        section === "eligibility" ? p.eligibility : p.academicPerformance
+      ) as Record<string, unknown> | undefined;
+      const value = obj?.[key];
+      return typeof value === "string" ? value : "";
+    };
+
+    const eligFill: Record<string, string> = {};
+    const acadFill: Record<string, string> = {};
+    for (const group of academicEquivalences) {
+      const value =
+        group.map(([s, k]) => sourceValue(s, k)).find((v) => v !== "") ?? "";
+      if (!value) continue;
+      for (const [section, key] of group) {
+        if (section === "eligibility") eligFill[key] = value;
+        else acadFill[key] = value;
+      }
+    }
+
+    if (Object.keys(eligFill).length > 0) {
+      setEligibility((current) => {
+        const next = { ...current } as Record<string, unknown>;
+        for (const [key, value] of Object.entries(eligFill)) {
+          if (next[key] === "") next[key] = value;
+        }
+        return next as Eligibility;
+      });
+    }
+    if (Object.keys(acadFill).length > 0) {
+      setAcademicPerformance((current) => {
+        const next = { ...current } as Record<string, unknown>;
+        for (const [key, value] of Object.entries(acadFill)) {
+          if (next[key] === "") next[key] = value;
+        }
+        return next as AcademicPerformance;
+      });
+    }
+
     if (p.otherAchievements) {
       setOtherAchievements((current) =>
         current.trim() === "" ? p.otherAchievements ?? current : current
