@@ -1,4 +1,5 @@
 import { findJournalIndexMatch as findSeedJournalIndexMatch } from "@/lib/journal-indexes";
+import { findNstcMatch } from "@/lib/nstc-core-service";
 import type { Journal, JournalIndexRecord } from "@/lib/types";
 
 export type JournalIndexMatch = {
@@ -259,8 +260,17 @@ export async function applyJournalIndexMatch(
   journal: Journal,
   preferredTitle?: string | null
 ): Promise<Journal> {
-  const match = await findJournalIndexMatchForJournal(journal, preferredTitle);
-  if (!match) {
+  const title =
+    preferredTitle ||
+    storedJournalTitle(journal) ||
+    journal.title ||
+    journal.journal;
+  const [match, nstcMatch] = await Promise.all([
+    findJournalIndexMatchForJournal(journal, preferredTitle),
+    findNstcMatch({ journalTitle: title }),
+  ]);
+
+  if (!match && !nstcMatch) {
     return journal.indexSource
       ? journal
       : {
@@ -270,22 +280,55 @@ export async function applyJournalIndexMatch(
         };
   }
 
-  // Only the Edition / 資料庫別 is auto-filled — every edition the journal
-  // belongs to, joined by "、". `journalLevel`（I級/非I級）is always a manual
-  // decision and is intentionally left untouched here.
+  // Auto-fill the Edition / 資料庫別 (every edition the journal belongs to,
+  // joined by "、"). 期刊等級（I級/非I級）is only auto-set to I級 when the journal
+  // is in the 國科會 core list; otherwise it stays a manual decision. Fields the
+  // student already changed (per publicationChangeNotes) are never overwritten.
   const studentChangedFields = new Set(
     journal.publicationChangeNotes?.map((note) => note.field) ?? []
   );
+
+  const wosEditions = match
+    ? match.editions.length > 0
+      ? match.editions
+      : match.database
+        ? [match.database]
+        : []
+    : [];
+  const nstcEditions = nstcMatch?.database
+    ? nstcMatch.database.split("、")
+    : [];
+  const mergedEditions = Array.from(
+    new Set(
+      [...nstcEditions, ...wosEditions]
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+  const autoDatabase =
+    mergedEditions.length > 0 ? mergedEditions.join("、") : journal.database;
+
+  const indexSourceParts = [
+    nstcMatch?.indexSource,
+    match?.indexSource,
+  ].filter(Boolean) as string[];
+
   return {
     ...journal,
     database: studentChangedFields.has("database")
       ? journal.database
-      : match.editions.length > 0
-        ? match.editions.join("、")
-        : match.database || journal.database,
-    indexSource: match.indexSource,
-    reviewUnit: studentChangedFields.has("reviewUnit")
-      ? journal.reviewUnit
-      : match.publisherName || journal.reviewUnit,
+      : autoDatabase,
+    journalLevel:
+      nstcMatch && !studentChangedFields.has("journalLevel")
+        ? "I級期刊"
+        : journal.journalLevel,
+    indexSource:
+      indexSourceParts.length > 0
+        ? indexSourceParts.join("；")
+        : journal.indexSource,
+    reviewUnit:
+      match && !studentChangedFields.has("reviewUnit")
+        ? match.publisherName || journal.reviewUnit
+        : journal.reviewUnit,
   };
 }

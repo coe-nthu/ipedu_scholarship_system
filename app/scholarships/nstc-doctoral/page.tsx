@@ -655,6 +655,9 @@ const JOURNAL_AUTOFILL_FIELD_LABELS = {
   reviewUnit: "出版單位",
   database: "Edition / 資料庫別",
   authorOrder: "作者順位",
+  // journalLevel is only auto-filled when the journal matches the 國科會 core
+  // list (I級期刊); otherwise the student chooses it manually.
+  journalLevel: "期刊等級",
 } as const satisfies Partial<Record<keyof Journal, string>>;
 
 type JournalAutofillField = keyof typeof JOURNAL_AUTOFILL_FIELD_LABELS;
@@ -1924,6 +1927,11 @@ export default function ScholarshipForm() {
         ) ?? [];
       const issns = result.data.issns ?? [];
       const journalIndexMatch = result.data.indexMatch;
+      // 國科會核心期刊命中 → 該期刊為 I級期刊，並帶入其資料庫（TSSCI/THCI）。
+      const nstcMatch = result.data.nstcMatch as
+        | { database: string; tier: string | null; indexSource: string }
+        | null
+        | undefined;
 
       setJournals((current) =>
         current.map((journal, rowIndex) => {
@@ -1937,10 +1945,29 @@ export default function ScholarshipForm() {
             journal.isCorrespondingAuthor
           );
 
-          const nextDatabase =
+          // Merge the WoS editions and the 國科會 database into one value.
+          const wosEditions: string[] =
             journalIndexMatch?.editions?.length > 0
-              ? journalIndexMatch.editions.join("、")
-              : journalIndexMatch?.database || journal.database;
+              ? journalIndexMatch.editions
+              : journalIndexMatch?.database
+                ? [journalIndexMatch.database]
+                : [];
+          const nstcEditions = nstcMatch?.database
+            ? nstcMatch.database.split("、")
+            : [];
+          const mergedEditions = Array.from(
+            new Set(
+              [...nstcEditions, ...wosEditions]
+                .map((value) => value.trim())
+                .filter(Boolean)
+            )
+          );
+          const nextDatabase =
+            mergedEditions.length > 0
+              ? mergedEditions.join("、")
+              : journal.database;
+          // 出現在國科會資料庫的都是 I級期刊；否則維持學生人工選擇。
+          const nextJournalLevel = nstcMatch ? "I級期刊" : journal.journalLevel;
           const nextReviewUnit =
             journalIndexMatch?.publisherName ||
             result.data.publisher ||
@@ -1948,6 +1975,14 @@ export default function ScholarshipForm() {
           const nextAuthorOrder = journal.authorOrderModified
             ? journal.authorOrder
             : inferredOrder;
+          const indexSourceParts = [
+            nstcMatch?.indexSource,
+            journalIndexMatch?.indexSource,
+          ].filter(Boolean);
+          const nextIndexSource =
+            indexSourceParts.length > 0
+              ? indexSourceParts.join("；")
+              : "未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級";
           const nextJournal: Journal = {
             ...journal,
             title: result.data.title,
@@ -1956,15 +1991,10 @@ export default function ScholarshipForm() {
             author: result.data.authorString,
             doiAuthorNames,
             issns,
-            // Auto-fill only the Edition / 資料庫別 — every edition the journal
-            // belongs to. 期刊等級（I級/非I級）is always chosen manually, so the
-            // student's existing choice is preserved.
             database: nextDatabase,
-            journalLevel: journal.journalLevel,
+            journalLevel: nextJournalLevel,
             reviewUnit: nextReviewUnit,
-            indexSource: journalIndexMatch
-              ? journalIndexMatch.indexSource || "依期刊索引對照表自動判別"
-              : "未命中索引對照表，請手動選擇 Edition / 資料庫別與期刊等級",
+            indexSource: nextIndexSource,
             authorOrder: nextAuthorOrder,
             authorOrderOriginal: inferredOrder,
             authorOrderChangeNote: journal.authorOrderModified
@@ -1978,6 +2008,8 @@ export default function ScholarshipForm() {
               reviewUnit: nextReviewUnit,
               database: nextDatabase,
               authorOrder: inferredOrder,
+              // Only record the level as auto-filled when 國科會 set it to I級.
+              ...(nstcMatch ? { journalLevel: "I級期刊" } : {}),
             }),
           };
 

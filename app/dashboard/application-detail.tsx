@@ -1612,12 +1612,8 @@ export function ApplicationDetail({
                               </Badge>
                             )}
                             <Badge
-                              variant={
-                                j.journalLevel === "I級期刊"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                              className="text-xs"
+                              variant="outline"
+                              className={`text-xs ${journalOriginClass(j, "journalLevel")}`}
                             >
                               {j.journalLevel}
                             </Badge>

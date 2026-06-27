@@ -262,6 +262,21 @@ export type JournalIndexRecord = {
   updated_at?: string;
 };
 
+export type NstcCoreJournalRecord = {
+  id?: string;
+  journal_title_zh: string | null;
+  journal_title_en: string | null;
+  discipline: string | null;
+  /** TSSCI / THCI / THCI、TSSCI */
+  database: string;
+  /** 第一級 / 第二級 */
+  tier: string | null;
+  source_file_name: string | null;
+  uploaded_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type JournalIndexImportSummary = {
   count: number;
   duplicatesSkipped: number;

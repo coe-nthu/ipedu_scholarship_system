@@ -78,6 +78,7 @@ import type {
   DashboardRole,
   JournalIndexImportSummary,
   JournalIndexRecord,
+  NstcCoreJournalRecord,
 } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
@@ -830,6 +831,307 @@ function JournalIndexesPanel() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  國科會核心期刊名單                                                  */
+/* ------------------------------------------------------------------ */
+
+type NstcCoreState = {
+  canUpload: boolean;
+  count: number;
+  latest: Pick<
+    NstcCoreJournalRecord,
+    "created_at" | "source_file_name" | "uploaded_by"
+  > | null;
+  preview: NstcCoreJournalRecord[];
+};
+
+function NstcCoreJournalsPanel() {
+  const [state, setState] = useState<NstcCoreState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [query, setQuery] = useState("");
+  const [lastSummary, setLastSummary] =
+    useState<JournalIndexImportSummary | null>(null);
+
+  const load = useCallback(() => {
+    return fetch("/api/dashboard/nstc-journals?all=1")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setState({
+            canUpload: Boolean(data.canUpload),
+            count: Number(data.count ?? 0),
+            latest: data.latest ?? null,
+            preview: data.preview ?? [],
+          });
+        } else {
+          toast.error(data.error || "載入國科會核心期刊失敗。");
+        }
+      })
+      .catch(() => toast.error("載入國科會核心期刊失敗。"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    return load();
+  }, [load]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const records = useMemo(() => state?.preview ?? [], [state?.preview]);
+  const databaseCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const record of records) {
+      const db = (record.database || "未標示").toUpperCase();
+      counts.set(db, (counts.get(db) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [records]);
+  const filteredRecords = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return records;
+    return records.filter((record) =>
+      [
+        record.journal_title_zh,
+        record.journal_title_en,
+        record.database,
+        record.tier,
+        record.discipline,
+      ]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(keyword))
+    );
+  }, [records, query]);
+  const RENDER_LIMIT = 500;
+  const visibleRecords = filteredRecords.slice(0, RENDER_LIMIT);
+  const hiddenCount = filteredRecords.length - visibleRecords.length;
+
+  const handleUpload = () => {
+    if (selectedFiles.length === 0) {
+      toast.error("請先選擇 CSV 檔案。");
+      return;
+    }
+
+    const formData = new FormData();
+    selectedFiles.forEach((file) => formData.append("files", file));
+    setUploading(true);
+    setLastSummary(null);
+
+    fetch("/api/dashboard/nstc-journals", {
+      method: "POST",
+      body: formData,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setLastSummary(data.summary);
+          setSelectedFiles([]);
+          toast.success(`已匯入 ${data.summary.count} 筆核心期刊。`);
+          return load();
+        }
+
+        toast.error(data.error || "匯入國科會核心期刊失敗。");
+      })
+      .catch(() => toast.error("匯入國科會核心期刊失敗。"))
+      .finally(() => setUploading(false));
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            國科會核心期刊
+          </h2>
+          <p className="text-sm text-slate-500">
+            上傳國科會人社中心核心期刊名單（TSSCI/THCI）。學生 DOI
+            自動帶入時，命中者會帶入資料庫並標為 I級期刊。
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={refresh}>
+          <RefreshCw className="size-4" />
+          重新整理
+        </Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Database className="size-5 text-[#1f6f78]" />
+            <div>
+              <h3 className="font-semibold text-slate-900">目前名單狀態</h3>
+              <p className="text-xs text-slate-500">
+                共 {state?.count ?? 0} 筆
+                {query.trim() ? `（符合搜尋 ${filteredRecords.length} 筆）` : ""}
+                ；來源：{state?.latest?.source_file_name ?? "尚未匯入"}
+              </p>
+              {databaseCounts.length > 0 ? (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {databaseCounts.map(([db, n]) => (
+                    <span
+                      key={db}
+                      className="inline-flex items-center rounded-full bg-[#1f6f78]/10 px-2 py-0.5 text-xs font-medium text-[#1f6f78]"
+                    >
+                      {db}：{n}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="relative mb-3">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜尋中/英文刊名、資料庫、分級或學門"
+              className="pl-8"
+            />
+          </div>
+
+          <div className="max-h-[60vh] overflow-auto rounded-md border border-slate-200">
+            <table className="w-full min-w-[720px] caption-bottom text-sm">
+              <TableHeader className="sticky top-0 z-10 bg-slate-50">
+                <TableRow>
+                  <TableHead>期刊名稱</TableHead>
+                  <TableHead className="w-28">資料庫</TableHead>
+                  <TableHead className="w-24">分級</TableHead>
+                  <TableHead className="w-40">學門</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-8 text-center text-slate-400"
+                    >
+                      {records.length === 0
+                        ? "尚無核心期刊資料"
+                        : "沒有符合搜尋的期刊"}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <>
+                    {visibleRecords.map((record, index) => (
+                      <TableRow
+                        key={`${record.journal_title_en}-${record.journal_title_zh}-${index}`}
+                      >
+                        <TableCell>
+                          {record.journal_title_zh ? (
+                            <div className="font-medium text-slate-900">
+                              {record.journal_title_zh}
+                            </div>
+                          ) : null}
+                          {record.journal_title_en ? (
+                            <div className="text-xs text-slate-500">
+                              {record.journal_title_en}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>{record.database}</TableCell>
+                        <TableCell>{record.tier || "—"}</TableCell>
+                        <TableCell>{record.discipline || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                    {hiddenCount > 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          className="py-3 text-center text-xs text-slate-500"
+                        >
+                          僅顯示前 {RENDER_LIMIT} 筆，另有 {hiddenCount}{" "}
+                          筆未顯示，請用上方搜尋縮小範圍。
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </>
+                )}
+              </TableBody>
+            </table>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="size-5 text-[#1f6f78]" />
+            <h3 className="font-semibold text-slate-900">上傳 CSV</h3>
+          </div>
+          <div className="space-y-3">
+            <Input
+              type="file"
+              accept=".csv,text/csv"
+              multiple
+              disabled={!state?.canUpload || uploading}
+              onChange={(event) =>
+                setSelectedFiles(Array.from(event.currentTarget.files ?? []))
+              }
+            />
+            <p className="text-xs leading-5 text-slate-500">
+              上傳國科會核心期刊名單 CSV（欄位含「期刊中文名稱／期刊英文名稱／資料庫／論文分級」）。
+              只會匯入核心期刊（資料庫為 TSSCI / THCI），第三級非核心會自動略過。
+            </p>
+            <p className="text-xs leading-5 font-medium text-amber-700">
+              注意：每次匯入會「整批取代」整份名單（先清空再寫入）。
+            </p>
+            {selectedFiles.length > 0 ? (
+              <p className="text-xs text-slate-500">
+                已選擇 {selectedFiles.length} 個檔案
+              </p>
+            ) : null}
+            <Button
+              className="w-full gap-1.5 bg-[#1f6f78] hover:bg-[#185d65]"
+              disabled={!state?.canUpload || uploading || selectedFiles.length === 0}
+              onClick={handleUpload}
+            >
+              <Upload className="size-4" />
+              {uploading ? "匯入中" : "匯入核心期刊名單"}
+            </Button>
+            {!state?.canUpload ? (
+              <p className="text-xs text-amber-700">
+                只有管理員可以上傳核心期刊名單。
+              </p>
+            ) : null}
+          </div>
+
+          {lastSummary ? (
+            <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <p className="font-medium">
+                已匯入 {lastSummary.count} 筆核心期刊
+              </p>
+              <p className="mt-1 text-xs">
+                檔案：{lastSummary.sourceFileName}；略過重複：
+                {lastSummary.duplicatesSkipped} 筆
+              </p>
+              {lastSummary.errors.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {lastSummary.errors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Account-type badge                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -1257,6 +1559,10 @@ export function AdminPanel() {
           <Database className="size-4" />
           期刊索引
         </TabsTrigger>
+        <TabsTrigger value="nstc-journals" className="gap-1.5 text-sm">
+          <FileSpreadsheet className="size-4" />
+          國科會核心期刊
+        </TabsTrigger>
         <TabsTrigger value="accounts" className="gap-1.5 text-sm">
           <Shield className="size-4" />
           帳號與權限
@@ -1267,6 +1573,9 @@ export function AdminPanel() {
       </TabsContent>
       <TabsContent value="journal-indexes" className="space-y-4">
         <JournalIndexesPanel />
+      </TabsContent>
+      <TabsContent value="nstc-journals" className="space-y-4">
+        <NstcCoreJournalsPanel />
       </TabsContent>
       <TabsContent value="accounts" className="space-y-4">
         {accountsPanel}

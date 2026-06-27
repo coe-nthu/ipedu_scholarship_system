@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isValidDoi, normalizeDoi } from "@/lib/doi";
 import { findJournalIndexMatch } from "@/lib/journal-index-service";
+import { findNstcMatch } from "@/lib/nstc-core-service";
 
 // Crossref's "polite pool": identifying the caller avoids the heavily
 // throttled anonymous pool, which is the usual cause of flaky lookups
@@ -95,10 +96,10 @@ export async function GET(request: Request) {
 
       const journalName = data["container-title"]?.[0] || "未提供期刊名稱";
       const issns: string[] = data.ISSN || [];
-      const indexMatch = await findJournalIndexMatch({
-        issns,
-        journalTitle: journalName,
-      });
+      const [indexMatch, nstcMatch] = await Promise.all([
+        findJournalIndexMatch({ issns, journalTitle: journalName }),
+        findNstcMatch({ journalTitle: journalName }),
+      ]);
 
       return NextResponse.json({
         success: true,
@@ -111,6 +112,7 @@ export async function GET(request: Request) {
           volumeIssue,
           issns,
           indexMatch,
+          nstcMatch,
           authors,
           authorString: formatAuthorString(authors),
           publisher: data.publisher || "",
@@ -193,10 +195,10 @@ export async function GET(request: Request) {
     }
 
     const journalName = csl["container-title"] || "未提供期刊名稱";
-    const indexMatch = await findJournalIndexMatch({
-      issns,
-      journalTitle: journalName,
-    });
+    const [indexMatch, nstcMatch] = await Promise.all([
+      findJournalIndexMatch({ issns, journalTitle: journalName }),
+      findNstcMatch({ journalTitle: journalName }),
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -209,6 +211,7 @@ export async function GET(request: Request) {
         volumeIssue: cslVolumeIssue,
         issns,
         indexMatch,
+        nstcMatch,
         authors: cslAuthors,
         authorString,
         publisher: csl.publisher || "",

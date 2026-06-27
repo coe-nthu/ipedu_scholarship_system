@@ -36,9 +36,10 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
 ] as const;
 
 /**
- * Edition / 資料庫別 options. The system auto-detects only the edition
- * (SSCI / SCIE / …) from the journal index; whether a journal counts as
- * I級期刊 is always chosen manually, never inferred from the edition.
+ * Edition / 資料庫別 options. The system auto-detects the edition (SSCI / SCIE /
+ * TSSCI / THCI …) from the journal index. 期刊等級（I級）is chosen manually for WoS
+ * indices; the one exception is the 國科會 core list (TSSCI/THCI), where a match
+ * means the journal is I級期刊.
  */
 export const DATABASE_OPTIONS = [
   "SSCI",
@@ -46,6 +47,7 @@ export const DATABASE_OPTIONS = [
   "AHCI",
   "SCI",
   "TSSCI",
+  "THCI",
   "SCOPUS",
   "其他",
   "否",
