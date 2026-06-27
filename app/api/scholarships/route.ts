@@ -92,15 +92,16 @@ export async function GET(request: Request) {
     const { serviceRoleKey, url } = getSupabaseConfig();
     const searchParams = new URL(request.url).searchParams;
 
-    // ── Mode: list this user's previously SUBMITTED applications ──
-    // Used by the form page to offer auto-fill from a prior application.
+    // ── Mode: list this user's previous applications (drafts + submitted) ──
+    // Used by the form page to offer auto-fill from a prior application. Drafts
+    // are included so basic data carries over even before the source is sent.
     if (searchParams.get("previousSubmitted")) {
       const prevQuery = new URLSearchParams({
         // SECURITY: scope strictly to the verified user.id — never from input.
         user_id: `eq.${user.id}`,
-        submission_status: "eq.submitted",
-        select: "id,program_key,scholarship_program,submitted_at,payload",
-        order: "submitted_at.desc",
+        select:
+          "id,program_key,scholarship_program,submission_status,submitted_at,updated_at,payload",
+        order: "updated_at.desc",
       });
 
       const prevResponse = await fetch(
@@ -121,7 +122,9 @@ export async function GET(request: Request) {
         id: string;
         program_key: string;
         scholarship_program: string | null;
+        submission_status: string | null;
         submitted_at: string | null;
+        updated_at: string | null;
         payload: ScholarshipPayload;
       }[];
 

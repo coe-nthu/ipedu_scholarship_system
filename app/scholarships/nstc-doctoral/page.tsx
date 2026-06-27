@@ -125,7 +125,9 @@ type PreviousApp = {
   id: string;
   program_key: string;
   scholarship_program: string | null;
+  submission_status: string | null;
   submitted_at: string | null;
+  updated_at: string | null;
   payload: ScholarshipPayload;
 };
 
@@ -1304,16 +1306,16 @@ export default function ScholarshipForm() {
     setShowImportPrompt(true);
   }, [importCandidates, importFromPayload]);
 
-  // Fetch this user's previously submitted applications so we can offer a
-  // manual "帶入" button — only when starting a brand-new application for this
-  // program (no existing record). Does NOT auto-open any dialog; the student
-  // actively triggers the import via the button.
+  // Fetch this user's previous applications (drafts + submitted) so we can offer
+  // a manual "帶入" button — as long as the CURRENT application has not yet been
+  // submitted (so a draft of this program still gets the option). Does NOT
+  // auto-open any dialog; the student actively triggers the import.
   useEffect(() => {
     if (
       !currentUser ||
       !formInitialized.current ||
       isLoadingExisting ||
-      existingAppId !== null ||
+      existingSubmissionStatus === "submitted" ||
       importPromptChecked.current
     ) {
       return;
@@ -1329,7 +1331,10 @@ export default function ScholarshipForm() {
           return;
         }
         const candidates = (data.applications as PreviousApp[]).filter(
-          (app) => app.program_key !== config.programKey && app.payload
+          (app) =>
+            app.program_key !== config.programKey &&
+            // Only offer applications that actually carry basic data.
+            !!app.payload?.applicantInfo?.applicantName?.trim()
         );
         if (candidates.length > 0) {
           setImportCandidates(candidates);
@@ -1342,7 +1347,12 @@ export default function ScholarshipForm() {
     return () => {
       isMounted = false;
     };
-  }, [currentUser, isLoadingExisting, existingAppId, config.programKey]);
+  }, [
+    currentUser,
+    isLoadingExisting,
+    existingSubmissionStatus,
+    config.programKey,
+  ]);
 
   // ── Auto-save form state to localStorage ──
   const DRAFT_KEY = `scholarship-draft-${config.programKey}`;
@@ -2599,7 +2609,7 @@ export default function ScholarshipForm() {
                       帶入先前申請的資料
                     </p>
                     <p className="text-xs text-slate-600">
-                      偵測到你曾提交過其他獎學金申請，可一鍵帶入基本資料、科系、文獻與研討會等相同欄位。僅會填入目前空白的欄位，附件需重新上傳。
+                      偵測到你先前填寫過其他獎學金申請，可一鍵帶入基本資料、科系、文獻與研討會等相同欄位。僅會填入目前空白的欄位，附件需重新上傳。
                     </p>
                   </div>
                 </div>
@@ -2619,7 +2629,7 @@ export default function ScholarshipForm() {
                 <DialogHeader>
                   <DialogTitle>選擇要帶入的申請</DialogTitle>
                   <DialogDescription>
-                    你有多筆已提交的申請，請選擇要帶入哪一筆。僅會填入目前空白的欄位，不會覆蓋你已填的內容，附件需重新上傳。
+                    你有多筆先前填寫的申請，請選擇要帶入哪一筆。僅會填入目前空白的欄位，不會覆蓋你已填的內容，附件需重新上傳。
                   </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-2">
@@ -2629,11 +2639,15 @@ export default function ScholarshipForm() {
                       getDefaultScholarshipProgramSetting(
                         candidate.program_key as ScholarshipProgramKey
                       ).title;
-                    const submittedAt = candidate.submitted_at
-                      ? new Date(candidate.submitted_at).toLocaleDateString(
-                          "zh-TW"
-                        )
-                      : null;
+                    const dateLabel = candidate.submitted_at
+                      ? `提交於 ${new Date(
+                          candidate.submitted_at
+                        ).toLocaleDateString("zh-TW")}`
+                      : candidate.updated_at
+                        ? `最後編輯 ${new Date(
+                            candidate.updated_at
+                          ).toLocaleDateString("zh-TW")}`
+                        : null;
                     return (
                       <div
                         key={candidate.id}
@@ -2643,9 +2657,9 @@ export default function ScholarshipForm() {
                           <p className="truncate text-sm font-medium text-slate-900">
                             {title}
                           </p>
-                          {submittedAt ? (
+                          {dateLabel ? (
                             <p className="text-xs text-slate-500">
-                              提交於 {submittedAt}
+                              {dateLabel}
                             </p>
                           ) : null}
                         </div>
