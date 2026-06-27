@@ -163,6 +163,34 @@ function formatPublicationChangeValue(value: string) {
   return value.trim() || "（空白）";
 }
 
+function normalizeJournalFieldValue(value: unknown): string {
+  if (Array.isArray(value)) return value.join("、").trim();
+  return typeof value === "string" ? value.trim() : String(value ?? "").trim();
+}
+
+/**
+ * Where a journal field's value came from, for reviewer colour-coding:
+ *  - "auto":    auto-filled by the DOI lookup and left unchanged
+ *  - "student": entered by the student, or modified from the auto-filled value
+ */
+function journalFieldOrigin(
+  journal: Journal,
+  field: keyof Journal
+): "auto" | "student" {
+  const baseline = journal.publicationAutofillBaseline ?? {};
+  const original = baseline[field as string];
+  if (!original) return "student";
+  return normalizeJournalFieldValue(journal[field]) === original
+    ? "auto"
+    : "student";
+}
+
+function journalOriginClass(journal: Journal, field: keyof Journal) {
+  return journalFieldOrigin(journal, field) === "auto"
+    ? "text-emerald-700"
+    : "text-amber-700";
+}
+
 /* ------------------------------------------------------------------ */
 /*  Verification status helpers                                        */
 /* ------------------------------------------------------------------ */
@@ -1504,6 +1532,19 @@ export function ApplicationDetail({
                     <p className="text-sm text-slate-400">無期刊發表紀錄</p>
                   ) : (
                     <div className="space-y-3">
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        <span className="font-medium">欄位顏色說明：</span>
+                        <span className="ml-1 font-medium text-emerald-700">
+                          綠色＝由 DOI 自動帶入（未修改）
+                        </span>
+                        <span className="mx-1">、</span>
+                        <span className="font-medium text-amber-700">
+                          琥珀色＝學生自行填寫或修改自動帶入內容
+                        </span>
+                        <span className="mt-1 block">
+                          審查提示：請特別留意琥珀色欄位是否與佐證資料相符。
+                        </span>
+                      </div>
                       {journals.map((j, idx) => (
                         <div
                           key={j.doi || idx}
@@ -1516,7 +1557,9 @@ export function ApplicationDetail({
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium text-slate-900 flex-1">
+                            <p
+                              className={`text-sm font-medium flex-1 ${journalOriginClass(j, "title")}`}
+                            >
                               {j.title}
                             </p>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -1537,12 +1580,22 @@ export function ApplicationDetail({
                               </Button>
                             </div>
                           </div>
-                          <p className="text-xs text-slate-500">{j.journal}</p>
+                          <p
+                            className={`text-xs ${journalOriginClass(j, "journal")}`}
+                          >
+                            {j.journal}
+                          </p>
                           <p className="text-xs text-slate-500">
-                            作者：{j.author}
+                            作者：
+                            <span className={journalOriginClass(j, "author")}>
+                              {j.author}
+                            </span>
                           </p>
                           <div className="flex flex-wrap gap-1.5">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${journalOriginClass(j, "authorOrder")}`}
+                            >
                               {j.authorOrder}
                             </Badge>
                             {j.isCorrespondingAuthor && (
@@ -1551,7 +1604,12 @@ export function ApplicationDetail({
                               </Badge>
                             )}
                             {j.database && (
-                              <Badge className="text-xs">{j.database}</Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${journalOriginClass(j, "database")}`}
+                              >
+                                {j.database}
+                              </Badge>
                             )}
                             <Badge
                               variant={
@@ -1573,7 +1631,10 @@ export function ApplicationDetail({
                             )}
                           </div>
                           <p className="text-xs text-slate-400">
-                            DOI: {j.doi} | 日期: {j.date}
+                            DOI: {j.doi} | 日期:{" "}
+                            <span className={journalOriginClass(j, "date")}>
+                              {j.date}
+                            </span>
                           </p>
                           {j.indexSource && (
                             <p className="text-xs text-slate-400">

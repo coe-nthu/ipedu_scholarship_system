@@ -1822,6 +1822,29 @@ export default function ScholarshipForm() {
   };
 
   const [fetchingDoiIndex, setFetchingDoiIndex] = useState<number | null>(null);
+  // Rows where the student has pressed「自動帶入」(success or fail). Other journal
+  // fields stay locked until then so the data starts from the DOI lookup.
+  const [autofillAttempted, setAutofillAttempted] = useState<Set<number>>(
+    () => new Set()
+  );
+
+  // A journal row's fields (other than DOI) are locked until the student has
+  // run the DOI auto-fill. Rows loaded from a saved draft — which already carry
+  // an auto-fill baseline or content — are treated as unlocked.
+  const isJournalRowLocked = (index: number) => {
+    const journal = journals[index];
+    if (!journal) return false;
+    const hasBaseline =
+      !!journal.publicationAutofillBaseline &&
+      Object.keys(journal.publicationAutofillBaseline).length > 0;
+    const hasContent = [
+      journal.title,
+      journal.author,
+      journal.journal,
+      journal.date,
+    ].some((value) => typeof value === "string" && value.trim() !== "");
+    return !(autofillAttempted.has(index) || hasBaseline || hasContent);
+  };
 
   const setDoiFieldError = (index: number, message: string) => {
     setRowValidationErrors((current) => ({
@@ -1851,6 +1874,16 @@ export default function ScholarshipForm() {
       );
       return;
     }
+
+    // The student has made a genuine auto-fill attempt — unlock the row's other
+    // fields so they can review / correct (or fill manually if the DOI lookup
+    // finds nothing).
+    setAutofillAttempted((prev) => {
+      if (prev.has(index)) return prev;
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
 
     // Write the cleaned DOI back into the field so verification later uses it.
     if (doiValue !== rawDoi) {
@@ -4170,7 +4203,10 @@ export default function ScholarshipForm() {
                             />
                             <Button
                               type="button"
-                              disabled={fetchingDoiIndex !== null}
+                              disabled={
+                                fetchingDoiIndex !== null ||
+                                !journal.doi.trim()
+                              }
                               onClick={() => fetchPaperData(index)}
                               className="w-full gap-1.5 bg-[#1f6f78] font-semibold text-white shadow-sm transition hover:bg-[#185860] disabled:opacity-60"
                             >
@@ -4179,15 +4215,27 @@ export default function ScholarshipForm() {
                                 ? "查詢中..."
                                 : "自動帶入文獻資訊"}
                             </Button>
-                            <p className="text-xs leading-5 text-slate-500">
-                              DOI 查無資料時，右側欄位可自行補登。
-                              {bilingual ? (
-                                <span className="mt-1 block">
-                                  If DOI lookup fails, fill in the fields
-                                  manually.
-                                </span>
-                              ) : null}
-                            </p>
+                            {isJournalRowLocked(index) ? (
+                              <p className="text-xs leading-5 font-medium text-amber-700">
+                                請先輸入 DOI 並按「自動帶入文獻資訊」，才能編輯右側欄位。
+                                {bilingual ? (
+                                  <span className="mt-1 block">
+                                    Enter a DOI and run auto-fill before editing
+                                    the other fields.
+                                  </span>
+                                ) : null}
+                              </p>
+                            ) : (
+                              <p className="text-xs leading-5 text-slate-500">
+                                DOI 查無資料時，右側欄位可自行補登。
+                                {bilingual ? (
+                                  <span className="mt-1 block">
+                                    If DOI lookup fails, fill in the fields
+                                    manually.
+                                  </span>
+                                ) : null}
+                              </p>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -4199,6 +4247,7 @@ export default function ScholarshipForm() {
                             )}
                             type="date"
                             value={journal.date}
+                            disabled={isJournalRowLocked(index)}
                             onChange={(event) =>
                               updateJournalRow(
                                 index,
@@ -4224,6 +4273,7 @@ export default function ScholarshipForm() {
                               "applicantAuthorName"
                             )}
                             value={journal.applicantAuthorName}
+                            disabled={isJournalRowLocked(index)}
                             onChange={(event) =>
                               updateJournalApplicantAuthorName(
                                 index,
@@ -4247,6 +4297,7 @@ export default function ScholarshipForm() {
                               getRowFieldClassName("journals", index, "author")
                             )}
                             value={journal.author}
+                            disabled={isJournalRowLocked(index)}
                             onChange={(event) =>
                               updateJournalRow(
                                 index,
@@ -4274,6 +4325,7 @@ export default function ScholarshipForm() {
                                 "title"
                               )}
                               value={journal.title}
+                              disabled={isJournalRowLocked(index)}
                               onChange={(event) =>
                                 updateJournalRow(
                                   index,
@@ -4298,6 +4350,7 @@ export default function ScholarshipForm() {
                                 "journal"
                               )}
                               value={journal.journal}
+                              disabled={isJournalRowLocked(index)}
                               onChange={(event) =>
                                 updateJournalRow(
                                   index,
@@ -4330,6 +4383,7 @@ export default function ScholarshipForm() {
                         <TableCell className="align-top">
                           <Input
                             value={journal.reviewUnit}
+                            disabled={isJournalRowLocked(index)}
                             onChange={(event) =>
                               updateJournalRow(
                                 index,
@@ -4343,6 +4397,7 @@ export default function ScholarshipForm() {
                         <TableCell className="align-top">
                           <Select
                             value={journal.journalLevel}
+                            disabled={isJournalRowLocked(index)}
                             onValueChange={(value) =>
                               updateJournalRow(
                                 index,
@@ -4385,6 +4440,7 @@ export default function ScholarshipForm() {
                         <TableCell className="align-top">
                           <DatabaseMultiSelect
                             value={journal.database}
+                            disabled={isJournalRowLocked(index)}
                             onChange={(value) =>
                               updateJournalRow(
                                 index,
@@ -4418,6 +4474,7 @@ export default function ScholarshipForm() {
                           <div className="flex justify-center pt-2">
                             <Checkbox
                               checked={journal.isCorrespondingAuthor}
+                              disabled={isJournalRowLocked(index)}
                               onCheckedChange={(checked) =>
                                 updateJournalCorrespondingAuthor(
                                   index,
@@ -4436,6 +4493,7 @@ export default function ScholarshipForm() {
                               "authorOrder"
                             )}
                             value={journal.authorOrder}
+                            disabled={isJournalRowLocked(index)}
                             onChange={(event) =>
                               updateJournalAuthorOrder(index, event.target.value)
                             }
