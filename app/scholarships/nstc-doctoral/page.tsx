@@ -2753,7 +2753,7 @@ export default function ScholarshipForm() {
                     ) : null}
                     <AuthButton />
                   </div>
-                  <div className="max-w-sm rounded-lg bg-[#1f6f78] px-3 py-2 text-sm leading-6 text-white shadow-sm">
+                  <div className="max-w-sm text-sm font-semibold leading-6 text-[#1f6f78]">
                     <BiText
                       enabled={bilingual}
                       english={getBilingualAmount(config.programKey)}
@@ -6338,7 +6338,7 @@ export default function ScholarshipForm() {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-[#1f6f78] hover:bg-[#185d65]"
+              className="bg-[#1f6f78] text-white hover:bg-[#185d65]"
             >
               <Send className="size-4" />
               {isSubmitting
