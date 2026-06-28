@@ -175,6 +175,10 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Dashboard correction email error:", error);
-    return jsonError("伺服器處理時發生錯誤。", 500);
+    // Surface the real reason (Resend config / domain / API key) for diagnosis.
+    return jsonError(
+      error instanceof Error ? error.message : "補正通知信寄送失敗。",
+      500
+    );
   }
 }

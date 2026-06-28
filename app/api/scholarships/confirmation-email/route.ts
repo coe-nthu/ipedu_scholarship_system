@@ -105,6 +105,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Confirmation email error:", error);
-    return jsonError("伺服器處理時發生錯誤。", 500);
+    // Surface the real reason (e.g. missing RESEND_API_KEY, unverified domain,
+    // or the resend.dev sandbox only allowing the account owner's own address)
+    // so the failure is diagnosable instead of a generic message.
+    return jsonError(
+      error instanceof Error ? error.message : "確認信寄送失敗。",
+      500
+    );
   }
 }
