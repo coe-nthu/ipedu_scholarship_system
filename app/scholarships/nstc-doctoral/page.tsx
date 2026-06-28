@@ -84,6 +84,12 @@ import {
   EMPLOYMENT_STATUS_OPTIONS,
   EMPLOYMENT_STATUS_PART_TIME,
   EMPLOYMENT_STATUS_TA,
+  FULL_TIME_STUDY_STATUS_NEW,
+  FULL_TIME_STUDY_STATUS_OLD,
+  FULL_TIME_STUDY_STATUS_OPTIONS,
+  OTHER_AID_STATUS_NONE,
+  OTHER_AID_STATUS_OPTIONS,
+  OTHER_AID_STATUS_RECEIVING,
   STUDY_STATUS_NEW,
   STUDY_STATUS_RENEWAL,
 } from "@/lib/scholarship-form-options";
@@ -225,6 +231,12 @@ const FORM_ENGLISH_COPY = {
   employmentDescription: "Part-time Work Description",
   employmentMonthlyIncome: "Average Monthly Part-time Income",
   employmentStatus: "Employment Status",
+  fullTimePreviousDegreeCredits: "Total Credits",
+  fullTimePreviousDegreeGpa: "GPA",
+  fullTimePreviousDegreeRank: "Department/Class Rank",
+  fullTimePreviousYearCredits: "Total Credits",
+  fullTimePreviousYearGpa: "GPA",
+  fullTimePreviousYearRank: "Department/Class Rank",
   fullName: "Applicant Name",
   gpaScale: "GPA Scale",
   journal: "Journal Publications",
@@ -241,6 +253,10 @@ const FORM_ENGLISH_COPY = {
   researchExperience: "Research Experience",
   submit: "Submit Application",
   studyStatus: "Application Category",
+  otherAid: "Other Scholarship/Aid Survey",
+  otherAidMonthlyAmount: "Monthly Amount",
+  otherAidOrganization: "Awarding Unit",
+  otherAidStatus: "Other Scholarship/Aid Status",
   taIncome: "Average Monthly Teaching Assistant Income",
   uploadsNoteFullTime:
     "Recommended filename format: year_grant_application/transcript/research statement_department_name. Filename format is recommended, not enforced.",
@@ -261,6 +277,10 @@ const OPTION_ENGLISH_COPY: Record<string, string> = {
   壁報發表: "Poster Presentation",
   新領: "New Application",
   續領: "Renewal",
+  新生: "New Student",
+  舊生: "Continuing Student",
+  未兼領: "Not receiving other aid",
+  有領取: "Receiving other aid",
   指導教授配合款: "Advisor Matching Fund",
   競爭型: "Competitive Track",
   無兼職: "No Part-time Work",
@@ -318,6 +338,26 @@ function getBilingualDescription(programKey: ScholarshipProgramKey) {
 
 function optionText(option: string, englishMode: boolean) {
   return englishMode ? OPTION_ENGLISH_COPY[option] ?? option : option;
+}
+
+function isNewStudyStatus(value: string) {
+  return value === STUDY_STATUS_NEW || value === FULL_TIME_STUDY_STATUS_NEW;
+}
+
+function normalizeStudyStatusForConfig(
+  value: string,
+  studyStatusOptions: string[],
+  programKey: ScholarshipProgramKey,
+  fallback: string
+) {
+  if (studyStatusOptions.includes(value)) return value;
+
+  if (programKey === FULL_TIME_DOCTORAL_GRANT_KEY) {
+    if (value === STUDY_STATUS_NEW) return FULL_TIME_STUDY_STATUS_NEW;
+    if (value === STUDY_STATUS_RENEWAL) return FULL_TIME_STUDY_STATUS_OLD;
+  }
+
+  return fallback;
 }
 
 function documentText(document: DocumentField, englishMode: boolean) {
@@ -396,7 +436,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     period: "本院全時博士生",
     programKey: FULL_TIME_DOCTORAL_GRANT_KEY,
     program: "全時博士生助學金",
-    studyStatusOptions: [STUDY_STATUS_NEW, STUDY_STATUS_RENEWAL],
+    studyStatusOptions: [...FULL_TIME_STUDY_STATUS_OPTIONS],
     title: "全時博士生助學金",
   },
   "/scholarships/nstc-doctoral": DEFAULT_SCHOLARSHIP_CONFIG,
@@ -478,6 +518,9 @@ const createEmptyEligibility = (): Eligibility => ({
   employmentMonthlyIncome: "",
   taMonthlyIncome: "",
   eligibilityNotes: "",
+  otherAidStatus: "",
+  otherAidOrganization: "",
+  otherAidMonthlyAmount: "",
 });
 
 const otherScholarshipRuleUrl =
@@ -571,6 +614,12 @@ const emptyAcademicPerformance = (): AcademicPerformance => ({
   doctoralResearchTopic: "",
   professionalPerformanceStatement: "",
   presidentialApplicationPreference: "",
+  fullTimePreviousDegreeCredits: "",
+  fullTimePreviousDegreeGpa: "",
+  fullTimePreviousDegreeRank: "",
+  fullTimePreviousYearCredits: "",
+  fullTimePreviousYearGpa: "",
+  fullTimePreviousYearRank: "",
 });
 
 const emptyOtherReviewDocument = (): OtherReviewDocument => ({
@@ -807,7 +856,7 @@ export default function ScholarshipForm() {
     email: "",
     phone: "",
     advisorName:
-      defaultStudyStatus === STUDY_STATUS_NEW ? PENDING_ADVISOR_NAME : "",
+      isNewStudyStatus(defaultStudyStatus) ? PENDING_ADVISOR_NAME : "",
     admissionAcademicYear: "112",
     studyStatus: defaultStudyStatus,
     applicationType: config.applicationType,
@@ -947,19 +996,28 @@ export default function ScholarshipForm() {
       applicationType: applicationTypeOptions.includes(current.applicationType)
         ? current.applicationType
         : applicationTypeOptions[0] ?? config.applicationType,
-      studyStatus: config.studyStatusOptions.includes(current.studyStatus)
-        ? current.studyStatus
-        : defaultStudyStatus,
+      studyStatus: normalizeStudyStatusForConfig(
+        current.studyStatus,
+        config.studyStatusOptions,
+        config.programKey,
+        defaultStudyStatus
+      ),
       advisorName:
-        (config.studyStatusOptions.includes(current.studyStatus)
-          ? current.studyStatus
-          : defaultStudyStatus) === STUDY_STATUS_NEW && !current.advisorName
+        isNewStudyStatus(
+          normalizeStudyStatusForConfig(
+            current.studyStatus,
+            config.studyStatusOptions,
+            config.programKey,
+            defaultStudyStatus
+          )
+        ) && !current.advisorName
           ? PENDING_ADVISOR_NAME
           : current.advisorName,
     }));
   }, [
     applicationTypeOptions,
     config.applicationType,
+    config.programKey,
     config.studyStatusOptions,
     defaultStudyStatus,
   ]);
@@ -998,11 +1056,12 @@ export default function ScholarshipForm() {
     }) => {
       if (p.applicantInfo) {
         const savedStudyStatus = p.applicantInfo.studyStatus;
-        const normalizedStudyStatus = config.studyStatusOptions.includes(
-          savedStudyStatus
-        )
-          ? savedStudyStatus
-          : defaultStudyStatus;
+        const normalizedStudyStatus = normalizeStudyStatusForConfig(
+          savedStudyStatus,
+          config.studyStatusOptions,
+          config.programKey,
+          defaultStudyStatus
+        );
         setApplicantInfo({
           ...p.applicantInfo,
           applicationType: applicationTypeOptions.includes(
@@ -1012,7 +1071,7 @@ export default function ScholarshipForm() {
             : applicationTypeOptions[0] ?? config.applicationType,
           studyStatus: normalizedStudyStatus,
           advisorName:
-            normalizedStudyStatus === STUDY_STATUS_NEW &&
+            isNewStudyStatus(normalizedStudyStatus) &&
             !p.applicantInfo.advisorName
               ? PENDING_ADVISOR_NAME
               : p.applicantInfo.advisorName,
@@ -1070,6 +1129,7 @@ export default function ScholarshipForm() {
     [
       applicationTypeOptions,
       config.applicationType,
+      config.programKey,
       config.studyStatusOptions,
       defaultStudyStatus,
     ]
@@ -1460,7 +1520,7 @@ export default function ScholarshipForm() {
     setApplicantInfo((current) => {
       if (
         field === "studyStatus" &&
-        value === STUDY_STATUS_NEW &&
+        isNewStudyStatus(value) &&
         !current.advisorName
       ) {
         return {
@@ -1490,6 +1550,14 @@ export default function ScholarshipForm() {
         delete next[field];
       }
       if (
+        field === "otherAidStatus" ||
+        field === "otherAidOrganization" ||
+        field === "otherAidMonthlyAmount"
+      ) {
+        delete next.otherAid;
+        delete next[field];
+      }
+      if (
         field === "hasSpecialRecommendation" ||
         field === "noFullTimeJob" ||
         field === "notReceivingOtherScholarship"
@@ -1498,7 +1566,13 @@ export default function ScholarshipForm() {
       }
       return next;
     });
-    setEligibility((current) => ({ ...current, [field]: value }));
+    setEligibility((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "otherAidStatus" && value === OTHER_AID_STATUS_NONE
+        ? { otherAidMonthlyAmount: "", otherAidOrganization: "" }
+        : {}),
+    }));
   };
 
   const updateAcademicPerformance = (
@@ -1508,6 +1582,7 @@ export default function ScholarshipForm() {
     setTopLevelErrors((current) => {
       const next = { ...current };
       delete next.academic;
+      delete next[field];
       return next;
     });
     setAcademicPerformance((current) => ({ ...current, [field]: value }));
@@ -2208,9 +2283,99 @@ export default function ScholarshipForm() {
       }
     }
 
-    const hasRequiredAcademicPerformance =
-      config.academicForm === "presidentialScholarship"
-        ? applicantInfo.studyStatus === STUDY_STATUS_NEW
+    if (status === "submitted" && isFullTimeDoctoralGrant) {
+      if (
+        applicantInfo.studyStatus !== FULL_TIME_STUDY_STATUS_NEW &&
+        applicantInfo.studyStatus !== FULL_TIME_STUDY_STATUS_OLD
+      ) {
+        failValidation(
+          "basic",
+          {
+            basic: "送出前請選擇請領別。",
+            studyStatus: "請選擇新生或舊生。",
+          },
+          "送出前請選擇請領別。"
+        );
+        return;
+      }
+
+      const requiredAcademicFields =
+        applicantInfo.studyStatus === FULL_TIME_STUDY_STATUS_NEW
+          ? {
+              fullTimePreviousDegreeCredits:
+                academicPerformance.fullTimePreviousDegreeCredits,
+              fullTimePreviousDegreeGpa:
+                academicPerformance.fullTimePreviousDegreeGpa,
+              fullTimePreviousDegreeRank:
+                academicPerformance.fullTimePreviousDegreeRank,
+            }
+          : {
+              fullTimePreviousYearCredits:
+                academicPerformance.fullTimePreviousYearCredits,
+              fullTimePreviousYearGpa:
+                academicPerformance.fullTimePreviousYearGpa,
+              fullTimePreviousYearRank:
+                academicPerformance.fullTimePreviousYearRank,
+            };
+      const missingAcademicFields = Object.entries(requiredAcademicFields)
+        .filter(([, value]) => !value.trim())
+        .map(([field]) => field);
+      if (missingAcademicFields.length > 0) {
+        const message = "送出前請完整填寫成績的總學分數、GPA、系或班排名。";
+        failValidation(
+          "academic",
+          {
+            academic: message,
+            ...Object.fromEntries(
+              missingAcademicFields.map((field) => [
+                field,
+                "此欄位必填。",
+              ])
+            ),
+          },
+          message
+        );
+        return;
+      }
+
+      if (!eligibility.otherAidStatus) {
+        failValidation(
+          "otherAid",
+          {
+            otherAid: "送出前請完成領取獎助學金調查。",
+            otherAidStatus: "請選擇是否兼領其他獎助學金。",
+          },
+          "送出前請完成領取獎助學金調查。"
+        );
+        return;
+      }
+
+      if (
+        eligibility.otherAidStatus === OTHER_AID_STATUS_RECEIVING &&
+        (!eligibility.otherAidOrganization.trim() ||
+          !eligibility.otherAidMonthlyAmount.trim())
+      ) {
+        failValidation(
+          "otherAid",
+          {
+            otherAid: "請填寫獎助學金核發單位與每月支領金額。",
+            otherAidOrganization: !eligibility.otherAidOrganization.trim()
+              ? "請填寫核發單位。"
+              : "",
+            otherAidMonthlyAmount: !eligibility.otherAidMonthlyAmount.trim()
+              ? "請填寫每月支領金額。"
+              : "",
+          },
+          "請填寫獎助學金核發單位與每月支領金額。"
+        );
+        return;
+      }
+    }
+
+    const hasRequiredAcademicPerformance = isFullTimeDoctoralGrant
+      ? true
+      : config.academicForm === "presidentialScholarship"
+        ? isNewStudyStatus(applicantInfo.studyStatus)
           ? Boolean(
               academicPerformance.bachelorGpa ||
                 academicPerformance.masterGraduateGpa ||
@@ -2219,7 +2384,7 @@ export default function ScholarshipForm() {
             )
           : Boolean(academicPerformance.doctoralSemesterGpas.trim())
         : config.academicForm === "doctoralResearchGrant"
-        ? applicantInfo.studyStatus === STUDY_STATUS_NEW
+        ? isNewStudyStatus(applicantInfo.studyStatus)
           ? Boolean(
               academicPerformance.bachelorGpa ||
                 academicPerformance.masterGraduateGpa ||
@@ -2941,6 +3106,7 @@ export default function ScholarshipForm() {
                 label="請領別"
                 english={bilingual ? FORM_ENGLISH_COPY.studyStatus : undefined}
                 htmlFor="studyStatus"
+                error={topLevelErrors.studyStatus}
               >
                 <Select
                   value={applicantInfo.studyStatus}
@@ -2948,7 +3114,12 @@ export default function ScholarshipForm() {
                     updateApplicant("studyStatus", value ?? "")
                   }
                 >
-                  <SelectTrigger id="studyStatus">
+                  <SelectTrigger
+                    id="studyStatus"
+                    className={cn(
+                      topLevelErrors.studyStatus && INVALID_FIELD_CLASS
+                    )}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -3136,6 +3307,114 @@ export default function ScholarshipForm() {
             </Card>
           ) : null}
 
+          {isFullTimeDoctoralGrant ? (
+            <Card
+              ref={setSectionRef("otherAid")}
+              className={cn("shadow-sm", sectionErrorClass("otherAid"))}
+            >
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  <BiText enabled={bilingual} english={FORM_ENGLISH_COPY.otherAid}>
+                    領取獎助學金調查
+                  </BiText>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ValidationMessage message={topLevelErrors.otherAid} />
+                <Field
+                  label="領取獎助學金調查"
+                  english={bilingual ? FORM_ENGLISH_COPY.otherAidStatus : undefined}
+                  htmlFor="otherAidStatus"
+                  required
+                  error={topLevelErrors.otherAidStatus}
+                >
+                  <Select
+                    value={eligibility.otherAidStatus}
+                    onValueChange={(value) =>
+                      updateEligibility("otherAidStatus", value ?? "")
+                    }
+                  >
+                    <SelectTrigger
+                      id="otherAidStatus"
+                      className={cn(
+                        topLevelErrors.otherAidStatus && INVALID_FIELD_CLASS
+                      )}
+                    >
+                      <SelectValue placeholder="請選擇是否兼領其他獎助學金" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OTHER_AID_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option === OTHER_AID_STATUS_NONE
+                            ? "未兼領其他獎助學金證明"
+                            : "有領取校內其他獎助學金"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                {eligibility.otherAidStatus === OTHER_AID_STATUS_RECEIVING ? (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field
+                      label="獎助學金核發單位"
+                      english={
+                        bilingual
+                          ? FORM_ENGLISH_COPY.otherAidOrganization
+                          : undefined
+                      }
+                      htmlFor="otherAidOrganization"
+                      required
+                      error={topLevelErrors.otherAidOrganization}
+                    >
+                      <Input
+                        id="otherAidOrganization"
+                        value={eligibility.otherAidOrganization}
+                        onChange={(event) =>
+                          updateEligibility(
+                            "otherAidOrganization",
+                            event.target.value
+                          )
+                        }
+                        className={cn(
+                          topLevelErrors.otherAidOrganization &&
+                            INVALID_FIELD_CLASS
+                        )}
+                        placeholder="例：系所、院辦、計畫單位"
+                      />
+                    </Field>
+                    <Field
+                      label="每月支領金額"
+                      english={
+                        bilingual
+                          ? FORM_ENGLISH_COPY.otherAidMonthlyAmount
+                          : undefined
+                      }
+                      htmlFor="otherAidMonthlyAmount"
+                      required
+                      error={topLevelErrors.otherAidMonthlyAmount}
+                    >
+                      <Input
+                        id="otherAidMonthlyAmount"
+                        value={eligibility.otherAidMonthlyAmount}
+                        onChange={(event) =>
+                          updateEligibility(
+                            "otherAidMonthlyAmount",
+                            event.target.value
+                          )
+                        }
+                        className={cn(
+                          topLevelErrors.otherAidMonthlyAmount &&
+                            INVALID_FIELD_CLASS
+                        )}
+                        placeholder="例：8000"
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card
             ref={setSectionRef("academic")}
             className={cn("shadow-sm", sectionErrorClass("academic"))}
@@ -3146,13 +3425,123 @@ export default function ScholarshipForm() {
                   enabled={bilingual}
                   english={FORM_ENGLISH_COPY.academic}
                 >
-                  二、請領資格與學業表現
+                  {isFullTimeDoctoralGrant ? "二、成績" : "二、請領資格與學業表現"}
                 </BiText>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <ValidationMessage message={topLevelErrors.academic} />
-              {config.academicForm === "presidentialScholarship" ? (
+              {isFullTimeDoctoralGrant ? (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table className="min-w-[720px]">
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="w-56">
+                          {applicantInfo.studyStatus === FULL_TIME_STUDY_STATUS_NEW
+                            ? "前一學制畢業總平均"
+                            : "前一學年成績"}
+                        </TableHead>
+                        <TableHead className="w-40">總學分數</TableHead>
+                        <TableHead className="w-40">GPA</TableHead>
+                        <TableHead className="w-56">系或班排名</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="text-sm font-medium text-slate-700">
+                          {applicantInfo.studyStatus === FULL_TIME_STUDY_STATUS_NEW
+                            ? "新生"
+                            : "舊生"}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={
+                              applicantInfo.studyStatus ===
+                              FULL_TIME_STUDY_STATUS_NEW
+                                ? academicPerformance.fullTimePreviousDegreeCredits
+                                : academicPerformance.fullTimePreviousYearCredits
+                            }
+                            onChange={(event) =>
+                              updateAcademicPerformance(
+                                applicantInfo.studyStatus ===
+                                  FULL_TIME_STUDY_STATUS_NEW
+                                  ? "fullTimePreviousDegreeCredits"
+                                  : "fullTimePreviousYearCredits",
+                                event.target.value
+                              )
+                            }
+                            className={cn(
+                              topLevelErrors[
+                                applicantInfo.studyStatus ===
+                                FULL_TIME_STUDY_STATUS_NEW
+                                  ? "fullTimePreviousDegreeCredits"
+                                  : "fullTimePreviousYearCredits"
+                              ] && INVALID_FIELD_CLASS
+                            )}
+                            placeholder="例：32"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={
+                              applicantInfo.studyStatus ===
+                              FULL_TIME_STUDY_STATUS_NEW
+                                ? academicPerformance.fullTimePreviousDegreeGpa
+                                : academicPerformance.fullTimePreviousYearGpa
+                            }
+                            onChange={(event) =>
+                              updateAcademicPerformance(
+                                applicantInfo.studyStatus ===
+                                  FULL_TIME_STUDY_STATUS_NEW
+                                  ? "fullTimePreviousDegreeGpa"
+                                  : "fullTimePreviousYearGpa",
+                                event.target.value
+                              )
+                            }
+                            className={cn(
+                              topLevelErrors[
+                                applicantInfo.studyStatus ===
+                                FULL_TIME_STUDY_STATUS_NEW
+                                  ? "fullTimePreviousDegreeGpa"
+                                  : "fullTimePreviousYearGpa"
+                              ] && INVALID_FIELD_CLASS
+                            )}
+                            placeholder="例：3.92"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={
+                              applicantInfo.studyStatus ===
+                              FULL_TIME_STUDY_STATUS_NEW
+                                ? academicPerformance.fullTimePreviousDegreeRank
+                                : academicPerformance.fullTimePreviousYearRank
+                            }
+                            onChange={(event) =>
+                              updateAcademicPerformance(
+                                applicantInfo.studyStatus ===
+                                  FULL_TIME_STUDY_STATUS_NEW
+                                  ? "fullTimePreviousDegreeRank"
+                                  : "fullTimePreviousYearRank",
+                                event.target.value
+                              )
+                            }
+                            className={cn(
+                              topLevelErrors[
+                                applicantInfo.studyStatus ===
+                                FULL_TIME_STUDY_STATUS_NEW
+                                  ? "fullTimePreviousDegreeRank"
+                                  : "fullTimePreviousYearRank"
+                              ] && INVALID_FIELD_CLASS
+                            )}
+                            placeholder="例：前 20% 或第 3/25 名"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : config.academicForm === "presidentialScholarship" ? (
                 applicantInfo.studyStatus === STUDY_STATUS_NEW ? (
                   <>
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">

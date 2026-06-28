@@ -25,6 +25,9 @@ export type Eligibility = {
   employmentMonthlyIncome: string;
   taMonthlyIncome: string;
   eligibilityNotes: string;
+  otherAidStatus: string;
+  otherAidOrganization: string;
+  otherAidMonthlyAmount: string;
 };
 
 export type AcademicPerformance = {
@@ -57,6 +60,12 @@ export type AcademicPerformance = {
   doctoralResearchTopic: string;
   professionalPerformanceStatement: string;
   presidentialApplicationPreference: string;
+  fullTimePreviousDegreeCredits: string;
+  fullTimePreviousDegreeGpa: string;
+  fullTimePreviousDegreeRank: string;
+  fullTimePreviousYearCredits: string;
+  fullTimePreviousYearGpa: string;
+  fullTimePreviousYearRank: string;
 };
 
 export type Journal = {

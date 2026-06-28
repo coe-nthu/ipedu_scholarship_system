@@ -1,4 +1,4 @@
-import type { ScholarshipApplication, ScholarshipPayload } from "@/lib/types";
+import type { ScholarshipApplication } from "@/lib/types";
 
 type DisplayRow = {
   label: string;
@@ -37,7 +37,7 @@ function isMasterGraduateGpaProgram(application: ScholarshipApplication) {
   return MASTER_GRADUATE_GPA_PROGRAMS.has(getProgramKey(application));
 }
 
-function isFullTimeDoctoralGrant(application: ScholarshipApplication) {
+export function isFullTimeDoctoralGrant(application: ScholarshipApplication) {
   return getProgramKey(application) === FULL_TIME_DOCTORAL_GRANT_KEY;
 }
 
@@ -66,69 +66,26 @@ export function formatSubmittedAt(value: string | null | undefined) {
   return TAIPEI_TIME_FORMATTER.format(date);
 }
 
-function parseList(value: string) {
-  return value
-    .split("；")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function getNumberFromText(value: string, pattern: RegExp) {
-  return value.match(pattern)?.[1] ?? "";
-}
-
-function getDoctoralSemesterRows(payload: ScholarshipPayload) {
-  const credits = parseList(payload.academicPerformance.doctoralSemesterCredits);
-  const gpas = parseList(payload.academicPerformance.doctoralSemesterGpas);
-  const length = Math.max(credits.length, gpas.length);
-
-  return Array.from({ length }, (_, index) => {
-    const creditText = credits[index] ?? "";
-    const gpaText = gpas[index] ?? "";
-    const semester =
-      creditText.replace(/\s*\d+(?:\.\d+)?\s*學分\s*$/, "") ||
-      gpaText.replace(/\s*GPA\s*\d+(?:\.\d+)?\s*$/i, "") ||
-      `第 ${index + 1} 筆`;
-
-    return {
-      credits: getNumberFromText(creditText, /(\d+(?:\.\d+)?)\s*學分/),
-      gpa: getNumberFromText(gpaText, /GPA\s*(\d+(?:\.\d+)?)/i),
-      semester,
-    };
-  });
-}
-
-function getWeightedDoctoralGpa(payload: ScholarshipPayload) {
-  const rows = getDoctoralSemesterRows(payload);
-  let totalCredits = 0;
-  let weightedTotal = 0;
-
-  for (const row of rows) {
-    const credits = toNumber(row.credits);
-    const gpa = toNumber(row.gpa);
-    if (credits === null || gpa === null) continue;
-    totalCredits += credits;
-    weightedTotal += credits * gpa;
-  }
-
-  if (totalCredits <= 0) {
-    return { completedCredits: "", gpa: null, scale: "4.3" };
-  }
-
-  return {
-    completedCredits: String(totalCredits),
-    gpa: weightedTotal / totalCredits,
-    scale: "4.3",
-  };
-}
-
 export function getDashboardGpaSummary(
   application: ScholarshipApplication
 ): GpaSummary {
   const academic = application.payload.academicPerformance;
 
   if (isFullTimeDoctoralGrant(application)) {
-    return getWeightedDoctoralGpa(application.payload);
+    const isNewStudent =
+      application.payload.applicantInfo.studyStatus === "新生" ||
+      application.payload.applicantInfo.studyStatus === "新領";
+    return {
+      completedCredits: isNewStudent
+        ? academic.fullTimePreviousDegreeCredits
+        : academic.fullTimePreviousYearCredits,
+      gpa: toNumber(
+        isNewStudent
+          ? academic.fullTimePreviousDegreeGpa
+          : academic.fullTimePreviousYearGpa
+      ),
+      scale: "4.3",
+    };
   }
 
   if (isMasterGraduateGpaProgram(application)) {
@@ -166,12 +123,29 @@ export function getEligibilityDisplayRows(
   ];
 
   if (isFullTimeDoctoralGrant(application)) {
+    const otherAidRows =
+      eligibility.otherAidStatus === "有領取"
+        ? [
+            { label: "獎助調查", value: "有領取校內其他獎助學金" },
+            { label: "核發單位", value: eligibility.otherAidOrganization },
+            { label: "每月支領", value: eligibility.otherAidMonthlyAmount },
+          ]
+        : [
+            {
+              label: "獎助調查",
+              value:
+                eligibility.otherAidStatus === "未兼領"
+                  ? "未兼領其他獎助學金"
+                  : "",
+            },
+          ];
     return [
       ...declarationRows,
       { label: "兼職情形", value: eligibility.employmentStatus },
       { label: "教學助理月薪", value: eligibility.taMonthlyIncome },
       { label: "兼職工作", value: eligibility.employmentDescription },
       { label: "兼職平均月薪", value: eligibility.employmentMonthlyIncome },
+      ...otherAidRows,
       { label: "補充說明", value: eligibility.eligibilityNotes },
     ];
   }
@@ -214,24 +188,31 @@ export function getAcademicDisplayRows(
   application: ScholarshipApplication
 ): DisplayRow[] {
   const { academicPerformance: academic } = application.payload;
-  const gpaSummary = getDashboardGpaSummary(application);
 
   if (isFullTimeDoctoralGrant(application)) {
+    if (
+      application.payload.applicantInfo.studyStatus === "新生" ||
+      application.payload.applicantInfo.studyStatus === "新領"
+    ) {
+      return [
+        {
+          label: "成績類別",
+          value: "前一學制畢業總平均",
+        },
+        { label: "總學分數", value: academic.fullTimePreviousDegreeCredits },
+        { label: "GPA", value: academic.fullTimePreviousDegreeGpa },
+        { label: "系或班排名", value: academic.fullTimePreviousDegreeRank },
+      ];
+    }
+
     return [
       {
-        label: "博士班加權 GPA",
-        value:
-          gpaSummary.gpa === null
-            ? ""
-            : `${gpaSummary.gpa.toFixed(2)} / ${gpaSummary.scale}`,
+        label: "成績類別",
+        value: "前一學年成績",
       },
-      { label: "博士班總學分", value: gpaSummary.completedCredits },
-      { label: "博士班學分", value: academic.doctoralSemesterCredits },
-      { label: "博士班 GPA", value: academic.doctoralSemesterGpas },
-      { label: "曾獲學術獎勵", value: academic.previousAcademicAwards },
-      { label: "學術成就概述", value: academic.academicAchievementSummary },
-      { label: "著作目錄", value: academic.publicationList },
-      { label: "成績備註", value: academic.transcriptNotes },
+      { label: "總學分數", value: academic.fullTimePreviousYearCredits },
+      { label: "GPA", value: academic.fullTimePreviousYearGpa },
+      { label: "系或班排名", value: academic.fullTimePreviousYearRank },
     ];
   }
 

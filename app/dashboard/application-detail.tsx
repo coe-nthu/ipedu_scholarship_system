@@ -51,13 +51,22 @@ import {
   DATABASE_OPTIONS,
   DEPARTMENT_OPTIONS,
   EMPLOYMENT_STATUS_OPTIONS,
+  FULL_TIME_STUDY_STATUS_NEW,
+  FULL_TIME_STUDY_STATUS_OLD,
+  FULL_TIME_STUDY_STATUS_OPTIONS,
   GPA_SCALE_OPTIONS,
+  OTHER_AID_STATUS_NONE,
+  OTHER_AID_STATUS_OPTIONS,
+  OTHER_AID_STATUS_RECEIVING,
+  STUDY_STATUS_NEW,
   STUDY_STATUS_OPTIONS,
+  STUDY_STATUS_RENEWAL,
 } from "@/lib/scholarship-form-options";
 import {
   formatSubmittedAt,
   getAcademicDisplayRows,
   getEligibilityDisplayRows,
+  isFullTimeDoctoralGrant,
   isNstcDoctoralProgram,
 } from "@/lib/dashboard-application-display";
 import { Button } from "@/components/ui/button";
@@ -167,6 +176,12 @@ function formatPublicationChangeValue(value: string) {
 function normalizeJournalFieldValue(value: unknown): string {
   if (Array.isArray(value)) return value.join("、").trim();
   return typeof value === "string" ? value.trim() : String(value ?? "").trim();
+}
+
+function normalizeFullTimeStudyStatus(value: string) {
+  if (value === STUDY_STATUS_NEW) return FULL_TIME_STUDY_STATUS_NEW;
+  if (value === STUDY_STATUS_RENEWAL) return FULL_TIME_STUDY_STATUS_OLD;
+  return value;
 }
 
 /**
@@ -506,6 +521,14 @@ export function ApplicationDetail({
     // verification by preferring liveJournals.
     const base: ScholarshipPayload = {
       ...application.payload,
+      applicantInfo: {
+        ...application.payload.applicantInfo,
+        studyStatus: isFullTimeDoctoralGrant(application)
+          ? normalizeFullTimeStudyStatus(
+              application.payload.applicantInfo.studyStatus
+            )
+          : application.payload.applicantInfo.studyStatus,
+      },
       journals: liveJournals ?? application.payload.journals ?? [],
     };
     setDraft(structuredClone(base));
@@ -604,7 +627,11 @@ export function ApplicationDetail({
     applicantInfo.email || `${application.applicant_name} 的 Email 未填寫`;
   const eligibilityDisplayRows = getEligibilityDisplayRows(application);
   const academicDisplayRows = getAcademicDisplayRows(application);
+  const isFullTimeGrant = isFullTimeDoctoralGrant(application);
   const showEmploymentRows = !isNstcDoctoralProgram(application);
+  const studyStatusOptions = isFullTimeGrant
+    ? FULL_TIME_STUDY_STATUS_OPTIONS
+    : STUDY_STATUS_OPTIONS;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -899,7 +926,7 @@ export function ApplicationDetail({
                       <SelectRow
                         label="請領別"
                         value={draft.applicantInfo.studyStatus}
-                        options={STUDY_STATUS_OPTIONS}
+                        options={studyStatusOptions}
                         onChange={(v) =>
                           setDraft((d) =>
                             d
@@ -955,7 +982,16 @@ export function ApplicationDetail({
                         label="入學學年度"
                         value={applicantInfo.admissionAcademicYear}
                       />
-                      <InfoRow label="請領別" value={applicantInfo.studyStatus} />
+                      <InfoRow
+                        label="請領別"
+                        value={
+                          isFullTimeGrant
+                            ? normalizeFullTimeStudyStatus(
+                                applicantInfo.studyStatus
+                              )
+                            : applicantInfo.studyStatus
+                        }
+                      />
                       <InfoRow
                         label="申請類別"
                         value={applicantInfo.applicationType}
@@ -1165,6 +1201,81 @@ export function ApplicationDetail({
                           />
                         </>
                       ) : null}
+                      {isFullTimeGrant ? (
+                        <>
+                          <SelectRow
+                            label="獎助調查"
+                            value={draft.eligibility.otherAidStatus ?? ""}
+                            options={OTHER_AID_STATUS_OPTIONS}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        otherAidStatus: v,
+                                        otherAidOrganization:
+                                          v === OTHER_AID_STATUS_NONE
+                                            ? ""
+                                            : d.eligibility
+                                                .otherAidOrganization,
+                                        otherAidMonthlyAmount:
+                                          v === OTHER_AID_STATUS_NONE
+                                            ? ""
+                                            : d.eligibility
+                                                .otherAidMonthlyAmount,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          {draft.eligibility.otherAidStatus ===
+                          OTHER_AID_STATUS_RECEIVING ? (
+                            <>
+                              <TextRow
+                                label="核發單位"
+                                value={
+                                  draft.eligibility.otherAidOrganization ?? ""
+                                }
+                                onChange={(v) =>
+                                  setDraft((d) =>
+                                    d
+                                      ? {
+                                          ...d,
+                                          eligibility: {
+                                            ...d.eligibility,
+                                            otherAidOrganization: v,
+                                          },
+                                        }
+                                      : d
+                                  )
+                                }
+                              />
+                              <TextRow
+                                label="每月支領"
+                                value={
+                                  draft.eligibility.otherAidMonthlyAmount ?? ""
+                                }
+                                onChange={(v) =>
+                                  setDraft((d) =>
+                                    d
+                                      ? {
+                                          ...d,
+                                          eligibility: {
+                                            ...d.eligibility,
+                                            otherAidMonthlyAmount: v,
+                                          },
+                                        }
+                                      : d
+                                  )
+                                }
+                              />
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
                       <TextRow
                         label="補充說明"
                         textarea
@@ -1200,11 +1311,150 @@ export function ApplicationDetail({
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">學業表現</CardTitle>
+                  <CardTitle className="text-sm">
+                    {isFullTimeGrant ? "成績" : "學業表現"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
                   {isEditing && draft ? (
-                    <>
+                    isFullTimeGrant ? (
+                      <>
+                        {draft.applicantInfo.studyStatus === "新生" ||
+                        draft.applicantInfo.studyStatus === "新領" ? (
+                          <>
+                            <InfoRow
+                              label="成績類別"
+                              value="前一學制畢業總平均"
+                            />
+                            <TextRow
+                              label="總學分數"
+                              value={
+                                draft.academicPerformance
+                                  .fullTimePreviousDegreeCredits ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        academicPerformance: {
+                                          ...d.academicPerformance,
+                                          fullTimePreviousDegreeCredits: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                            <TextRow
+                              label="GPA"
+                              value={
+                                draft.academicPerformance
+                                  .fullTimePreviousDegreeGpa ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        academicPerformance: {
+                                          ...d.academicPerformance,
+                                          fullTimePreviousDegreeGpa: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                            <TextRow
+                              label="系或班排名"
+                              value={
+                                draft.academicPerformance
+                                  .fullTimePreviousDegreeRank ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        academicPerformance: {
+                                          ...d.academicPerformance,
+                                          fullTimePreviousDegreeRank: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <InfoRow label="成績類別" value="前一學年成績" />
+                            <TextRow
+                              label="總學分數"
+                              value={
+                                draft.academicPerformance
+                                  .fullTimePreviousYearCredits ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        academicPerformance: {
+                                          ...d.academicPerformance,
+                                          fullTimePreviousYearCredits: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                            <TextRow
+                              label="GPA"
+                              value={
+                                draft.academicPerformance
+                                  .fullTimePreviousYearGpa ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        academicPerformance: {
+                                          ...d.academicPerformance,
+                                          fullTimePreviousYearGpa: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                            <TextRow
+                              label="系或班排名"
+                              value={
+                                draft.academicPerformance
+                                  .fullTimePreviousYearRank ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        academicPerformance: {
+                                          ...d.academicPerformance,
+                                          fullTimePreviousYearRank: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
                       <TextRow
                         label="累計 GPA"
                         value={draft.academicPerformance.cumulativeGpa}
@@ -1309,7 +1559,8 @@ export function ApplicationDetail({
                           )
                         }
                       />
-                    </>
+                      </>
+                    )
                   ) : (
                     <>
                       {academicDisplayRows.map((row) => (

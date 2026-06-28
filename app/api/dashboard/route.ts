@@ -8,9 +8,10 @@ import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 import {
   DATABASE_OPTIONS,
   DEPARTMENT_OPTIONS,
+  DASHBOARD_STUDY_STATUS_OPTIONS,
   EMPLOYMENT_STATUS_OPTIONS,
   GPA_SCALE_OPTIONS,
-  STUDY_STATUS_OPTIONS,
+  OTHER_AID_STATUS_OPTIONS,
   isAllowedMultiOption,
   isAllowedOption,
 } from "@/lib/scholarship-form-options";
@@ -62,7 +63,7 @@ function validateAndMergePayload(
   if (!isAllowedOption(applicantInfo.department, DEPARTMENT_OPTIONS)) {
     return { ok: false, error: "系所不在允許清單中。" };
   }
-  if (!isAllowedOption(applicantInfo.studyStatus, STUDY_STATUS_OPTIONS)) {
+  if (!isAllowedOption(applicantInfo.studyStatus, DASHBOARD_STUDY_STATUS_OPTIONS)) {
     return { ok: false, error: "請領別不合法。" };
   }
   if (!isAllowedOption(eligibility.gpaScale, GPA_SCALE_OPTIONS)) {
@@ -75,6 +76,9 @@ function validateAndMergePayload(
   }
   if (!isAllowedOption(eligibility.employmentStatus, EMPLOYMENT_STATUS_OPTIONS)) {
     return { ok: false, error: "兼職情形不合法。" };
+  }
+  if (!isAllowedOption(eligibility.otherAidStatus, OTHER_AID_STATUS_OPTIONS)) {
+    return { ok: false, error: "獎助調查不合法。" };
   }
   for (const j of journals) {
     // Journal Edition / 資料庫別 may hold several editions joined by "、".

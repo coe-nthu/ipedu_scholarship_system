@@ -25,6 +25,23 @@ export const STUDY_STATUS_OPTIONS = [
   STUDY_STATUS_NEW,
   STUDY_STATUS_RENEWAL,
 ] as const;
+export const FULL_TIME_STUDY_STATUS_NEW = "新生";
+export const FULL_TIME_STUDY_STATUS_OLD = "舊生";
+export const FULL_TIME_STUDY_STATUS_OPTIONS = [
+  FULL_TIME_STUDY_STATUS_NEW,
+  FULL_TIME_STUDY_STATUS_OLD,
+] as const;
+export const DASHBOARD_STUDY_STATUS_OPTIONS = [
+  ...STUDY_STATUS_OPTIONS,
+  ...FULL_TIME_STUDY_STATUS_OPTIONS,
+] as const;
+
+export const OTHER_AID_STATUS_NONE = "未兼領";
+export const OTHER_AID_STATUS_RECEIVING = "有領取";
+export const OTHER_AID_STATUS_OPTIONS = [
+  OTHER_AID_STATUS_NONE,
+  OTHER_AID_STATUS_RECEIVING,
+] as const;
 
 export const EMPLOYMENT_STATUS_NONE = "無兼職";
 export const EMPLOYMENT_STATUS_TA = "擔任校內外教學助理";
