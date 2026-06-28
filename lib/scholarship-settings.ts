@@ -56,7 +56,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
         "填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。",
       display_order: 20,
       eligibility_reminder:
-        "本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+        "本獎學金適用 114 學年度入學新生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
       is_open: true,
       is_visible: true,
       period: "適用 114 學年度入學新生",
@@ -71,7 +71,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
         "填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。",
       display_order: 30,
       eligibility_reminder:
-        "本項目為校長獎學金新生獎學金。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+        "本獎學金為校長獎學金（新生獎學金）。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
       is_open: true,
       is_visible: true,
       period: "新生獎學金",
@@ -83,10 +83,10 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
     {
       amount: "每月 4 萬元，至多 3 學年",
       description:
-        "先沿用既有申請表樣式，提供博士班學生填寫資料與文件上傳。",
+        "填寫基本資料、請領資格、學術表現、研究參與與指定文件上傳。",
       display_order: 40,
       eligibility_reminder:
-        "本項目適用 114 學年度博士班 1 至 3 年級學生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+        "本獎學金適用 114 學年度博士班 1 至 3 年級學生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
       is_open: true,
       is_visible: true,
       period: "適用 114 學年度博士班 1 至 3 年級學生",

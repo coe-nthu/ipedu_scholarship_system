@@ -409,7 +409,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     applicationType: "博士生獎學金",
     description: "適用 114 學年度博士班 1 至 3 年級學生申請表單",
     eligibilityReminder:
-      "本項目適用 114 學年度博士班 1 至 3 年級學生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+      "本獎學金適用 114 學年度博士班 1 至 3 年級學生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
     period: "114 學年度博士班 1 至 3 年級學生",
     programKey: "moe-doctoral",
     program: "教育部-博士生獎學金(適用114學年度博士班1至3年級學生)",
@@ -446,7 +446,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     applicationType: "博士生研究獎助學金",
     description: "適用 114 學年度入學新生申請表單",
     eligibilityReminder:
-      "本項目適用 114 學年度入學新生。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+      "本獎學金適用 114 學年度入學新生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
     period: "114 學年度入學新生",
     programKey: "nstc-research-grant",
     program: "國科會-博士生研究獎助學金(適用114學年度入學新生)",
@@ -459,7 +459,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
     applicationType: "校長獎學金 (新生獎學金)",
     description: "新生獎學金申請表單",
     eligibilityReminder:
-      "本項目為校長獎學金新生獎學金。頁面樣式先沿用既有獎學金申請表，欄位與指定文件後續可依正式公告再調整。",
+      "本獎學金為校長獎學金（新生獎學金）。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
     period: "新生獎學金",
     programKey: "presidential-new-student",
     program: "校長獎學金 (新生獎學金)",
