@@ -28,6 +28,8 @@ import { createClient } from "@/lib/supabase/client";
 const BILINGUAL_PROGRAM_KEYS = new Set([
   "nstc-doctoral",
   "nstc-research-grant",
+  "presidential-new-student",
+  "moe-doctoral",
   "full-time-doctoral-grant",
 ]);
 
@@ -57,6 +59,22 @@ const PROGRAM_ENGLISH_COPY: Record<
       "NSTC doctoral research grant application for incoming doctoral students. Complete personal information, academic records, research achievements, and required PDF uploads.",
     period: "For incoming doctoral students in the specified academic year.",
     title: "NSTC Doctoral Research Grant",
+  },
+  "presidential-new-student": {
+    amount: "NT$40,000 per month, up to 4 academic years.",
+    description:
+      "Presidential scholarship application for new students. Complete personal information, eligibility, academic achievements, research participation, and required PDF uploads.",
+    period: "New Student Scholarship.",
+    title: "Presidential Scholarship (New Student Scholarship)",
+  },
+  "moe-doctoral": {
+    amount: "NT$40,000 per month, up to 3 academic years.",
+    description:
+      "Ministry of Education doctoral scholarship application. Complete personal information, eligibility, academic achievements, research participation, and required PDF uploads.",
+    period:
+      "For first- to third-year doctoral students in the 115 academic year.",
+    title:
+      "MOE Doctoral Scholarship (For 115 Academic Year Doctoral Years 1-3)",
   },
 };
 
