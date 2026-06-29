@@ -350,3 +350,106 @@ export async function PATCH(request: Request) {
     return jsonError("伺服器處理時發生錯誤。", 500);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  DELETE — Admin removes an application record (admin only)           */
+/* ------------------------------------------------------------------ */
+
+const STORAGE_BUCKET = "scholarship-documents";
+
+export async function DELETE(request: Request) {
+  try {
+    const auth = await checkDashboardAccess();
+    if (!auth.authorized) {
+      return jsonError(
+        auth.reason === "not_authenticated" ? "請先登入。" : "無權限存取。",
+        auth.reason === "not_authenticated" ? 401 : 403
+      );
+    }
+    // Deleting a record is irreversible — restrict to admins.
+    if (auth.role !== "admin") {
+      return jsonError("只有管理員可以刪除申請紀錄。", 403);
+    }
+
+    const { serviceRoleKey, url } = getSupabaseConfig();
+    const body = (await request.json().catch(() => ({}))) as {
+      applicationId?: string;
+    };
+    const applicationId = body.applicationId;
+
+    if (!applicationId) {
+      return jsonError("缺少 applicationId。");
+    }
+    if (!isValidUUID(applicationId)) {
+      return jsonError("applicationId 格式不合法。");
+    }
+
+    // Fetch the record first so we can clean up its Storage files afterwards.
+    const existingResponse = await fetch(
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,files`,
+      {
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+
+    if (!existingResponse.ok) {
+      throw new Error("查詢申請案失敗。");
+    }
+
+    const existingRecords = (await existingResponse.json()) as {
+      id: string;
+      files: { path?: string | null }[] | null;
+    }[];
+    if (!existingRecords[0]) {
+      return jsonError("找不到該申請案。", 404);
+    }
+
+    // Delete the application row. review_logs cascade automatically (FK ON
+    // DELETE CASCADE).
+    const deleteResponse = await fetch(
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+
+    if (!deleteResponse.ok) {
+      throw new Error("刪除申請案失敗。");
+    }
+
+    // Best-effort: remove the uploaded PDFs from Storage. A failure here must
+    // not fail the request — the record is already gone.
+    const prefixes = (existingRecords[0].files ?? [])
+      .map((file) => file?.path)
+      .filter(
+        (path): path is string => typeof path === "string" && path.length > 0
+      );
+    if (prefixes.length > 0) {
+      try {
+        await fetch(`${url}/storage/v1/object/${STORAGE_BUCKET}`, {
+          method: "DELETE",
+          headers: {
+            apikey: serviceRoleKey,
+            authorization: `Bearer ${serviceRoleKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ prefixes }),
+        });
+      } catch (storageError) {
+        console.error("Application storage cleanup error:", storageError);
+      }
+    }
+
+    return NextResponse.json({ success: true, applicationId });
+  } catch (error) {
+    console.error("Dashboard DELETE error:", error);
+    return jsonError("伺服器處理時發生錯誤。", 500);
+  }
+}

@@ -147,6 +147,7 @@ export default async function DashboardPage() {
               <ScholarshipProgramSwitcher
                 applications={applications}
                 programs={programs}
+                canDelete={auth.role === "admin"}
               />
             }
             adminContent={<AdminPanel />}
@@ -162,6 +163,7 @@ export default async function DashboardPage() {
             <ScholarshipProgramSwitcher
               applications={applications}
               programs={programs}
+              canDelete={false}
             />
           </>
         )}

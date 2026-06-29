@@ -41,9 +41,11 @@ function ProgramCount({
 export function ScholarshipProgramSwitcher({
   applications,
   programs = DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS,
+  canDelete = false,
 }: {
   applications: ScholarshipApplication[];
   programs?: ScholarshipProgramSetting[];
+  canDelete?: boolean;
 }) {
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -85,7 +87,7 @@ export function ScholarshipProgramSwitcher({
         value={ALL_PROGRAMS_VALUE}
         className="min-w-0 max-w-full overflow-hidden"
       >
-        <DashboardTable applications={applications} />
+        <DashboardTable applications={applications} canDelete={canDelete} />
       </TabsContent>
       {programs.map((program) => {
         const filteredApplications = applications.filter(
@@ -104,6 +106,7 @@ export function ScholarshipProgramSwitcher({
             <DashboardTable
               key={program.program_key}
               applications={filteredApplications}
+              canDelete={canDelete}
             />
           </TabsContent>
         );

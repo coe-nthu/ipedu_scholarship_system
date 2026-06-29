@@ -1,6 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -93,6 +104,9 @@ type ApplicationDetailProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated?: (application: ScholarshipApplication) => void;
+  /** Admin-only: allow deleting the record. */
+  canDelete?: boolean;
+  onDeleted?: (applicationId: string) => void;
 };
 
 /* ------------------------------------------------------------------ */
@@ -442,6 +456,8 @@ export function ApplicationDetail({
   open,
   onOpenChange,
   onUpdated,
+  canDelete = false,
+  onDeleted,
 }: ApplicationDetailProps) {
   const [verifyingAll, setVerifyingAll] = useState(false);
   const [verifyingIdx, setVerifyingIdx] = useState<number | null>(null);
@@ -449,6 +465,7 @@ export function ApplicationDetail({
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [draft, setDraft] = useState<ScholarshipPayload | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
@@ -614,6 +631,30 @@ export function ApplicationDetail({
     }
   }, [application, correctionMessage, onOpenChange, onUpdated]);
 
+  const handleDelete = useCallback(async () => {
+    if (!application) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/dashboard", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ applicationId: application.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "刪除失敗，請重試。");
+        return;
+      }
+      toast.success("已刪除申請紀錄。");
+      onDeleted?.(application.id);
+      onOpenChange(false);
+    } catch {
+      toast.error("刪除請求失敗，請重試。");
+    } finally {
+      setDeleting(false);
+    }
+  }, [application, onDeleted, onOpenChange]);
+
   if (!application) return null;
 
   const { payload, files } = application;
@@ -697,6 +738,45 @@ export function ApplicationDetail({
                     <Pencil className="size-3.5" />
                     編輯
                   </Button>
+                  {canDelete ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger
+                        render={
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={deleting}
+                          >
+                            {deleting ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
+                            刪除
+                          </Button>
+                        }
+                      />
+                      <AlertDialogContent className="bg-white text-slate-900">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>確認刪除申請紀錄</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            確定要刪除「{applicantInfo.applicantName}」的這筆申請紀錄嗎？
+                            此操作會一併刪除上傳的附件與審核紀錄，且無法復原。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>取消</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={handleDelete}
+                          >
+                            確認刪除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : null}
                 </>
               )}
             </div>

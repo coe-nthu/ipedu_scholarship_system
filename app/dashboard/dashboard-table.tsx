@@ -287,13 +287,17 @@ function RemarkCell({
 
 export function DashboardTable({
   applications,
+  canDelete = false,
 }: {
   applications: ScholarshipApplication[];
+  canDelete?: boolean;
 }) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("rowNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
+  // Records the admin has deleted this session, hidden from the list.
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set());
 
   // Payload edits made in the detail Sheet are reflected here so the list and
   // the open detail view stay in sync without a full refetch.
@@ -368,8 +372,10 @@ export function DashboardTable({
     () =>
       applications
         .map((a) => appOverrides[a.id] ?? a)
-        .filter((a) => a.submission_status === "submitted"),
-    [applications, appOverrides],
+        .filter(
+          (a) => a.submission_status === "submitted" && !deletedIds.has(a.id),
+        ),
+    [applications, appOverrides, deletedIds],
   );
 
   const rows = useMemo(
@@ -683,6 +689,11 @@ export function DashboardTable({
             ...prev,
             [updated.id]: updated.review_status,
           }));
+        }}
+        canDelete={canDelete}
+        onDeleted={(id) => {
+          setDeletedIds((prev) => new Set(prev).add(id));
+          setSelectedApp(null);
         }}
       />
     </>
