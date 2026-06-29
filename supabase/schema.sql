@@ -48,6 +48,7 @@ comment on column public.profiles.role is 'student=學生, teacher=教師, admin
 create table public.dashboard_accounts (
   username          text primary key,
   display_name      text not null,
+  recovery_email    text,
   password_hash     text not null,
   role              text not null check (role in ('teacher', 'admin')),
   department_scope  jsonb not null default '"all"'::jsonb,
@@ -57,6 +58,7 @@ create table public.dashboard_accounts (
 );
 
 comment on table public.dashboard_accounts is '後台固定帳密登入帳號';
+comment on column public.dashboard_accounts.recovery_email is '後台帳密帳號忘記密碼驗證碼收件信箱';
 comment on column public.dashboard_accounts.password_hash is '後台帳密登入密碼雜湊，格式 sha256:<hex>';
 comment on column public.dashboard_accounts.department_scope is '後台可檢視系所範圍，JSON 字串 "all" 或字串陣列';
 
@@ -71,6 +73,36 @@ alter table public.dashboard_accounts enable row level security;
 drop policy if exists "Service role can manage dashboard accounts" on public.dashboard_accounts;
 create policy "Service role can manage dashboard accounts"
   on public.dashboard_accounts for all
+  to service_role
+  using (true)
+  with check (true);
+
+create table public.dashboard_password_reset_codes (
+  id              uuid primary key default gen_random_uuid(),
+  username        text not null references public.dashboard_accounts(username) on delete cascade,
+  recovery_email  text not null,
+  code_hash       text not null,
+  expires_at      timestamptz not null,
+  attempt_count   integer not null default 0 check (attempt_count >= 0),
+  used_at         timestamptz,
+  created_at      timestamptz not null default now()
+);
+
+comment on table public.dashboard_password_reset_codes is '後台帳密帳號忘記密碼驗證碼紀錄';
+comment on column public.dashboard_password_reset_codes.code_hash is '驗證碼雜湊，格式 sha256:<hex>';
+
+create index dashboard_password_reset_codes_lookup_idx
+  on public.dashboard_password_reset_codes (username, recovery_email, created_at desc);
+
+create index dashboard_password_reset_codes_expiry_idx
+  on public.dashboard_password_reset_codes (expires_at)
+  where used_at is null;
+
+alter table public.dashboard_password_reset_codes enable row level security;
+
+drop policy if exists "Service role can manage dashboard password reset codes" on public.dashboard_password_reset_codes;
+create policy "Service role can manage dashboard password reset codes"
+  on public.dashboard_password_reset_codes for all
   to service_role
   using (true)
   with check (true);

@@ -36,6 +36,16 @@ function normalizeScope(value: unknown): DashboardDepartmentScope {
   return isDashboardScope(value) ? value : "all";
 }
 
+function normalizeEmail(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || null;
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 /* ------------------------------------------------------------------ */
 /*  GET — List unified accounts (password + google)                    */
 /* ------------------------------------------------------------------ */
@@ -55,7 +65,7 @@ export async function GET() {
 
     const [passwordRes, googleRes] = await Promise.all([
       fetch(
-        `${url}/rest/v1/dashboard_accounts?order=username.asc&select=username,display_name,role,department_scope,is_active`,
+        `${url}/rest/v1/dashboard_accounts?order=username.asc&select=username,display_name,recovery_email,role,department_scope,is_active`,
         { headers, cache: "no-store" }
       ),
       fetch(
@@ -71,6 +81,7 @@ export async function GET() {
     const passwordRows = (await passwordRes.json()) as {
       username: string;
       display_name: string;
+      recovery_email: string | null;
       role: DashboardRole;
       department_scope: unknown;
       is_active: boolean;
@@ -89,6 +100,7 @@ export async function GET() {
         key: row.username,
         label: row.username,
         displayName: row.display_name || row.username,
+        recoveryEmail: row.recovery_email,
         role: row.role,
         departmentScope: normalizeScope(row.department_scope),
         isActive: row.is_active,
@@ -132,10 +144,15 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as {
       kind?: string;
       key?: string;
+      recoveryEmail?: unknown;
       role?: string;
       departmentScope?: unknown;
     };
     const { kind, key, role, departmentScope } = body;
+    const recoveryEmail =
+      Object.prototype.hasOwnProperty.call(body, "recoveryEmail")
+        ? normalizeEmail(body.recoveryEmail)
+        : undefined;
 
     if (kind !== "password" && kind !== "google") {
       return jsonError("帳號類型不合法。");
@@ -152,7 +169,17 @@ export async function PATCH(request: Request) {
     if (departmentScope !== undefined && !isDashboardScope(departmentScope)) {
       return jsonError("系所範圍格式不合法。");
     }
-    if (role === undefined && departmentScope === undefined) {
+    if (kind === "google" && recoveryEmail !== undefined) {
+      return jsonError("Google 帳號不支援重設信箱。");
+    }
+    if (recoveryEmail && !isValidEmail(recoveryEmail)) {
+      return jsonError("重設信箱格式不合法。");
+    }
+    if (
+      role === undefined &&
+      departmentScope === undefined &&
+      recoveryEmail === undefined
+    ) {
       return jsonError("請提供要更新的欄位。");
     }
 
@@ -212,6 +239,7 @@ export async function PATCH(request: Request) {
     const patch: Record<string, unknown> = {};
     if (role !== undefined) patch.role = role;
     if (departmentScope !== undefined) patch.department_scope = departmentScope;
+    if (recoveryEmail !== undefined) patch.recovery_email = recoveryEmail;
 
     const table =
       kind === "google" ? "authorized_emails" : "dashboard_accounts";

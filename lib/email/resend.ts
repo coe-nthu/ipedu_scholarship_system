@@ -18,6 +18,14 @@ type SendScholarshipCorrectionEmailInput = {
   scholarshipProgram: string;
 };
 
+type SendDashboardPasswordResetCodeEmailInput = {
+  code: string;
+  displayName: string;
+  expiresMinutes: number;
+  recipientEmail: string;
+  username: string;
+};
+
 type ResendEmailResponse = {
   id?: string;
   message?: string;
@@ -190,6 +198,50 @@ function buildCorrectionText({
   ].join("\n");
 }
 
+function buildDashboardPasswordResetHtml({
+  code,
+  displayName,
+  expiresMinutes,
+  username,
+}: SendDashboardPasswordResetCodeEmailInput) {
+  const safeCode = escapeHtml(code);
+  const safeDisplayName = escapeHtml(displayName || username);
+  const safeExpiresMinutes = escapeHtml(String(expiresMinutes));
+  const safeUsername = escapeHtml(username);
+
+  return `
+    <div style="font-family: Arial, 'Noto Sans TC', sans-serif; line-height: 1.7; color: #0f172a;">
+      <h1 style="font-size: 20px; margin: 0 0 16px;">後台密碼重設驗證碼</h1>
+      <p>${safeDisplayName} 您好：</p>
+      <p>您正在重設獎學金系統後台帳號「${safeUsername}」的密碼。</p>
+      <div style="margin: 20px 0; padding: 18px 20px; border: 1px solid #cbd5e1; background: #f8fafc; width: fit-content;">
+        <p style="margin: 0 0 6px; color: #475569; font-size: 13px;">驗證碼</p>
+        <p style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 4px;">${safeCode}</p>
+      </div>
+      <p>此驗證碼將於 ${safeExpiresMinutes} 分鐘後失效。若您沒有提出重設密碼要求，請忽略此信件。</p>
+      <p style="color: #475569; font-size: 13px;">此信件由系統自動寄出，請勿直接回覆。</p>
+    </div>
+  `;
+}
+
+function buildDashboardPasswordResetText({
+  code,
+  displayName,
+  expiresMinutes,
+  username,
+}: SendDashboardPasswordResetCodeEmailInput) {
+  return [
+    `${displayName || username} 您好：`,
+    "",
+    `您正在重設獎學金系統後台帳號「${username}」的密碼。`,
+    `驗證碼：${code}`,
+    `此驗證碼將於 ${expiresMinutes} 分鐘後失效。`,
+    "",
+    "若您沒有提出重設密碼要求，請忽略此信件。",
+    "此信件由系統自動寄出，請勿直接回覆。",
+  ].join("\n");
+}
+
 async function sendResendEmail({
   html,
   idempotencyKey,
@@ -250,5 +302,17 @@ export async function sendScholarshipCorrectionEmail(
     recipientEmail: input.recipientEmail,
     subject: "獎學金申請資料需補正",
     text: buildCorrectionText(input),
+  });
+}
+
+export async function sendDashboardPasswordResetCodeEmail(
+  input: SendDashboardPasswordResetCodeEmailInput
+) {
+  return sendResendEmail({
+    html: buildDashboardPasswordResetHtml(input),
+    idempotencyKey: `dashboard-password-reset-${input.username}-${Date.now()}`,
+    recipientEmail: input.recipientEmail,
+    subject: "後台密碼重設驗證碼",
+    text: buildDashboardPasswordResetText(input),
   });
 }

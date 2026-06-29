@@ -1279,6 +1279,73 @@ function ScopeEditorDialog({
   );
 }
 
+function RecoveryEmailEditorDialog({
+  account,
+  onSave,
+}: {
+  account: DashboardAccountEntry;
+  onSave: (recoveryEmail: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState(account.recoveryEmail ?? "");
+  const [error, setError] = useState("");
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      setEmail(account.recoveryEmail ?? "");
+      setError("");
+    }
+    setOpen(next);
+  };
+
+  const handleSave = () => {
+    const trimmed = email.trim().toLowerCase();
+    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("請輸入有效的信箱格式。");
+      return;
+    }
+    onSave(trimmed || null);
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Pencil className="size-3.5" />
+            編輯
+          </Button>
+        }
+      />
+      <DialogContent className="bg-white text-slate-900">
+        <DialogHeader>
+          <DialogTitle>編輯重設信箱</DialogTitle>
+          <DialogDescription>
+            設定「{account.displayName}」忘記密碼時接收驗證碼的信箱。清空後此帳號無法使用忘記密碼流程。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Input
+            type="email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError("");
+            }}
+            placeholder="teacher@example.edu.tw"
+          />
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>取消</DialogClose>
+          <Button onClick={handleSave}>儲存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
@@ -1333,7 +1400,12 @@ export function AdminPanel() {
   const patchAccount = useCallback(
     (
       account: DashboardAccountEntry,
-      patch: Partial<Pick<DashboardAccountEntry, "role" | "departmentScope">>,
+      patch: Partial<
+        Pick<
+          DashboardAccountEntry,
+          "departmentScope" | "recoveryEmail" | "role"
+        >
+      >,
       body: Record<string, unknown>,
       successMessage: string
     ) => {
@@ -1399,6 +1471,18 @@ export function AdminPanel() {
     [patchAccount]
   );
 
+  const handleRecoveryEmailChange = useCallback(
+    (account: DashboardAccountEntry, recoveryEmail: string | null) => {
+      patchAccount(
+        account,
+        { recoveryEmail },
+        { recoveryEmail },
+        recoveryEmail ? "重設信箱已更新。" : "重設信箱已清空。"
+      );
+    },
+    [patchAccount]
+  );
+
   // Delete a Google authorized email (password accounts are not deletable here).
   const handleDelete = useCallback((account: DashboardAccountEntry) => {
     fetch("/api/dashboard/authorized-emails", {
@@ -1453,6 +1537,7 @@ export function AdminPanel() {
               <TableHead>類型</TableHead>
               <TableHead>帳號</TableHead>
               <TableHead>角色</TableHead>
+              <TableHead>重設信箱</TableHead>
               <TableHead>可審查系所</TableHead>
               <TableHead className="w-[80px]">操作</TableHead>
             </TableRow>
@@ -1461,7 +1546,7 @@ export function AdminPanel() {
             {accounts.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center text-slate-400 py-8"
                 >
                   尚無帳號
@@ -1489,6 +1574,23 @@ export function AdminPanel() {
                       role={account.role}
                       onRoleChange={(r) => handleRoleChange(account, r)}
                     />
+                  </TableCell>
+                  <TableCell>
+                    {account.kind === "password" ? (
+                      <div className="flex items-center gap-2">
+                        <span className="max-w-[220px] truncate font-mono text-sm text-slate-700">
+                          {account.recoveryEmail || "未設定"}
+                        </span>
+                        <RecoveryEmailEditorDialog
+                          account={account}
+                          onSave={(email) =>
+                            handleRecoveryEmailChange(account, email)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -1543,7 +1645,7 @@ export function AdminPanel() {
         </Table>
       </div>
       <p className="text-xs text-slate-400">
-        帳密帳號的新增與重設仍由系統管理；使用者可登入後自行修改自己的密碼。
+        帳密帳號需先設定重設信箱，使用者即可於登入頁透過驗證碼重設密碼；登入後仍可自行修改密碼。
       </p>
     </div>
   );

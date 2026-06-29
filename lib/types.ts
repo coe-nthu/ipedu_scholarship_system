@@ -248,6 +248,8 @@ export type DashboardAccountEntry = {
   /** password: username · google: email */
   label: string;
   displayName: string;
+  /** Only meaningful for password accounts */
+  recoveryEmail?: string | null;
   role: DashboardRole;
   departmentScope: DashboardDepartmentScope;
   /** Only meaningful for password accounts; google is always true */
