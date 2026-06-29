@@ -52,6 +52,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -80,6 +81,25 @@ import type {
   JournalIndexRecord,
   NstcCoreJournalRecord,
 } from "@/lib/types";
+
+function AdminLoadingState({
+  label,
+  skeletonHeight = "h-56",
+}: {
+  label: string;
+  skeletonHeight?: string;
+}) {
+  return (
+    <div className="space-y-3 p-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+        <Spinner className="size-4 text-[#1f6f78]" />
+        <span>{label}，請稍候...</span>
+      </div>
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className={`${skeletonHeight} w-full`} />
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Role badge                                                         */
@@ -308,10 +328,10 @@ function ScholarshipProgramsPanel() {
 
   if (loading) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-72 w-full" />
-      </div>
+      <AdminLoadingState
+        label="正在載入獎學金設定"
+        skeletonHeight="h-72"
+      />
     );
   }
 
@@ -641,12 +661,7 @@ function JournalIndexesPanel() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-56 w-full" />
-      </div>
-    );
+    return <AdminLoadingState label="正在載入期刊索引" />;
   }
 
   return (
@@ -940,12 +955,7 @@ function NstcCoreJournalsPanel() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-56 w-full" />
-      </div>
-    );
+    return <AdminLoadingState label="正在載入國科會核心期刊" />;
   }
 
   return (
@@ -1506,10 +1516,7 @@ export function AdminPanel() {
 
   if (loading) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-48 w-full" />
-      </div>
+      <AdminLoadingState label="正在載入帳號與權限" skeletonHeight="h-48" />
     );
   }
 
