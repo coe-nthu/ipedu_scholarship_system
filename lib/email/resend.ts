@@ -284,9 +284,14 @@ async function sendResendEmail({
 export async function sendScholarshipConfirmationEmail(
   input: SendScholarshipConfirmationEmailInput
 ) {
+  // Include submittedAt so each submission gets a distinct key: a genuine retry
+  // of the same submission still dedups, but resubmitting (which changes the
+  // body's submit time) no longer collides with the previous idempotency key.
   return sendResendEmail({
     html: buildConfirmationHtml(input),
-    idempotencyKey: `scholarship-confirmation-${input.applicationId}`,
+    idempotencyKey: `scholarship-confirmation-${input.applicationId}-${
+      input.submittedAt ?? Date.now()
+    }`,
     recipientEmail: input.recipientEmail,
     subject: "獎學金申請已送出",
     text: buildConfirmationText(input),
