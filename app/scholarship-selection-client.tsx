@@ -22,7 +22,10 @@ import {
   textForLanguage,
   type ScholarshipLanguage,
 } from "@/lib/scholarship-language";
-import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
+import {
+  getDefaultScholarshipProgramSetting,
+  type ScholarshipProgramSetting,
+} from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/client";
 
 const BILINGUAL_PROGRAM_KEYS = new Set([
@@ -32,51 +35,6 @@ const BILINGUAL_PROGRAM_KEYS = new Set([
   "moe-doctoral",
   "full-time-doctoral-grant",
 ]);
-
-const PROGRAM_ENGLISH_COPY: Record<
-  string,
-  { amount: string; description: string; period: string; title: string }
-> = {
-  "full-time-doctoral-grant": {
-    amount:
-      "The final amount and award period are determined by the college review committee.",
-    description:
-      "Application for full-time doctoral students. Complete personal information, employment status, academic records, and required PDF uploads.",
-    period: "For full-time doctoral students in the College.",
-    title: "Full-Time Doctoral Student Grant",
-  },
-  "nstc-doctoral": {
-    amount: "NT$40,000 per month, up to 4 academic years.",
-    description:
-      "NSTC scholarship application for outstanding doctoral students. Complete personal information, eligibility, academic achievements, research experience, and required PDF uploads.",
-    period: "For eligible 111-112 academic year students.",
-    title:
-      "NSTC Scholarship for Outstanding Doctoral Students",
-  },
-  "nstc-research-grant": {
-    amount: "NT$40,000 per month, up to 3 academic years.",
-    description:
-      "NSTC doctoral research grant application for incoming doctoral students. Complete personal information, academic records, research achievements, and required PDF uploads.",
-    period: "For incoming doctoral students in the specified academic year.",
-    title: "NSTC Doctoral Research Grant",
-  },
-  "presidential-new-student": {
-    amount: "NT$40,000 per month, up to 4 academic years.",
-    description:
-      "Presidential scholarship application for new students. Complete personal information, eligibility, academic achievements, research participation, and required PDF uploads.",
-    period: "New Student Scholarship.",
-    title: "Presidential Scholarship (New Student Scholarship)",
-  },
-  "moe-doctoral": {
-    amount: "NT$40,000 per month, up to 3 academic years.",
-    description:
-      "Ministry of Education doctoral scholarship application. Complete personal information, eligibility, academic achievements, research participation, and required PDF uploads.",
-    period:
-      "For first- to third-year doctoral students in the 115 academic year.",
-    title:
-      "MOE Doctoral Scholarship (For 115 Academic Year Doctoral Years 1-3)",
-  },
-};
 
 function ProgramText({
   children,
@@ -90,6 +48,20 @@ function ProgramText({
   return (
     <>{enabled && english ? <span>{english}</span> : <span>{children}</span>}</>
   );
+}
+
+function englishCardText(program: ScholarshipProgramSetting) {
+  const fallback = getDefaultScholarshipProgramSetting(program.program_key);
+
+  return {
+    amount: program.amount_en || fallback.amount_en || program.amount,
+    description:
+      program.description_en || fallback.description_en || program.description,
+    period: program.period_en || fallback.period_en || program.period,
+    statusLabel:
+      program.status_label_en || fallback.status_label_en || program.status_label,
+    title: program.title_en || fallback.title_en || program.title,
+  };
 }
 
 export function ScholarshipSelectionClient({
@@ -191,7 +163,7 @@ export function ScholarshipSelectionClient({
               {visiblePrograms.map((program) => {
                 const bilingual =
                   isEnglish && BILINGUAL_PROGRAM_KEYS.has(program.program_key);
-                const english = PROGRAM_ENGLISH_COPY[program.program_key];
+                const english = englishCardText(program);
 
                 return (
                   <Card
@@ -218,7 +190,7 @@ export function ScholarshipSelectionClient({
                               : "bg-slate-100 text-slate-600"
                           }
                         >
-                          {program.status_label}
+                          {bilingual ? english.statusLabel : program.status_label}
                         </Badge>
                       </div>
                       <CardTitle className="text-lg leading-7">

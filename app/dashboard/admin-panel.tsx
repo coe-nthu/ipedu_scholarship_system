@@ -342,7 +342,7 @@ function ScholarshipProgramsPanel() {
           獎學金介面設定
         </h2>
         <p className="text-sm text-slate-500">
-          調整首頁卡片與表單頁文字；名稱異動不會批次改寫既有申請資料。
+          調整首頁卡片中英文文案與表單頁中文提醒；名稱異動不會批次改寫既有申請資料。
         </p>
       </div>
 
@@ -377,85 +377,168 @@ function ScholarshipProgramsPanel() {
               </Button>
             </div>
 
+            <Tabs defaultValue="zh" className="space-y-4">
+              <TabsList className="h-9 w-fit">
+                <TabsTrigger value="zh" className="text-sm">
+                  中文
+                </TabsTrigger>
+                <TabsTrigger value="en" className="text-sm">
+                  English
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="zh" className="grid gap-4 lg:grid-cols-2">
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    獎學金名稱
+                  </span>
+                  <Input
+                    value={program.title}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        title: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    狀態標籤
+                  </span>
+                  <Input
+                    value={program.status_label}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        status_label: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    適用對象
+                  </span>
+                  <Input
+                    value={program.period}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        period: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    金額
+                  </span>
+                  <Input
+                    value={program.amount}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        amount: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5 lg:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    首頁卡片說明
+                  </span>
+                  <Textarea
+                    value={program.description}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        description: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5 lg:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    表單請領資格提醒
+                  </span>
+                  <Textarea
+                    value={program.eligibility_reminder}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        eligibility_reminder: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </TabsContent>
+              <TabsContent value="en" className="grid gap-4 lg:grid-cols-2">
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    Scholarship name
+                  </span>
+                  <Input
+                    value={program.title_en ?? ""}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        title_en: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    Status label
+                  </span>
+                  <Input
+                    value={program.status_label_en ?? ""}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        status_label_en: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    Audience
+                  </span>
+                  <Input
+                    value={program.period_en ?? ""}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        period_en: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-sm font-medium text-slate-700">
+                    Amount
+                  </span>
+                  <Input
+                    value={program.amount_en ?? ""}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        amount_en: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1.5 lg:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Homepage card description
+                  </span>
+                  <Textarea
+                    value={program.description_en ?? ""}
+                    onChange={(event) =>
+                      updateProgram(program.program_key, {
+                        description_en: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <p className="text-xs leading-5 text-slate-500 lg:col-span-2">
+                  Leave an English field blank to use the default English copy
+                  on the homepage.
+                </p>
+              </TabsContent>
+            </Tabs>
             <div className="grid gap-4 lg:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700">
-                  獎學金名稱
-                </span>
-                <Input
-                  value={program.title}
-                  onChange={(event) =>
-                    updateProgram(program.program_key, {
-                      title: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700">
-                  狀態標籤
-                </span>
-                <Input
-                  value={program.status_label}
-                  onChange={(event) =>
-                    updateProgram(program.program_key, {
-                      status_label: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700">
-                  適用對象
-                </span>
-                <Input
-                  value={program.period}
-                  onChange={(event) =>
-                    updateProgram(program.program_key, {
-                      period: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-slate-700">
-                  金額
-                </span>
-                <Input
-                  value={program.amount}
-                  onChange={(event) =>
-                    updateProgram(program.program_key, {
-                      amount: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="space-y-1.5 lg:col-span-2">
-                <span className="text-sm font-medium text-slate-700">
-                  首頁卡片說明
-                </span>
-                <Textarea
-                  value={program.description}
-                  onChange={(event) =>
-                    updateProgram(program.program_key, {
-                      description: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="space-y-1.5 lg:col-span-2">
-                <span className="text-sm font-medium text-slate-700">
-                  表單請領資格提醒
-                </span>
-                <Textarea
-                  value={program.eligibility_reminder}
-                  onChange={(event) =>
-                    updateProgram(program.program_key, {
-                      eligibility_reminder: event.target.value,
-                    })
-                  }
-                />
-              </label>
               <label className="space-y-1.5">
                 <span className="text-sm font-medium text-slate-700">
                   排序

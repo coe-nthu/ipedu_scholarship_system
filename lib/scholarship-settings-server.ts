@@ -28,7 +28,7 @@ export async function fetchScholarshipProgramSettings(): Promise<
 
   try {
     const response = await fetch(
-      `${config.url}/rest/v1/scholarship_program_settings?order=display_order.asc&select=program_key,route_path,title,description,period,amount,status_label,eligibility_reminder,is_visible,is_open,display_order,updated_by,created_at,updated_at`,
+      `${config.url}/rest/v1/scholarship_program_settings?order=display_order.asc&select=program_key,route_path,title,title_en,description,description_en,period,period_en,amount,amount_en,status_label,status_label_en,eligibility_reminder,is_visible,is_open,display_order,updated_by,created_at,updated_at`,
       {
         headers: {
           apikey: config.serviceRoleKey,

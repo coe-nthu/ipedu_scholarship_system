@@ -42,6 +42,27 @@ function normalizeText(value: unknown, fieldLabel: string) {
   return trimmed;
 }
 
+function normalizeOptionalText(value: unknown, fieldLabel: string) {
+  if (value == null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${fieldLabel} 必須是文字。`);
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.length > 500) {
+    throw new Error(`${fieldLabel} 不可超過 500 字。`);
+  }
+
+  return trimmed;
+}
+
 function normalizeBoolean(value: unknown, fieldLabel: string) {
   if (typeof value !== "boolean") {
     throw new Error(`${fieldLabel} 必須是布林值。`);
@@ -103,7 +124,12 @@ export async function PATCH(request: Request) {
     try {
       payload = {
         amount: normalizeText(body.amount, "金額"),
+        amount_en: normalizeOptionalText(body.amount_en, "英文金額"),
         description: normalizeText(body.description, "卡片說明"),
+        description_en: normalizeOptionalText(
+          body.description_en,
+          "英文卡片說明"
+        ),
         display_order: normalizeDisplayOrder(body.display_order),
         eligibility_reminder: normalizeText(
           body.eligibility_reminder,
@@ -112,10 +138,16 @@ export async function PATCH(request: Request) {
         is_open: normalizeBoolean(body.is_open, "開放填寫"),
         is_visible: normalizeBoolean(body.is_visible, "顯示於首頁"),
         period: normalizeText(body.period, "適用對象"),
+        period_en: normalizeOptionalText(body.period_en, "英文適用對象"),
         program_key: body.program_key,
         route_path: fallback.route_path,
         status_label: normalizeText(body.status_label, "狀態標籤"),
+        status_label_en: normalizeOptionalText(
+          body.status_label_en,
+          "英文狀態標籤"
+        ),
         title: normalizeText(body.title, "獎學金名稱"),
+        title_en: normalizeOptionalText(body.title_en, "英文獎學金名稱"),
       };
     } catch (error) {
       return jsonError(error instanceof Error ? error.message : "欄位不合法。");
