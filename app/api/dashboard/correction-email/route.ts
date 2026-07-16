@@ -3,6 +3,7 @@ import {
   canAccessDepartment,
   checkDashboardAccess,
 } from "@/lib/auth";
+import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { sendScholarshipCorrectionEmail } from "@/lib/email/resend";
 import type { ScholarshipPayload } from "@/lib/types";
 import { isValidUUID } from "@/lib/validation";
@@ -62,6 +63,10 @@ export async function POST(request: Request) {
         auth.reason === "not_authenticated" ? "請先登入。" : "無權限存取。",
         auth.reason === "not_authenticated" ? 401 : 403
       );
+    }
+    const permissions = await getDashboardRolePermissions(auth.role);
+    if (!permissions.sendCorrection) {
+      return jsonError("此角色目前無法通知補正。", 403);
     }
 
     const body = (await request.json()) as CorrectionEmailRequest;

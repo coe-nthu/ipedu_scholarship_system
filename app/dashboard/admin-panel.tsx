@@ -71,6 +71,14 @@ import {
   scopeToGroupKeys,
   type DepartmentGroupKey,
 } from "@/lib/departments";
+import {
+  DASHBOARD_ACTION_KEYS,
+  DASHBOARD_ACTION_LABELS,
+  DASHBOARD_ROLE_LABELS,
+  DEFAULT_DASHBOARD_PERMISSION_SETTINGS,
+  type DashboardActionPermissions,
+  type DashboardPermissionSettings,
+} from "@/lib/dashboard-permissions";
 import { cn } from "@/lib/utils";
 import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
 import type {
@@ -1449,7 +1457,13 @@ function accountId(account: Pick<DashboardAccountEntry, "kind" | "key">) {
 
 export function AdminPanel() {
   const [accounts, setAccounts] = useState<DashboardAccountEntry[]>([]);
+  const [actionPermissions, setActionPermissions] =
+    useState<DashboardPermissionSettings>(
+      DEFAULT_DASHBOARD_PERMISSION_SETTINGS
+    );
   const [loading, setLoading] = useState(true);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [permissionsSaving, setPermissionsSaving] = useState(false);
 
   const loadAccounts = useCallback(() => {
     return fetch("/api/dashboard/accounts")
@@ -1464,9 +1478,26 @@ export function AdminPanel() {
       .catch(() => toast.error("載入帳號失敗。"));
   }, []);
 
+  const loadActionPermissions = useCallback(() => {
+    return fetch("/api/dashboard/permissions")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setActionPermissions(data.permissions);
+        } else {
+          toast.error(data.error || "載入功能權限失敗。");
+        }
+      })
+      .catch(() => toast.error("載入功能權限失敗。"));
+  }, []);
+
   useEffect(() => {
-    loadAccounts().finally(() => setLoading(false));
-  }, [loadAccounts]);
+    Promise.all([loadAccounts(), loadActionPermissions()])
+      .finally(() => {
+        setLoading(false);
+        setPermissionsLoading(false);
+      });
+  }, [loadAccounts, loadActionPermissions]);
 
   // Add a Google authorized email, then refresh the unified list.
   const handleAdd = useCallback(
@@ -1575,6 +1606,43 @@ export function AdminPanel() {
     },
     [patchAccount]
   );
+
+  const updateActionPermission = useCallback(
+    (
+      role: DashboardRole,
+      action: keyof DashboardActionPermissions,
+      value: boolean
+    ) => {
+      setActionPermissions((prev) => ({
+        ...prev,
+        [role]: {
+          ...prev[role],
+          [action]: value,
+        },
+      }));
+    },
+    []
+  );
+
+  const handleSaveActionPermissions = useCallback(() => {
+    setPermissionsSaving(true);
+    fetch("/api/dashboard/permissions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ permissions: actionPermissions }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setActionPermissions(data.permissions);
+          toast.success("功能權限已更新。");
+        } else {
+          toast.error(data.error || "功能權限儲存失敗。");
+        }
+      })
+      .catch(() => toast.error("功能權限儲存失敗。"))
+      .finally(() => setPermissionsSaving(false));
+  }, [actionPermissions]);
 
   // Delete a Google authorized email (password accounts are not deletable here).
   const handleDelete = useCallback((account: DashboardAccountEntry) => {
@@ -1740,6 +1808,73 @@ export function AdminPanel() {
     </div>
   );
 
+  const actionPermissionsPanel = (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            審查資料功能權限
+          </h2>
+          <p className="text-sm text-slate-500">
+            設定申請資料詳情中「匯出 PDF、通知補正、編輯、刪除」對管理員與系所帳號是否開放。
+          </p>
+        </div>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          disabled={permissionsSaving || permissionsLoading}
+          onClick={handleSaveActionPermissions}
+        >
+          <Save className="size-4" />
+          {permissionsSaving ? "儲存中" : "儲存權限"}
+        </Button>
+      </div>
+
+      {permissionsLoading ? (
+        <AdminLoadingState label="正在載入功能權限" skeletonHeight="h-36" />
+      ) : (
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead>角色</TableHead>
+                {DASHBOARD_ACTION_KEYS.map((action) => (
+                  <TableHead key={action} className="text-center">
+                    {DASHBOARD_ACTION_LABELS[action]}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(["admin", "teacher"] as const).map((role) => (
+                <TableRow key={role}>
+                  <TableCell>
+                    <div className="font-medium text-slate-900">
+                      {DASHBOARD_ROLE_LABELS[role]}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {role === "admin" ? "管理設定與院辦帳號" : "系所審查帳號"}
+                    </div>
+                  </TableCell>
+                  {DASHBOARD_ACTION_KEYS.map((action) => (
+                    <TableCell key={action} className="text-center">
+                      <Switch
+                        checked={actionPermissions[role][action]}
+                        onCheckedChange={(checked) =>
+                          updateActionPermission(role, action, checked)
+                        }
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Tabs defaultValue="programs" className="space-y-4">
       <TabsList className="h-10 w-fit">
@@ -1759,6 +1894,10 @@ export function AdminPanel() {
           <Shield className="size-4" />
           帳號與權限
         </TabsTrigger>
+        <TabsTrigger value="action-permissions" className="gap-1.5 text-sm">
+          <Settings className="size-4" />
+          功能權限
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="programs" className="space-y-4">
         <ScholarshipProgramsPanel />
@@ -1771,6 +1910,9 @@ export function AdminPanel() {
       </TabsContent>
       <TabsContent value="accounts" className="space-y-4">
         {accountsPanel}
+      </TabsContent>
+      <TabsContent value="action-permissions" className="space-y-4">
+        {actionPermissionsPanel}
       </TabsContent>
     </Tabs>
   );

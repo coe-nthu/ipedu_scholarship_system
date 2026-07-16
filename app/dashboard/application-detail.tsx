@@ -48,6 +48,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { DashboardActionPermissions } from "@/lib/dashboard-permissions";
 import type {
   Conference,
   Journal,
@@ -104,10 +105,7 @@ type ApplicationDetailProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated?: (application: ScholarshipApplication) => void;
-  /** Admin-only: allow deleting the record. */
-  canDelete?: boolean;
-  /** Admin-only: allow exporting the record details as PDF. */
-  canExportPdf?: boolean;
+  permissions: DashboardActionPermissions;
   onDeleted?: (applicationId: string) => void;
 };
 
@@ -458,8 +456,7 @@ export function ApplicationDetail({
   open,
   onOpenChange,
   onUpdated,
-  canDelete = false,
-  canExportPdf = false,
+  permissions,
   onDeleted,
 }: ApplicationDetailProps) {
   const [verifyingAll, setVerifyingAll] = useState(false);
@@ -753,7 +750,7 @@ export function ApplicationDetail({
                 </>
               ) : (
                 <>
-                  {canExportPdf ? (
+                  {permissions.exportPdf ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -769,25 +766,29 @@ export function ApplicationDetail({
                       匯出 PDF
                     </Button>
                   ) : null}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 text-xs h-8"
-                    onClick={() => setCorrectionOpen(true)}
-                  >
-                    <Mail className="size-3.5" />
-                    通知補正
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 text-xs h-8"
-                    onClick={startEditing}
-                  >
-                    <Pencil className="size-3.5" />
-                    編輯
-                  </Button>
-                  {canDelete ? (
+                  {permissions.sendCorrection ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-xs h-8"
+                      onClick={() => setCorrectionOpen(true)}
+                    >
+                      <Mail className="size-3.5" />
+                      通知補正
+                    </Button>
+                  ) : null}
+                  {permissions.editApplication ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-xs h-8"
+                      onClick={startEditing}
+                    >
+                      <Pencil className="size-3.5" />
+                      編輯
+                    </Button>
+                  ) : null}
+                  {permissions.deleteApplication ? (
                     <AlertDialog>
                       <AlertDialogTrigger
                         render={

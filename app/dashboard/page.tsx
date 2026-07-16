@@ -10,6 +10,7 @@ import type { DashboardAuthProvider, DashboardRole } from "@/lib/types";
 import type { ScholarshipApplication } from "@/lib/types";
 import { AuthButton } from "@/components/auth-button";
 import { fetchScholarshipProgramSettings } from "@/lib/scholarship-settings-server";
+import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { AdminPanel } from "./admin-panel";
 import { DashboardTabs } from "./dashboard-tabs";
 import { ScholarshipProgramSwitcher } from "./scholarship-program-switcher";
@@ -129,9 +130,10 @@ export default async function DashboardPage() {
     return <AccessDeniedView />;
   }
 
-  const [applications, programs] = await Promise.all([
+  const [applications, programs, permissions] = await Promise.all([
     fetchApplications(auth),
     fetchScholarshipProgramSettings(),
+    getDashboardRolePermissions(auth.role),
   ]);
 
   return (
@@ -147,8 +149,7 @@ export default async function DashboardPage() {
               <ScholarshipProgramSwitcher
                 applications={applications}
                 programs={programs}
-                canDelete={auth.role === "admin"}
-                canExportPdf={auth.role === "admin"}
+                permissions={permissions}
               />
             }
             adminContent={<AdminPanel />}
@@ -164,8 +165,7 @@ export default async function DashboardPage() {
             <ScholarshipProgramSwitcher
               applications={applications}
               programs={programs}
-              canDelete={false}
-              canExportPdf={false}
+              permissions={permissions}
             />
           </>
         )}

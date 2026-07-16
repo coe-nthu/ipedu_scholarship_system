@@ -4,6 +4,7 @@ import {
   checkDashboardAccess,
   filterApplicationsByScope,
 } from "@/lib/auth";
+import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 import {
   DATABASE_OPTIONS,
@@ -241,6 +242,11 @@ export async function PATCH(request: Request) {
       return jsonError("請提供要更新的欄位。");
     }
 
+    const permissions = await getDashboardRolePermissions(auth.role);
+    if (payload !== undefined && !permissions.editApplication) {
+      return jsonError("此角色目前無法編輯申請資料。", 403);
+    }
+
     if (review_status !== undefined && !isValidReviewStatus(review_status)) {
       return jsonError("不合法的審查狀態。");
     }
@@ -352,7 +358,7 @@ export async function PATCH(request: Request) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  DELETE — Admin removes an application record (admin only)           */
+/*  DELETE — Remove an application record when role permissions allow   */
 /* ------------------------------------------------------------------ */
 
 const STORAGE_BUCKET = "scholarship-documents";
@@ -366,9 +372,9 @@ export async function DELETE(request: Request) {
         auth.reason === "not_authenticated" ? 401 : 403
       );
     }
-    // Deleting a record is irreversible — restrict to admins.
-    if (auth.role !== "admin") {
-      return jsonError("只有管理員可以刪除申請紀錄。", 403);
+    const permissions = await getDashboardRolePermissions(auth.role);
+    if (!permissions.deleteApplication) {
+      return jsonError("此角色目前無法刪除申請紀錄。", 403);
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();

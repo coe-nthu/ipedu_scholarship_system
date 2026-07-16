@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ScholarshipApplication } from "@/lib/types";
+import type { DashboardActionPermissions } from "@/lib/dashboard-permissions";
 import {
   DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS,
   getProgramKeyByLegacyTitle,
@@ -41,13 +42,11 @@ function ProgramCount({
 export function ScholarshipProgramSwitcher({
   applications,
   programs = DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS,
-  canDelete = false,
-  canExportPdf = false,
+  permissions,
 }: {
   applications: ScholarshipApplication[];
   programs?: ScholarshipProgramSetting[];
-  canDelete?: boolean;
-  canExportPdf?: boolean;
+  permissions: DashboardActionPermissions;
 }) {
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -91,8 +90,7 @@ export function ScholarshipProgramSwitcher({
       >
         <DashboardTable
           applications={applications}
-          canDelete={canDelete}
-          canExportPdf={canExportPdf}
+          permissions={permissions}
         />
       </TabsContent>
       {programs.map((program) => {
@@ -112,8 +110,7 @@ export function ScholarshipProgramSwitcher({
             <DashboardTable
               key={program.program_key}
               applications={filteredApplications}
-              canDelete={canDelete}
-              canExportPdf={canExportPdf}
+              permissions={permissions}
             />
           </TabsContent>
         );

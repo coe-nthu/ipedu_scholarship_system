@@ -77,6 +77,44 @@ create policy "Service role can manage dashboard accounts"
   using (true)
   with check (true);
 
+create table public.dashboard_permission_settings (
+  role         text primary key check (role in ('teacher', 'admin')),
+  permissions jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+comment on table public.dashboard_permission_settings is '後台審查資料功能權限設定';
+comment on column public.dashboard_permission_settings.role is 'teacher=系所, admin=管理員';
+comment on column public.dashboard_permission_settings.permissions is '審查資料附件功能權限 JSON';
+
+insert into public.dashboard_permission_settings (role, permissions)
+values
+  (
+    'admin',
+    '{"exportPdf": true, "sendCorrection": true, "editApplication": true, "deleteApplication": true}'::jsonb
+  ),
+  (
+    'teacher',
+    '{"exportPdf": false, "sendCorrection": true, "editApplication": true, "deleteApplication": false}'::jsonb
+  )
+on conflict (role) do nothing;
+
+drop trigger if exists handle_dashboard_permission_settings_updated_at on public.dashboard_permission_settings;
+create trigger handle_dashboard_permission_settings_updated_at
+  before update on public.dashboard_permission_settings
+  for each row
+  execute function moddatetime(updated_at);
+
+alter table public.dashboard_permission_settings enable row level security;
+
+drop policy if exists "Service role can manage dashboard permission settings" on public.dashboard_permission_settings;
+create policy "Service role can manage dashboard permission settings"
+  on public.dashboard_permission_settings for all
+  to service_role
+  using (true)
+  with check (true);
+
 create table public.dashboard_password_reset_codes (
   id              uuid primary key default gen_random_uuid(),
   username        text not null references public.dashboard_accounts(username) on delete cascade,

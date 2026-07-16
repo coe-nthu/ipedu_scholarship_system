@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStatus, ScholarshipApplication } from "@/lib/types";
+import type { DashboardActionPermissions } from "@/lib/dashboard-permissions";
 import { REVIEW_STATUS_LABELS } from "@/lib/types";
 import {
   formatSubmittedAt,
@@ -287,12 +288,10 @@ function RemarkCell({
 
 export function DashboardTable({
   applications,
-  canDelete = false,
-  canExportPdf = false,
+  permissions,
 }: {
   applications: ScholarshipApplication[];
-  canDelete?: boolean;
-  canExportPdf?: boolean;
+  permissions: DashboardActionPermissions;
 }) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("rowNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -692,8 +691,7 @@ export function DashboardTable({
             [updated.id]: updated.review_status,
           }));
         }}
-        canDelete={canDelete}
-        canExportPdf={canExportPdf}
+        permissions={permissions}
         onDeleted={(id) => {
           setDeletedIds((prev) => new Set(prev).add(id));
           setSelectedApp(null);

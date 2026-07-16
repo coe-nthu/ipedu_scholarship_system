@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { canAccessDepartment, checkDashboardAccess } from "@/lib/auth";
+import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { createApplicationDetailPdf } from "@/lib/dashboard-application-pdf";
 import type { ScholarshipApplication } from "@/lib/types";
 import { isValidUUID } from "@/lib/validation";
@@ -44,8 +45,9 @@ export async function GET(
         auth.reason === "not_authenticated" ? 401 : 403
       );
     }
-    if (auth.role !== "admin") {
-      return jsonError("只有管理員可以匯出申請資料 PDF。", 403);
+    const permissions = await getDashboardRolePermissions(auth.role);
+    if (!permissions.exportPdf) {
+      return jsonError("此角色目前無法匯出申請資料 PDF。", 403);
     }
 
     const { id } = await params;
