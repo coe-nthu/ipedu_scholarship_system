@@ -230,9 +230,15 @@ function fileRows(file: SupabaseFileRecord): DisplayRow[] {
 export async function createApplicationDetailPdf(
   application: ScholarshipApplication
 ) {
+  const fontPath = resolveFontPath();
+  if (!fontPath) {
+    throw new Error("PDF font file not found. Set PDF_FONT_PATH or include assets/fonts/NotoSansTC-VF.ttf.");
+  }
+
   const doc = new PDFDocument({
     autoFirstPage: false,
     bufferPages: true,
+    font: fontPath,
     info: {
       Title: `${application.applicant_name} 申請資料詳情`,
       Author: "IPEDU Scholarship System",
@@ -242,14 +248,9 @@ export async function createApplicationDetailPdf(
     size: "A4",
   });
   const pdfBuffer = collectPdf(doc);
-  const fontPath = resolveFontPath();
 
   doc.addPage();
-  if (fontPath) {
-    doc.font(fontPath);
-  } else {
-    doc.font("Helvetica");
-  }
+  doc.font(fontPath);
 
   const { applicantInfo, otherAchievements } = application.payload;
   doc
