@@ -1,4 +1,5 @@
 import { existsSync } from "fs";
+import path from "path";
 import PDFDocument from "pdfkit";
 import {
   formatSubmittedAt,
@@ -26,6 +27,7 @@ const LINE_GAP = 4;
 
 const FONT_CANDIDATES = [
   process.env.PDF_FONT_PATH,
+  path.join(process.cwd(), "assets", "fonts", "NotoSansTC-VF.ttf"),
   "C:/Windows/Fonts/NotoSansTC-VF.ttf",
   "C:/Windows/Fonts/msjh.ttc",
   "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",

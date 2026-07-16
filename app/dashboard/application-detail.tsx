@@ -466,6 +466,7 @@ export function ApplicationDetail({
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [draft, setDraft] = useState<ScholarshipPayload | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
@@ -479,6 +480,7 @@ export function ApplicationDetail({
     setCorrectionOpen(false);
     setCorrectionMessage("");
     setSendingCorrection(false);
+    setExportingPdf(false);
   }, [application?.id]);
 
   const triggerVerify = useCallback(
@@ -655,6 +657,34 @@ export function ApplicationDetail({
     }
   }, [application, onDeleted, onOpenChange]);
 
+  const handleExportPdf = useCallback(async () => {
+    if (!application) return;
+    setExportingPdf(true);
+    try {
+      const res = await fetch(`/api/dashboard/applications/${application.id}/pdf`);
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!res.ok || !contentType.includes("application/pdf")) {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "PDF 匯出失敗，請稍後再試。");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${application.student_id}_${application.applicant_name}_申請資料詳情.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("PDF 匯出請求失敗，請稍後再試。");
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [application]);
+
   if (!application) return null;
 
   const { payload, files } = application;
@@ -720,20 +750,20 @@ export function ApplicationDetail({
                 </>
               ) : (
                 <>
-                  <a
-                    href={`/api/dashboard/applications/${application.id}/pdf`}
-                    download
-                    className="shrink-0"
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-xs h-8"
+                    disabled={exportingPdf}
+                    onClick={handleExportPdf}
                   >
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1 text-xs h-8"
-                    >
+                    {exportingPdf ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
                       <Download className="size-3.5" />
-                      匯出 PDF
-                    </Button>
-                  </a>
+                    )}
+                    匯出 PDF
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"

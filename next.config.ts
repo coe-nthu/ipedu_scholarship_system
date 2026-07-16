@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/dashboard/applications/*/pdf": ["./assets/fonts/NotoSansTC-VF.ttf"],
+  },
   async headers() {
     return [
       {
