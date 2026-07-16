@@ -1858,12 +1858,26 @@ export function AdminPanel() {
                   </TableCell>
                   {DASHBOARD_ACTION_KEYS.map((action) => (
                     <TableCell key={action} className="text-center">
-                      <Switch
-                        checked={actionPermissions[role][action]}
-                        onCheckedChange={(checked) =>
-                          updateActionPermission(role, action, checked)
-                        }
-                      />
+                      <div className="inline-flex items-center gap-2">
+                        <Switch
+                          aria-label={`${DASHBOARD_ROLE_LABELS[role]} ${DASHBOARD_ACTION_LABELS[action]}`}
+                          className="data-checked:bg-emerald-500 data-unchecked:bg-slate-300"
+                          checked={actionPermissions[role][action]}
+                          onCheckedChange={(checked) =>
+                            updateActionPermission(role, action, checked)
+                          }
+                        />
+                        <span
+                          className={cn(
+                            "min-w-10 text-left text-xs font-semibold",
+                            actionPermissions[role][action]
+                              ? "text-emerald-700"
+                              : "text-slate-400"
+                          )}
+                        >
+                          {actionPermissions[role][action] ? "開啟" : "關閉"}
+                        </span>
+                      </div>
                     </TableCell>
                   ))}
                 </TableRow>
