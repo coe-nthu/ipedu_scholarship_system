@@ -720,6 +720,20 @@ export function ApplicationDetail({
                 </>
               ) : (
                 <>
+                  <a
+                    href={`/api/dashboard/applications/${application.id}/pdf`}
+                    download
+                    className="shrink-0"
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-xs h-8"
+                    >
+                      <Download className="size-3.5" />
+                      匯出 PDF
+                    </Button>
+                  </a>
                   <Button
                     size="sm"
                     variant="outline"
