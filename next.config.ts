@@ -2,7 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
-    "/api/dashboard/applications/*/pdf": ["./assets/fonts/NotoSansTC-VF.ttf"],
+    "/api/dashboard/applications/*/pdf": [
+      "./assets/fonts/NotoSansTC-VF.ttf",
+      "./node_modules/pdfkit/js/data/**/*",
+      "./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/data/**/*",
+    ],
   },
   async headers() {
     return [
