@@ -148,6 +148,7 @@ export default async function DashboardPage() {
                 applications={applications}
                 programs={programs}
                 canDelete={auth.role === "admin"}
+                canExportPdf={auth.role === "admin"}
               />
             }
             adminContent={<AdminPanel />}
@@ -164,6 +165,7 @@ export default async function DashboardPage() {
               applications={applications}
               programs={programs}
               canDelete={false}
+              canExportPdf={false}
             />
           </>
         )}

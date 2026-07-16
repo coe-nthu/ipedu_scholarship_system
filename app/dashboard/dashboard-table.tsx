@@ -288,9 +288,11 @@ function RemarkCell({
 export function DashboardTable({
   applications,
   canDelete = false,
+  canExportPdf = false,
 }: {
   applications: ScholarshipApplication[];
   canDelete?: boolean;
+  canExportPdf?: boolean;
 }) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("rowNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -691,6 +693,7 @@ export function DashboardTable({
           }));
         }}
         canDelete={canDelete}
+        canExportPdf={canExportPdf}
         onDeleted={(id) => {
           setDeletedIds((prev) => new Set(prev).add(id));
           setSelectedApp(null);

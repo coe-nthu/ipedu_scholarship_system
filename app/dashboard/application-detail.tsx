@@ -106,6 +106,8 @@ type ApplicationDetailProps = {
   onUpdated?: (application: ScholarshipApplication) => void;
   /** Admin-only: allow deleting the record. */
   canDelete?: boolean;
+  /** Admin-only: allow exporting the record details as PDF. */
+  canExportPdf?: boolean;
   onDeleted?: (applicationId: string) => void;
 };
 
@@ -457,6 +459,7 @@ export function ApplicationDetail({
   onOpenChange,
   onUpdated,
   canDelete = false,
+  canExportPdf = false,
   onDeleted,
 }: ApplicationDetailProps) {
   const [verifyingAll, setVerifyingAll] = useState(false);
@@ -750,20 +753,22 @@ export function ApplicationDetail({
                 </>
               ) : (
                 <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 text-xs h-8"
-                    disabled={exportingPdf}
-                    onClick={handleExportPdf}
-                  >
-                    {exportingPdf ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Download className="size-3.5" />
-                    )}
-                    匯出 PDF
-                  </Button>
+                  {canExportPdf ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-xs h-8"
+                      disabled={exportingPdf}
+                      onClick={handleExportPdf}
+                    >
+                      {exportingPdf ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Download className="size-3.5" />
+                      )}
+                      匯出 PDF
+                    </Button>
+                  ) : null}
                   <Button
                     size="sm"
                     variant="outline"

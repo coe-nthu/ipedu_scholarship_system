@@ -42,10 +42,12 @@ export function ScholarshipProgramSwitcher({
   applications,
   programs = DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS,
   canDelete = false,
+  canExportPdf = false,
 }: {
   applications: ScholarshipApplication[];
   programs?: ScholarshipProgramSetting[];
   canDelete?: boolean;
+  canExportPdf?: boolean;
 }) {
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -87,7 +89,11 @@ export function ScholarshipProgramSwitcher({
         value={ALL_PROGRAMS_VALUE}
         className="min-w-0 max-w-full overflow-hidden"
       >
-        <DashboardTable applications={applications} canDelete={canDelete} />
+        <DashboardTable
+          applications={applications}
+          canDelete={canDelete}
+          canExportPdf={canExportPdf}
+        />
       </TabsContent>
       {programs.map((program) => {
         const filteredApplications = applications.filter(
@@ -107,6 +113,7 @@ export function ScholarshipProgramSwitcher({
               key={program.program_key}
               applications={filteredApplications}
               canDelete={canDelete}
+              canExportPdf={canExportPdf}
             />
           </TabsContent>
         );
