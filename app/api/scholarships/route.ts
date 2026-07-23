@@ -6,26 +6,10 @@ import {
   getProgramKeyByLegacyTitle,
   isScholarshipProgramKey,
 } from "@/lib/scholarship-settings";
+import { derivePayloadAcademicGpa } from "@/lib/academic-gpa";
+import type { ScholarshipPayload } from "@/lib/types";
 import { isValidUUID } from "@/lib/validation";
 import { verifyAllPublications } from "@/lib/verification";
-
-type ScholarshipPayload = {
-  applicantInfo?: {
-    applicantName?: string;
-    studentId?: string;
-    department?: string;
-    email?: string;
-    phone?: string;
-    advisorName?: string;
-    admissionAcademicYear?: string;
-    applicationType?: string;
-  };
-  academicPerformance?: {
-    cumulativeGpa?: string;
-    cumulativeGpaScale?: string;
-  };
-  [key: string]: unknown;
-};
 
 const DEFAULT_SCHOLARSHIP_PROGRAM = "國科會-培育優秀博士生獎學金";
 
@@ -220,14 +204,15 @@ export async function POST(request: Request) {
       return jsonError("applicationId 格式不合法。");
     }
 
-    const applicantInfo = payload.applicantInfo || {};
+    const derivedPayload = derivePayloadAcademicGpa(payload, programKey);
+    const applicantInfo = derivedPayload.applicantInfo || {};
     if (!applicantInfo.applicantName || !applicantInfo.department) {
       return jsonError("請填寫申請人姓名與所屬學系所。");
     }
 
     const submissionStatus =
       status === "submitted" ? "submitted" : "draft";
-    const academic = payload.academicPerformance || {};
+    const academic = derivedPayload.academicPerformance || {};
     const submittedAt =
       submissionStatus === "submitted" ? new Date().toISOString() : undefined;
     const upsertBody: Record<string, unknown> = {
@@ -249,7 +234,7 @@ export async function POST(request: Request) {
       submission_status: submissionStatus,
       review_status: "未審核",
       reviewer_remarks: "",
-      payload,
+      payload: derivedPayload,
     };
     if (submittedAt) {
       upsertBody.submitted_at = submittedAt;
@@ -283,7 +268,7 @@ export async function POST(request: Request) {
     let verificationSummary = null;
     if (submissionStatus === "submitted") {
       try {
-        const journals = (payload as Record<string, unknown>).journals as
+        const journals = (derivedPayload as Record<string, unknown>).journals as
           | import("@/lib/types").Journal[]
           | undefined;
         if (journals && journals.length > 0) {
@@ -291,7 +276,7 @@ export async function POST(request: Request) {
 
           // Update the application with enriched payload + review_status
           const enrichedPayload = {
-            ...(payload as Record<string, unknown>),
+            ...(derivedPayload as Record<string, unknown>),
             journals: vResult.journals,
             verificationSummary: vResult.summary,
           };

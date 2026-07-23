@@ -1,4 +1,8 @@
 import type { ScholarshipApplication } from "@/lib/types";
+import {
+  getDerivedAcademicGpaSummary,
+  shouldUseDoctoralStudyGpa,
+} from "@/lib/academic-gpa";
 
 type DisplayRow = {
   label: string;
@@ -89,6 +93,27 @@ export function getDashboardGpaSummary(
   }
 
   if (isMasterGraduateGpaProgram(application)) {
+    const derivedSummary = getDerivedAcademicGpaSummary(
+      academic,
+      getProgramKey(application),
+      application.payload.applicantInfo.studyStatus
+    );
+
+    if (
+      shouldUseDoctoralStudyGpa(
+        getProgramKey(application),
+        application.payload.applicantInfo.studyStatus
+      )
+    ) {
+      if (derivedSummary.gpa !== null || derivedSummary.completedCredits) {
+        return {
+          completedCredits: derivedSummary.completedCredits,
+          gpa: derivedSummary.gpa,
+          scale: academic.cumulativeGpaScale || "4.3",
+        };
+      }
+    }
+
     return {
       completedCredits: academic.masterGraduateTotalCredits,
       gpa: toNumber(academic.masterGraduateGpa),
@@ -96,9 +121,15 @@ export function getDashboardGpaSummary(
     };
   }
 
+  const derivedSummary = getDerivedAcademicGpaSummary(
+    academic,
+    getProgramKey(application),
+    application.payload.applicantInfo.studyStatus
+  );
+
   return {
-    completedCredits: academic.completedCredits,
-    gpa: toNumber(academic.cumulativeGpa),
+    completedCredits: derivedSummary.completedCredits,
+    gpa: derivedSummary.gpa,
     scale: academic.cumulativeGpaScale || "4.3",
   };
 }
@@ -217,6 +248,11 @@ export function getAcademicDisplayRows(
   }
 
   if (isMasterGraduateGpaProgram(application)) {
+    const derivedSummary = getDerivedAcademicGpaSummary(
+      academic,
+      getProgramKey(application),
+      application.payload.applicantInfo.studyStatus
+    );
     const rows: DisplayRow[] = [
       { label: "學士學校", value: academic.bachelorSchool },
       { label: "學士科系", value: academic.bachelorDepartment },
@@ -232,6 +268,25 @@ export function getAcademicDisplayRows(
         value: formatPercent(academic.masterGraduateRankPercent),
       },
     ];
+
+    if (
+      shouldUseDoctoralStudyGpa(
+        getProgramKey(application),
+        application.payload.applicantInfo.studyStatus
+      ) &&
+      (derivedSummary.gpa !== null || derivedSummary.completedCredits)
+    ) {
+      rows.push(
+        {
+          label: "累計 GPA",
+          value: formatGpa(
+            derivedSummary.gpa?.toFixed(2) ?? "",
+            academic.cumulativeGpaScale || "4.3"
+          ),
+        },
+        { label: "累計學分", value: derivedSummary.completedCredits }
+      );
+    }
 
     if (getProgramKey(application) === "presidential-new-student") {
       rows.push(
@@ -264,13 +319,25 @@ export function getAcademicDisplayRows(
     return rows;
   }
 
+  const derivedSummary = getDerivedAcademicGpaSummary(
+    academic,
+    getProgramKey(application),
+    application.payload.applicantInfo.studyStatus
+  );
+
   return [
     {
       label: "累計 GPA",
-      value: formatGpa(academic.cumulativeGpa, academic.cumulativeGpaScale),
+      value: formatGpa(
+        derivedSummary.gpa?.toFixed(2) ?? academic.cumulativeGpa,
+        academic.cumulativeGpaScale
+      ),
     },
     { label: "班排名", value: formatPercent(academic.classRankPercent) },
-    { label: "已修學分", value: academic.completedCredits },
+    {
+      label: "已修學分",
+      value: derivedSummary.completedCredits || academic.completedCredits,
+    },
     { label: "操行成績", value: academic.conductScore },
     { label: "成績備註", value: academic.transcriptNotes },
   ];

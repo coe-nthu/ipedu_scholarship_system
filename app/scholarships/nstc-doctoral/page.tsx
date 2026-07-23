@@ -64,6 +64,10 @@ import {
 } from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import {
+  deriveAcademicPerformanceGpa,
+  derivePayloadAcademicGpa,
+} from "@/lib/academic-gpa";
 import type {
   SubmissionStatus,
   ApplicantInfo,
@@ -1593,23 +1597,29 @@ export default function ScholarshipForm() {
       records.length > 0 ? records : [emptyDoctoralSemesterRecord()];
     setDoctoralSemesterRecords(normalizedRecords);
     setAcademicPerformance((current) => ({
-      ...current,
-      doctoralSemesterCredits: normalizedRecords
-        .filter((record) => record.semester || record.credits)
-        .map((record) =>
-          [record.semester, record.credits ? `${record.credits} 學分` : ""]
-            .filter(Boolean)
-            .join(" ")
-        )
-        .join("；"),
-      doctoralSemesterGpas: normalizedRecords
-        .filter((record) => record.semester || record.gpa)
-        .map((record) =>
-          [record.semester, record.gpa ? `GPA ${record.gpa}` : ""]
-            .filter(Boolean)
-            .join(" ")
-        )
-        .join("；"),
+      ...deriveAcademicPerformanceGpa(
+        {
+          ...current,
+          doctoralSemesterCredits: normalizedRecords
+            .filter((record) => record.semester || record.credits)
+            .map((record) =>
+              [record.semester, record.credits ? `${record.credits} 學分` : ""]
+                .filter(Boolean)
+                .join(" ")
+            )
+            .join("；"),
+          doctoralSemesterGpas: normalizedRecords
+            .filter((record) => record.semester || record.gpa)
+            .map((record) =>
+              [record.semester, record.gpa ? `GPA ${record.gpa}` : ""]
+                .filter(Boolean)
+                .join(" ")
+            )
+            .join("；"),
+        },
+        config.programKey,
+        applicantInfo.studyStatus
+      ),
     }));
   };
 
@@ -1632,23 +1642,29 @@ export default function ScholarshipForm() {
       records.length > 0 ? records : [emptyMasterDirectSemesterRecord()];
     setMasterDirectSemesterRecords(normalizedRecords);
     setAcademicPerformance((current) => ({
-      ...current,
-      masterDirectSemesterCredits: normalizedRecords
-        .filter((record) => record.semester || record.credits)
-        .map((record) =>
-          [record.semester, record.credits ? `${record.credits} 學分` : ""]
-            .filter(Boolean)
-            .join(" ")
-        )
-        .join("；"),
-      masterDirectSemesterGpas: normalizedRecords
-        .filter((record) => record.semester || record.gpa)
-        .map((record) =>
-          [record.semester, record.gpa ? `GPA ${record.gpa}` : ""]
-            .filter(Boolean)
-            .join(" ")
-        )
-        .join("；"),
+      ...deriveAcademicPerformanceGpa(
+        {
+          ...current,
+          masterDirectSemesterCredits: normalizedRecords
+            .filter((record) => record.semester || record.credits)
+            .map((record) =>
+              [record.semester, record.credits ? `${record.credits} 學分` : ""]
+                .filter(Boolean)
+                .join(" ")
+            )
+            .join("；"),
+          masterDirectSemesterGpas: normalizedRecords
+            .filter((record) => record.semester || record.gpa)
+            .map((record) =>
+              [record.semester, record.gpa ? `GPA ${record.gpa}` : ""]
+                .filter(Boolean)
+                .join(" ")
+            )
+            .join("；"),
+        },
+        config.programKey,
+        applicantInfo.studyStatus
+      ),
     }));
   };
 
@@ -2116,18 +2132,22 @@ export default function ScholarshipForm() {
     [existingFiles]
   );
 
-  const buildPayload = (): ScholarshipPayload => ({
-    applicantInfo,
-    eligibility,
-    academicPerformance,
-    journals: compactRows(journals),
-    conferences: compactRows(conferences),
-    researchExperiences: compactRows(researchExperiences),
-    researchAwards: compactRows(researchAwards),
-    plannedResearch: compactRows(plannedResearch),
-    otherAchievements,
-    otherReviewDocuments: compactRows(otherReviewDocuments),
-  });
+  const buildPayload = (): ScholarshipPayload =>
+    derivePayloadAcademicGpa(
+      {
+        applicantInfo,
+        eligibility,
+        academicPerformance,
+        journals: compactRows(journals),
+        conferences: compactRows(conferences),
+        researchExperiences: compactRows(researchExperiences),
+        researchAwards: compactRows(researchAwards),
+        plannedResearch: compactRows(plannedResearch),
+        otherAchievements,
+        otherReviewDocuments: compactRows(otherReviewDocuments),
+      },
+      config.programKey
+    );
 
   const submitApplication = async (
     form: HTMLFormElement,

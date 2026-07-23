@@ -5,6 +5,7 @@ import {
   filterApplicationsByScope,
 } from "@/lib/auth";
 import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
+import { derivePayloadAcademicGpa } from "@/lib/academic-gpa";
 import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 import {
   DATABASE_OPTIONS,
@@ -252,7 +253,7 @@ export async function PATCH(request: Request) {
     }
 
     const existingResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department,payload`,
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department,program_key,payload`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -268,6 +269,7 @@ export async function PATCH(request: Request) {
     const existingRecords = (await existingResponse.json()) as {
       department: string | null;
       id: string;
+      program_key: string | null;
       payload: ScholarshipPayload;
     }[];
     const existingApplication = existingRecords[0];
@@ -301,7 +303,11 @@ export async function PATCH(request: Request) {
         return jsonError(result.error);
       }
 
-      const newDepartment = result.merged.applicantInfo.department;
+      const mergedPayload = derivePayloadAcademicGpa(
+        result.merged,
+        existingApplication.program_key
+      );
+      const newDepartment = mergedPayload.applicantInfo.department;
       // A reviewer must not move an application outside their own scope.
       if (
         newDepartment !== existingApplication.department &&
@@ -310,10 +316,10 @@ export async function PATCH(request: Request) {
         return jsonError("無法將申請案改為您權限外的系所。", 403);
       }
 
-      updateFields.payload = result.merged;
+      updateFields.payload = mergedPayload;
 
       // Keep top-level columns (used by the list view + scope filter) in sync.
-      const { applicantInfo, academicPerformance } = result.merged;
+      const { applicantInfo, academicPerformance } = mergedPayload;
       updateFields.applicant_name = applicantInfo.applicantName;
       updateFields.student_id = applicantInfo.studentId;
       updateFields.department = newDepartment;
