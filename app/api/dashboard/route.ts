@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth";
 import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { derivePayloadAcademicGpa } from "@/lib/academic-gpa";
+import { withDerivedDashboardGpa } from "@/lib/dashboard-application-display";
 import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 import {
   DATABASE_OPTIONS,
@@ -17,7 +18,11 @@ import {
   isAllowedMultiOption,
   isAllowedOption,
 } from "@/lib/scholarship-form-options";
-import type { Journal, ScholarshipPayload } from "@/lib/types";
+import type {
+  Journal,
+  ScholarshipApplication,
+  ScholarshipPayload,
+} from "@/lib/types";
 
 /**
  * Validate the reviewer-edited payload and merge it over the existing one.
@@ -192,7 +197,9 @@ export async function GET() {
     }
 
     const applications = filterApplicationsByScope(
-      await response.json(),
+      ((await response.json()) as ScholarshipApplication[]).map(
+        withDerivedDashboardGpa
+      ),
       auth.departmentScope
     );
 

@@ -1,5 +1,6 @@
 import type { ScholarshipApplication } from "@/lib/types";
 import {
+  derivePayloadAcademicGpa,
   getDerivedAcademicGpaSummary,
   shouldUseDoctoralStudyGpa,
 } from "@/lib/academic-gpa";
@@ -131,6 +132,27 @@ export function getDashboardGpaSummary(
     completedCredits: derivedSummary.completedCredits,
     gpa: derivedSummary.gpa,
     scale: academic.cumulativeGpaScale || "4.3",
+  };
+}
+
+export function withDerivedDashboardGpa(
+  application: ScholarshipApplication
+): ScholarshipApplication {
+  const payload = derivePayloadAcademicGpa(
+    application.payload,
+    getProgramKey(application)
+  );
+  const summary = getDashboardGpaSummary({ ...application, payload });
+  const scaleNumber = Number(summary.scale);
+
+  return {
+    ...application,
+    gpa: summary.gpa ?? application.gpa,
+    gpa_scale:
+      Number.isFinite(scaleNumber) && summary.scale !== ""
+        ? scaleNumber
+        : application.gpa_scale,
+    payload,
   };
 }
 

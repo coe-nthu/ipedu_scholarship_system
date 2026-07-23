@@ -29,7 +29,17 @@ function parseCredits(value: string | undefined) {
 function parseGpa(value: string | undefined) {
   if (!value) return null;
   const match = value.match(/GPA\s*([\d.]+)/i);
-  return toNumber(match?.[1] ?? value);
+  const explicitGpa = toNumber(match?.[1]);
+  if (explicitGpa !== null) return explicitGpa;
+
+  const directGpa = toNumber(value);
+  if (directGpa !== null) return directGpa;
+
+  const numericParts = Array.from(value.matchAll(/\d+(?:\.\d+)?/g))
+    .map((part) => toNumber(part[0]))
+    .filter((part): part is number => part !== null && part >= 0 && part <= 4.3);
+
+  return numericParts.length > 0 ? numericParts[numericParts.length - 1] : null;
 }
 
 export function calculateSemesterGpaSummary(
