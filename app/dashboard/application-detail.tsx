@@ -81,6 +81,10 @@ import {
   isFullTimeDoctoralGrant,
   isNstcDoctoralProgram,
 } from "@/lib/dashboard-application-display";
+import {
+  getIndexedNonEmptyConferences,
+  getIndexedNonEmptyJournals,
+} from "@/lib/publication-records";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -691,6 +695,8 @@ export function ApplicationDetail({
   const { applicantInfo } = payload;
   const journals = liveJournals ?? payload.journals ?? [];
   const conferences = payload.conferences ?? [];
+  const visibleJournals = getIndexedNonEmptyJournals(journals);
+  const visibleConferences = getIndexedNonEmptyConferences(conferences);
   const researchExperiences = payload.researchExperiences ?? [];
   const researchAwards = payload.researchAwards ?? [];
   const plannedResearch = payload.plannedResearch ?? [];
@@ -1716,11 +1722,11 @@ export function ApplicationDetail({
                       <Badge variant="secondary">
                         {isEditing && draft
                           ? draft.journals.length
-                          : journals.length}{" "}
+                          : visibleJournals.length}{" "}
                         篇
                       </Badge>
                     </span>
-                    {!isEditing && journals.length > 0 && (
+                    {!isEditing && visibleJournals.length > 0 && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1915,7 +1921,7 @@ export function ApplicationDetail({
                         新增期刊
                       </Button>
                     </div>
-                  ) : journals.length === 0 ? (
+                  ) : visibleJournals.length === 0 ? (
                     <p className="text-sm text-slate-400">無期刊發表紀錄</p>
                   ) : (
                     <div className="space-y-3">
@@ -1932,7 +1938,7 @@ export function ApplicationDetail({
                           審查提示：請特別留意琥珀色欄位是否與佐證資料相符。
                         </span>
                       </div>
-                      {journals.map((j, idx) => (
+                      {visibleJournals.map(({ journal: j, index: idx }) => (
                         <div
                           key={j.doi || idx}
                           className={`rounded-md border p-3 space-y-1.5 ${
@@ -2066,7 +2072,7 @@ export function ApplicationDetail({
                     <Badge variant="secondary">
                       {isEditing && draft
                         ? draft.conferences.length
-                        : conferences.length}{" "}
+                        : visibleConferences.length}{" "}
                       篇
                     </Badge>
                   </CardTitle>
@@ -2254,11 +2260,11 @@ export function ApplicationDetail({
                         新增研討會
                       </Button>
                     </div>
-                  ) : conferences.length === 0 ? (
+                  ) : visibleConferences.length === 0 ? (
                     <p className="text-sm text-slate-400">無研討會發表紀錄</p>
                   ) : (
                     <div className="space-y-3">
-                      {conferences.map((c, idx) => (
+                      {visibleConferences.map(({ conference: c, index: idx }) => (
                         <div
                           key={idx}
                           className="rounded-md border border-slate-200 p-3 space-y-1.5"

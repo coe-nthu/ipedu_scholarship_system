@@ -35,6 +35,10 @@ import {
   formatSubmittedAt,
   getDashboardGpaSummary,
 } from "@/lib/dashboard-application-display";
+import {
+  getNonEmptyConferences,
+  getNonEmptyJournals,
+} from "@/lib/publication-records";
 import { ApplicationDetail } from "./application-detail";
 
 /* ------------------------------------------------------------------ */
@@ -77,6 +81,8 @@ type DashboardRow = {
 function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
   return apps.map((app, idx) => {
     const gpaSummary = getDashboardGpaSummary(app);
+    const journals = getNonEmptyJournals(app.payload.journals);
+    const conferences = getNonEmptyConferences(app.payload.conferences);
     const submittedAtTime = app.submitted_at
       ? new Date(app.submitted_at).getTime()
       : null;
@@ -93,11 +99,10 @@ function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
           : null,
       gpa: gpaSummary.gpa,
       completedCredits: gpaSummary.completedCredits,
-      journalCount: app.payload.journals?.length ?? 0,
-      levelOneJournalCount: (app.payload.journals ?? []).filter(
-        (j) => j.journalLevel === "I級期刊"
-      ).length,
-      conferenceCount: app.payload.conferences?.length ?? 0,
+      journalCount: journals.length,
+      levelOneJournalCount: journals.filter((j) => j.journalLevel === "I級期刊")
+        .length,
+      conferenceCount: conferences.length,
       studyStatus: app.payload.applicantInfo?.studyStatus ?? "",
     };
   });

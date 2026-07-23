@@ -6,6 +6,10 @@ import {
   getAcademicDisplayRows,
   getEligibilityDisplayRows,
 } from "@/lib/dashboard-application-display";
+import {
+  getNonEmptyConferences,
+  getNonEmptyJournals,
+} from "@/lib/publication-records";
 import type {
   Conference,
   Journal,
@@ -293,7 +297,7 @@ export async function createApplicationDetailPdf(
   addRows(doc, getAcademicDisplayRows(application));
 
   addSectionTitle(doc, "期刊論文");
-  const journals = application.payload.journals ?? [];
+  const journals = getNonEmptyJournals(application.payload.journals);
   if (journals.length === 0) {
     addEmpty(doc, "無期刊資料");
   } else {
@@ -303,7 +307,7 @@ export async function createApplicationDetailPdf(
   }
 
   addSectionTitle(doc, "研討會論文");
-  const conferences = application.payload.conferences ?? [];
+  const conferences = getNonEmptyConferences(application.payload.conferences);
   if (conferences.length === 0) {
     addEmpty(doc, "無研討會資料");
   } else {
