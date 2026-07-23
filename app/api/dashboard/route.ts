@@ -6,7 +6,7 @@ import {
 } from "@/lib/auth";
 import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { derivePayloadAcademicGpa } from "@/lib/academic-gpa";
-import { withDerivedDashboardGpa } from "@/lib/dashboard-application-display";
+import { withDerivedDashboardGpas } from "@/lib/dashboard-application-display";
 import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 import {
   DATABASE_OPTIONS,
@@ -197,9 +197,7 @@ export async function GET() {
     }
 
     const applications = filterApplicationsByScope(
-      ((await response.json()) as ScholarshipApplication[]).map(
-        withDerivedDashboardGpa
-      ),
+      withDerivedDashboardGpas((await response.json()) as ScholarshipApplication[]),
       auth.departmentScope
     );
 

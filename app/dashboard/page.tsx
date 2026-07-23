@@ -11,7 +11,7 @@ import type { ScholarshipApplication } from "@/lib/types";
 import { AuthButton } from "@/components/auth-button";
 import { fetchScholarshipProgramSettings } from "@/lib/scholarship-settings-server";
 import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
-import { withDerivedDashboardGpa } from "@/lib/dashboard-application-display";
+import { withDerivedDashboardGpas } from "@/lib/dashboard-application-display";
 import { AdminPanel } from "./admin-panel";
 import { DashboardTabs } from "./dashboard-tabs";
 import { ScholarshipProgramSwitcher } from "./scholarship-program-switcher";
@@ -50,7 +50,7 @@ async function fetchApplications(
     if (!response.ok) return [];
     const applications = (await response.json()) as ScholarshipApplication[];
     return filterApplicationsByScope(
-      applications.map(withDerivedDashboardGpa),
+      withDerivedDashboardGpas(applications),
       auth.departmentScope
     );
   } catch {

@@ -16,6 +16,11 @@ type GpaSummary = {
   scale: string;
 };
 
+type GpaFallback = {
+  completedCredits: string;
+  gpa: number;
+};
+
 const MASTER_GRADUATE_GPA_PROGRAMS = new Set([
   "nstc-research-grant",
   "presidential-new-student",
@@ -40,6 +45,13 @@ function getProgramKey(application: ScholarshipApplication) {
 
 function isMasterGraduateGpaProgram(application: ScholarshipApplication) {
   return MASTER_GRADUATE_GPA_PROGRAMS.has(getProgramKey(application));
+}
+
+function getApplicantKey(application: ScholarshipApplication) {
+  return (
+    application.student_id ||
+    `${application.department}:${application.applicant_name}`
+  );
 }
 
 export function isFullTimeDoctoralGrant(application: ScholarshipApplication) {
@@ -154,6 +166,82 @@ export function withDerivedDashboardGpa(
         : application.gpa_scale,
     payload,
   };
+}
+
+function getMasterGraduateFallback(
+  application: ScholarshipApplication
+): GpaFallback | null {
+  const academic = application.payload.academicPerformance;
+  const gpa = toNumber(academic.masterGraduateGpa);
+  if (gpa === null) return null;
+
+  return {
+    completedCredits: academic.masterGraduateTotalCredits,
+    gpa,
+  };
+}
+
+function applyDashboardGpaFallback(
+  application: ScholarshipApplication,
+  fallback: GpaFallback | undefined
+) {
+  if (!fallback) return application;
+  if (getDashboardGpaSummary(application).gpa !== null) return application;
+
+  const academic = application.payload.academicPerformance;
+  const nextAcademic = isMasterGraduateGpaProgram(application)
+    ? {
+        ...academic,
+        masterGraduateGpa: fallback.gpa.toFixed(2),
+        masterGraduateTotalCredits:
+          academic.masterGraduateTotalCredits || fallback.completedCredits,
+      }
+    : {
+        ...academic,
+        cumulativeGpa: fallback.gpa.toFixed(2),
+        completedCredits: academic.completedCredits || fallback.completedCredits,
+      };
+
+  return withDerivedDashboardGpa({
+    ...application,
+    payload: {
+      ...application.payload,
+      academicPerformance: nextAcademic,
+    },
+  });
+}
+
+export function withDerivedDashboardGpas(
+  applications: ScholarshipApplication[]
+) {
+  const derivedApplications = applications.map(withDerivedDashboardGpa);
+  const masterGraduateFallbacks = new Map<string, GpaFallback>();
+  const generalFallbacks = new Map<string, GpaFallback>();
+
+  for (const application of derivedApplications) {
+    const key = getApplicantKey(application);
+    const masterFallback = getMasterGraduateFallback(application);
+    if (masterFallback) {
+      masterGraduateFallbacks.set(key, masterFallback);
+    }
+
+    const summary = getDashboardGpaSummary(application);
+    if (summary.gpa !== null) {
+      generalFallbacks.set(key, {
+        completedCredits: summary.completedCredits,
+        gpa: summary.gpa,
+      });
+    }
+  }
+
+  return derivedApplications.map((application) => {
+    const key = getApplicantKey(application);
+    const fallback = isMasterGraduateGpaProgram(application)
+      ? masterGraduateFallbacks.get(key) ?? generalFallbacks.get(key)
+      : generalFallbacks.get(key);
+
+    return applyDashboardGpaFallback(application, fallback);
+  });
 }
 
 export function getEligibilityDisplayRows(
