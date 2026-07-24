@@ -142,7 +142,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f4f7f6] px-4 py-8 text-slate-900 sm:px-6">
-      <div className="mx-auto w-full max-w-7xl min-w-0 space-y-6">
+      <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-6">
         {auth.role === "admin" ? (
           <DashboardTabs
             authProvider={auth.authProvider}
