@@ -563,7 +563,7 @@ function ScholarshipProgramsPanel() {
                   }
                 />
               </label>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 lg:grid-cols-3">
                 <label
                   className={cn(
                     "flex items-center justify-between gap-3 rounded-md border p-3 transition-colors",
@@ -627,6 +627,39 @@ function ScholarshipProgramsPanel() {
                       checked={program.is_open}
                       onCheckedChange={(checked) =>
                         updateProgram(program.program_key, { is_open: checked })
+                      }
+                    />
+                  </span>
+                </label>
+                <label
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-md border p-3 transition-colors",
+                    program.is_correction_open
+                      ? "border-amber-300 bg-amber-50/70"
+                      : "border-slate-200 bg-slate-50"
+                  )}
+                >
+                  <span className="text-sm font-medium text-slate-700">
+                    開放補正
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        program.is_correction_open
+                          ? "text-amber-700"
+                          : "text-slate-400"
+                      )}
+                    >
+                      {program.is_correction_open ? "補正中" : "已關閉"}
+                    </span>
+                    <Switch
+                      className="data-checked:bg-amber-500 data-unchecked:bg-slate-300"
+                      checked={program.is_correction_open}
+                      onCheckedChange={(checked) =>
+                        updateProgram(program.program_key, {
+                          is_correction_open: checked,
+                        })
                       }
                     />
                   </span>

@@ -5,6 +5,7 @@ import {
   getDefaultScholarshipProgramSetting,
   getProgramKeyByLegacyTitle,
   isScholarshipProgramKey,
+  type ScholarshipProgramKey,
 } from "@/lib/scholarship-settings";
 import { derivePayloadAcademicGpa } from "@/lib/academic-gpa";
 import type { ScholarshipPayload } from "@/lib/types";
@@ -20,6 +21,12 @@ type SupabaseFileRecord = {
   path: string;
   type: string;
   size: number;
+};
+
+type ExistingApplicationAccessRecord = {
+  id: string;
+  program_key: string;
+  submission_status: string;
 };
 
 function getSupabaseConfig() {
@@ -45,7 +52,10 @@ function normalizeScholarshipProgram(value?: string | null) {
   return trimmed || DEFAULT_SCHOLARSHIP_PROGRAM;
 }
 
-function normalizeProgramKey(value?: string | null, scholarshipProgram?: string | null) {
+function normalizeProgramKey(
+  value?: string | null,
+  scholarshipProgram?: string | null
+): ScholarshipProgramKey {
   if (isScholarshipProgramKey(value)) {
     return value;
   }
@@ -55,6 +65,141 @@ function normalizeProgramKey(value?: string | null, scholarshipProgram?: string 
   }
 
   return DEFAULT_SCHOLARSHIP_PROGRAM_KEY;
+}
+
+async function fetchProgramSetting({
+  programKey,
+  serviceRoleKey,
+  url,
+}: {
+  programKey: ScholarshipProgramKey;
+  serviceRoleKey: string;
+  url: string;
+}) {
+  const query = new URLSearchParams({
+    limit: "1",
+    program_key: `eq.${programKey}`,
+    select: "program_key,is_open,is_correction_open",
+  });
+
+  const response = await fetch(
+    `${url}/rest/v1/scholarship_program_settings?${query}`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("獎學金開放設定查詢失敗。");
+  }
+
+  const [setting] = (await response.json()) as {
+    is_correction_open: boolean;
+    is_open: boolean;
+    program_key: ScholarshipProgramKey;
+  }[];
+
+  return setting ?? getDefaultScholarshipProgramSetting(programKey);
+}
+
+function getWriteAccessError(
+  setting: Awaited<ReturnType<typeof fetchProgramSetting>>,
+  existingApplication?: ExistingApplicationAccessRecord | null
+) {
+  if (setting?.is_open) {
+    return null;
+  }
+
+  if (!existingApplication) {
+    return "此獎學金目前已關閉，無法建立新申請。";
+  }
+
+  if (existingApplication.submission_status !== "draft") {
+    return "此獎學金目前已關閉，只有退回補正的草稿可修改。";
+  }
+
+  if (!setting?.is_correction_open) {
+    return "此獎學金目前未開放補正。";
+  }
+
+  return null;
+}
+
+async function fetchExistingApplicationForProgram({
+  programKey,
+  serviceRoleKey,
+  url,
+  userId,
+}: {
+  programKey: string;
+  serviceRoleKey: string;
+  url: string;
+  userId: string;
+}) {
+  const query = new URLSearchParams({
+    limit: "1",
+    program_key: `eq.${programKey}`,
+    select: "id,program_key,submission_status",
+    user_id: `eq.${userId}`,
+  });
+
+  const response = await fetch(
+    `${url}/rest/v1/scholarship_applications?${query}`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("資料查詢失敗。");
+  }
+
+  const [application] =
+    (await response.json()) as ExistingApplicationAccessRecord[];
+  return application ?? null;
+}
+
+async function fetchExistingApplicationById({
+  applicationId,
+  serviceRoleKey,
+  url,
+  userId,
+}: {
+  applicationId: string;
+  serviceRoleKey: string;
+  url: string;
+  userId: string;
+}) {
+  const query = new URLSearchParams({
+    id: `eq.${applicationId}`,
+    limit: "1",
+    select: "id,program_key,submission_status",
+    user_id: `eq.${userId}`,
+  });
+
+  const response = await fetch(
+    `${url}/rest/v1/scholarship_applications?${query}`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("資料查詢失敗。");
+  }
+
+  const [application] =
+    (await response.json()) as ExistingApplicationAccessRecord[];
+  return application ?? null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -204,6 +349,20 @@ export async function POST(request: Request) {
       return jsonError("applicationId 格式不合法。");
     }
 
+    const existingApplication = await fetchExistingApplicationForProgram({
+      programKey,
+      serviceRoleKey,
+      url,
+      userId: user.id,
+    });
+    const accessError = getWriteAccessError(
+      await fetchProgramSetting({ programKey, serviceRoleKey, url }),
+      existingApplication
+    );
+    if (accessError) {
+      return jsonError(accessError, 403);
+    }
+
     const derivedPayload = derivePayloadAcademicGpa(payload, programKey);
     const applicantInfo = derivedPayload.applicantInfo || {};
     if (!applicantInfo.applicantName || !applicantInfo.department) {
@@ -346,24 +505,26 @@ export async function PATCH(request: Request) {
       return jsonError("applicationId 格式不合法。");
     }
 
-    // Verify the application belongs to this user
-    const checkResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&user_id=eq.${user.id}&select=id`,
-      {
-        headers: {
-          apikey: serviceRoleKey,
-          authorization: `Bearer ${serviceRoleKey}`,
-        },
-      }
-    );
-
-    if (!checkResponse.ok) {
-      throw new Error("資料查詢失敗。");
+    const application = await fetchExistingApplicationById({
+      applicationId,
+      serviceRoleKey,
+      url,
+      userId: user.id,
+    });
+    if (!application) {
+      return jsonError("找不到該申請案或無權限。", 403);
     }
 
-    const records = (await checkResponse.json()) as { id: string }[];
-    if (records.length === 0) {
-      return jsonError("找不到該申請案或無權限。", 403);
+    const accessError = getWriteAccessError(
+      await fetchProgramSetting({
+        programKey: application.program_key as ScholarshipProgramKey,
+        serviceRoleKey,
+        url,
+      }),
+      application
+    );
+    if (accessError) {
+      return jsonError(accessError, 403);
     }
 
     // Update the files metadata

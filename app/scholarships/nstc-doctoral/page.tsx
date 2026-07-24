@@ -910,6 +910,9 @@ export default function ScholarshipForm() {
   const [existingSubmissionStatus, setExistingSubmissionStatus] = useState<
     string | null
   >(null);
+  const canWriteCurrentForm =
+    programSetting.is_open ||
+    (programSetting.is_correction_open && existingSubmissionStatus === "draft");
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const hasLoadedExisting = useRef(false);
   const formInitialized = useRef(false); // true after initial server/localStorage load completes
@@ -2539,6 +2542,14 @@ export default function ScholarshipForm() {
       const payload = buildPayload();
       // Use existing application ID if updating, otherwise generate new
       const applicationId = existingAppId || crypto.randomUUID();
+      const isCorrectionSubmission =
+        status === "submitted" &&
+        !programSetting.is_open &&
+        programSetting.is_correction_open &&
+        existingSubmissionStatus === "draft";
+      const initialStatus: SubmissionStatus = isCorrectionSubmission
+        ? "draft"
+        : status;
       const supabase = createClient();
       const {
         data: { session },
@@ -2558,7 +2569,7 @@ export default function ScholarshipForm() {
           payload,
           programKey: config.programKey,
           scholarshipProgram: config.program,
-          status,
+          status: initialStatus,
         }),
       });
       const createResult = await createResponse.json();
@@ -2679,6 +2690,26 @@ export default function ScholarshipForm() {
 
         if (!patchResponse.ok || !patchResult.success) {
           throw new Error(patchResult.error || "檔案資料更新失敗。");
+        }
+      }
+
+      if (isCorrectionSubmission) {
+        setSubmitMessage("正在送出補正資料...");
+        const submitResponse = await fetch("/api/scholarships", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            applicationId,
+            payload,
+            programKey: config.programKey,
+            scholarshipProgram: config.program,
+            status,
+          }),
+        });
+        const submitResult = await submitResponse.json();
+
+        if (!submitResponse.ok || !submitResult.success) {
+          throw new Error(submitResult.error || "送出補正資料失敗。");
         }
       }
 
@@ -2968,6 +2999,29 @@ export default function ScholarshipForm() {
                 帳戶建立登入狀態。
               </p>
               <AuthButton />
+            </CardContent>
+          </Card>
+        ) : !isLoadingExisting && !canWriteCurrentForm ? (
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">
+                {programSetting.is_correction_open
+                  ? "目前僅開放補正"
+                  : "目前未開放填寫"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">
+                {programSetting.is_correction_open
+                  ? "此獎學金目前已關閉新申請，只有已被退回草稿的補正案件可以修改。"
+                  : "此獎學金目前已關閉填寫與補正，無法新增或修改申請資料。"}
+              </p>
+              <Link
+                href="/"
+                className="inline-flex h-8 w-fit items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {bilingual ? "Back to scholarship selection" : "返回獎學金選擇"}
+              </Link>
             </CardContent>
           </Card>
         ) : (

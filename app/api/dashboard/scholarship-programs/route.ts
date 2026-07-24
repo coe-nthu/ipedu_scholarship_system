@@ -135,6 +135,10 @@ export async function PATCH(request: Request) {
           body.eligibility_reminder,
           "表單提醒"
         ),
+        is_correction_open: normalizeBoolean(
+          body.is_correction_open,
+          "開放補正"
+        ),
         is_open: normalizeBoolean(body.is_open, "開放填寫"),
         is_visible: normalizeBoolean(body.is_visible, "顯示於首頁"),
         period: normalizeText(body.period, "適用對象"),

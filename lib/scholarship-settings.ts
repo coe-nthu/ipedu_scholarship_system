@@ -13,6 +13,7 @@ export type ScholarshipProgramSetting = {
   description_en?: string | null;
   display_order: number;
   eligibility_reminder: string;
+  is_correction_open: boolean;
   is_open: boolean;
   is_visible: boolean;
   period: string;
@@ -50,6 +51,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       display_order: 10,
       eligibility_reminder:
         "學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
+      is_correction_open: false,
       is_open: true,
       is_visible: true,
       period: "適用 111-112 學年度學生申請",
@@ -71,6 +73,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       display_order: 20,
       eligibility_reminder:
         "本獎學金適用 114 學年度入學新生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
+      is_correction_open: false,
       is_open: true,
       is_visible: true,
       period: "適用 114 學年度入學新生",
@@ -92,6 +95,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       display_order: 30,
       eligibility_reminder:
         "本獎學金為校長獎學金（新生獎學金）。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
+      is_correction_open: false,
       is_open: true,
       is_visible: true,
       period: "新生獎學金",
@@ -113,6 +117,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       display_order: 40,
       eligibility_reminder:
         "本獎學金適用 114 學年度博士班 1 至 3 年級學生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。",
+      is_correction_open: false,
       is_open: true,
       is_visible: true,
       period: "適用 114 學年度博士班 1 至 3 年級學生",
@@ -135,6 +140,7 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       display_order: 50,
       eligibility_reminder:
         "限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請後如有休學或專職情形，應主動通知院辦公室。",
+      is_correction_open: false,
       is_open: true,
       is_visible: true,
       period: "適用本院全時博士生",

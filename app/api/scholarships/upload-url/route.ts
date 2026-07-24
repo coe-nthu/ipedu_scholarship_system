@@ -1,5 +1,9 @@
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import {
+  getDefaultScholarshipProgramSetting,
+  type ScholarshipProgramKey,
+} from "@/lib/scholarship-settings";
 import { createClient } from "@/lib/supabase/server";
 import { isValidUUID } from "@/lib/validation";
 
@@ -13,6 +17,12 @@ type UploadUrlRequest = {
   contentType?: string;
   fileName?: string;
   path?: string;
+};
+
+type ExistingApplicationAccessRecord = {
+  id: string;
+  program_key: string;
+  submission_status: string;
 };
 
 function getSupabaseConfig() {
@@ -37,6 +47,63 @@ function isPdfFile(fileName: string, contentType: string) {
   return (
     fileName.toLowerCase().endsWith(".pdf") && contentType === PDF_MIME_TYPE
   );
+}
+
+async function fetchProgramSetting({
+  programKey,
+  serviceRoleKey,
+  url,
+}: {
+  programKey: ScholarshipProgramKey;
+  serviceRoleKey: string;
+  url: string;
+}) {
+  const query = new URLSearchParams({
+    limit: "1",
+    program_key: `eq.${programKey}`,
+    select: "program_key,is_open,is_correction_open",
+  });
+
+  const response = await fetch(
+    `${url}/rest/v1/scholarship_program_settings?${query}`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("獎學金開放設定查詢失敗。");
+  }
+
+  const [setting] = (await response.json()) as {
+    is_correction_open: boolean;
+    is_open: boolean;
+    program_key: ScholarshipProgramKey;
+  }[];
+
+  return setting ?? getDefaultScholarshipProgramSetting(programKey);
+}
+
+function getUploadAccessError(
+  setting: Awaited<ReturnType<typeof fetchProgramSetting>>,
+  application: ExistingApplicationAccessRecord
+) {
+  if (setting?.is_open) {
+    return null;
+  }
+
+  if (application.submission_status !== "draft") {
+    return "此獎學金目前已關閉，只有退回補正的草稿可上傳檔案。";
+  }
+
+  if (!setting?.is_correction_open) {
+    return "此獎學金目前未開放補正。";
+  }
+
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -82,7 +149,7 @@ export async function POST(request: Request) {
     const { serviceRoleKey, url } = getSupabaseConfig();
 
     const checkResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&user_id=eq.${user.id}&select=id`,
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&user_id=eq.${user.id}&select=id,program_key,submission_status`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -95,9 +162,22 @@ export async function POST(request: Request) {
       throw new Error("資料查詢失敗。");
     }
 
-    const records = (await checkResponse.json()) as { id: string }[];
-    if (records.length === 0) {
+    const records = (await checkResponse.json()) as ExistingApplicationAccessRecord[];
+    const application = records[0];
+    if (!application) {
       return jsonError("找不到該申請案或無權限。", 403);
+    }
+
+    const accessError = getUploadAccessError(
+      await fetchProgramSetting({
+        programKey: application.program_key as ScholarshipProgramKey,
+        serviceRoleKey,
+        url,
+      }),
+      application
+    );
+    if (accessError) {
+      return jsonError(accessError, 403);
     }
 
     const admin = createSupabaseAdminClient(url, serviceRoleKey, {

@@ -71,6 +71,9 @@ export function ScholarshipSelectionClient({
 }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [correctionDraftProgramKeys, setCorrectionDraftProgramKeys] = useState<
+    Set<string>
+  >(new Set());
   const [language, setLanguage] = useState<ScholarshipLanguage>(
     getInitialScholarshipLanguage
   );
@@ -84,6 +87,7 @@ export function ScholarshipSelectionClient({
         return;
       }
 
+      setCorrectionDraftProgramKeys(new Set());
       setCurrentUser(data.user);
       setIsAuthLoading(false);
     });
@@ -91,6 +95,7 @@ export function ScholarshipSelectionClient({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCorrectionDraftProgramKeys(new Set());
       setCurrentUser(session?.user ?? null);
       setIsAuthLoading(false);
     });
@@ -100,6 +105,42 @@ export function ScholarshipSelectionClient({
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    let isMounted = true;
+    fetch("/api/scholarships?previousSubmitted=1")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted || !data.success || !Array.isArray(data.applications)) {
+          return;
+        }
+
+        setCorrectionDraftProgramKeys(
+          new Set(
+            data.applications
+              .filter(
+                (application: { program_key?: string; submission_status?: string | null }) =>
+                  application.program_key &&
+                  application.submission_status === "draft"
+              )
+              .map((application: { program_key: string }) => application.program_key)
+          )
+        );
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCorrectionDraftProgramKeys(new Set());
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
 
   const updateLanguage = (nextLanguage: ScholarshipLanguage) => {
     setLanguage(nextLanguage);
@@ -164,20 +205,35 @@ export function ScholarshipSelectionClient({
                 const bilingual =
                   isEnglish && BILINGUAL_PROGRAM_KEYS.has(program.program_key);
                 const english = englishCardText(program);
+                const canStart = program.is_open;
+                const canCorrect =
+                  !program.is_open &&
+                  program.is_correction_open &&
+                  correctionDraftProgramKeys.has(program.program_key);
+                const isActionable = canStart || canCorrect;
+                const statusLabel = canCorrect
+                  ? bilingual
+                    ? "Correction open"
+                    : "補正開放"
+                  : bilingual
+                    ? english.statusLabel
+                    : program.status_label;
 
                 return (
                   <Card
                     key={program.program_key}
                     className={`shadow-sm ${
-                      program.is_open
+                      canStart
                         ? "border-[#1f6f78]/30"
+                        : canCorrect
+                          ? "border-amber-300"
                         : "border-slate-200 opacity-75"
                     }`}
                   >
                     <CardHeader className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="rounded-md border border-slate-200 bg-white p-2 text-[#1f6f78]">
-                          {program.is_open ? (
+                          {isActionable ? (
                             <GraduationCap className="size-5" />
                           ) : (
                             <Award className="size-5" />
@@ -185,12 +241,14 @@ export function ScholarshipSelectionClient({
                         </div>
                         <Badge
                           className={
-                            program.is_open
+                            canStart
                               ? "bg-emerald-50 text-emerald-700"
+                              : canCorrect
+                                ? "bg-amber-50 text-amber-700"
                               : "bg-slate-100 text-slate-600"
                           }
                         >
-                          {bilingual ? english.statusLabel : program.status_label}
+                          {statusLabel}
                         </Badge>
                       </div>
                       <CardTitle className="text-lg leading-7">
@@ -235,13 +293,23 @@ export function ScholarshipSelectionClient({
                           </span>
                         </div>
                       </div>
-                      {program.is_open ? (
+                      {isActionable ? (
                         <Link
                           href={program.route_path}
-                          className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#1f6f78] px-3 py-2 text-sm font-medium text-white hover:bg-[#185d65]"
+                          className={`inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white ${
+                            canCorrect
+                              ? "bg-amber-600 hover:bg-amber-700"
+                              : "bg-[#1f6f78] hover:bg-[#185d65]"
+                          }`}
                         >
                           <span>
-                            {bilingual ? "Start application" : "開始填寫"}
+                            {canCorrect
+                              ? bilingual
+                                ? "Correct application"
+                                : "補正資料"
+                              : bilingual
+                                ? "Start application"
+                                : "開始填寫"}
                           </span>
                           <ArrowRight className="size-4" />
                         </Link>

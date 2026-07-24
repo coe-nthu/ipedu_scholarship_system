@@ -326,6 +326,7 @@ create table if not exists public.scholarship_program_settings (
   eligibility_reminder text not null,
   is_visible boolean not null default true,
   is_open boolean not null default true,
+  is_correction_open boolean not null default false,
   display_order integer not null default 0,
   updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -347,6 +348,7 @@ alter table public.scholarship_program_settings
   add column if not exists eligibility_reminder text,
   add column if not exists is_visible boolean not null default true,
   add column if not exists is_open boolean not null default true,
+  add column if not exists is_correction_open boolean not null default false,
   add column if not exists display_order integer not null default 0,
   add column if not exists updated_by uuid references auth.users(id) on delete set null,
   add column if not exists created_at timestamptz not null default now(),
@@ -373,6 +375,7 @@ insert into public.scholarship_program_settings (
   eligibility_reminder,
   is_visible,
   is_open,
+  is_correction_open,
   display_order
 )
 values
@@ -392,6 +395,7 @@ values
     '學士班排名前 20%、碩士班累計 GPA 3.76/4.3 或百分制 85 分以上，或有特殊表現經指導教授及院系所推薦。指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。',
     true,
     true,
+    false,
     10
   ),
   (
@@ -410,6 +414,7 @@ values
     '本獎學金適用 114 學年度入學新生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。',
     true,
     true,
+    false,
     20
   ),
   (
@@ -428,6 +433,7 @@ values
     '本獎學金為校長獎學金（新生獎學金）。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。',
     true,
     true,
+    false,
     30
   ),
   (
@@ -446,6 +452,7 @@ values
     '本獎學金適用 114 學年度博士班 1 至 3 年級學生。請填寫基本資料、學術表現與指定文件；指定文件請掃描上傳，正本簽名資料仍依系所公告繳交。',
     true,
     true,
+    false,
     40
   ),
   (
@@ -464,6 +471,7 @@ values
     '限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請後如有休學或專職情形，應主動通知院辦公室。',
     true,
     true,
+    false,
     50
   )
 on conflict (program_key) do nothing;
@@ -525,6 +533,8 @@ alter table public.scholarship_program_settings
   alter column is_visible set default true,
   alter column is_open set not null,
   alter column is_open set default true,
+  alter column is_correction_open set not null,
+  alter column is_correction_open set default false,
   alter column display_order set not null,
   alter column display_order set default 0,
   alter column created_at set not null,
