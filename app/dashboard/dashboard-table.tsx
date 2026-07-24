@@ -577,7 +577,21 @@ export function DashboardTable({
         )}
       </div>
       <div className="w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <Table className="w-full">
+        <Table className="w-full table-fixed text-xs [&_td]:whitespace-normal [&_td]:break-words [&_th]:whitespace-normal">
+          <colgroup>
+            <col className="w-[4%]" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8%]" />
+            <col className="w-[13%]" />
+            <col className="w-[10%]" />
+            <col className="w-[9%]" />
+            <col className="w-[6%]" />
+            <col className="w-[5%]" />
+            <col className="w-[7%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+          </colgroup>
           <TableHeader>
             {/* ── Row 1: grouped header ── */}
             <TableRow className="bg-slate-50">
