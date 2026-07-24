@@ -357,7 +357,22 @@ export async function PATCH(request: Request) {
     );
 
     if (!updateResponse.ok) {
-      throw new Error("更新失敗。");
+      // Surface the underlying PostgREST/Postgres error so schema issues (e.g. a
+      // missing reviewed_at / reviewed_by column referenced by the update
+      // trigger) are diagnosable instead of hidden behind a generic 500.
+      const detail = await updateResponse.text().catch(() => "");
+      console.error(
+        "Dashboard PATCH update failed:",
+        updateResponse.status,
+        detail
+      );
+      return jsonError(
+        `更新失敗：${detail || updateResponse.statusText || "資料庫未回傳錯誤訊息"}`.slice(
+          0,
+          400
+        ),
+        500
+      );
     }
 
     const [updated] = (await updateResponse.json()) as unknown[];

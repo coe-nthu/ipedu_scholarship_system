@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Check,
   CheckCircle2,
   CircleDot,
   Clock,
@@ -57,6 +58,19 @@ type SortColumn =
   | "conferenceCount";
 
 type SortDirection = "asc" | "desc";
+
+type StudyStatusGroup = "new" | "renewal";
+
+// Study-status values differ per program (新領/新生 for new, 續領/舊生 for
+// renewal); group them so one filter covers every scholarship.
+const NEW_STUDY_STATUSES = new Set(["新領", "新生"]);
+const RENEWAL_STUDY_STATUSES = new Set(["續領", "舊生"]);
+
+function classifyStudyStatus(status: string): StudyStatusGroup | null {
+  if (NEW_STUDY_STATUSES.has(status)) return "new";
+  if (RENEWAL_STUDY_STATUSES.has(status)) return "renewal";
+  return null;
+}
 
 type DashboardRow = {
   rowNumber: number;
@@ -239,8 +253,9 @@ function RemarkCell({
   onChange: (id: string, val: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Set when the user presses Escape so the pending blur/commit is discarded.
+  const cancelRef = useRef(false);
 
   useEffect(() => {
     if (editing) {
@@ -252,10 +267,18 @@ function RemarkCell({
     }
   }, [editing]);
 
+  // The textarea stays uncontrolled while editing and we read its value on
+  // commit. This avoids per-keystroke re-renders that clobber IME composition
+  // (e.g. Chinese input dropping to only the trailing ASCII characters).
   const commit = useCallback(() => {
     setEditing(false);
-    if (draft !== value) onChange(appId, draft);
-  }, [appId, draft, value, onChange]);
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      return;
+    }
+    const next = textareaRef.current?.value ?? value;
+    if (next !== value) onChange(appId, next);
+  }, [appId, value, onChange]);
 
   if (!editing) {
     return (
@@ -263,7 +286,7 @@ function RemarkCell({
         type="button"
         className="w-full text-left text-xs text-slate-500 hover:text-slate-800 transition-colors min-h-[24px] rounded px-1 -mx-1 hover:bg-slate-50 whitespace-pre-wrap break-words"
         onClick={() => {
-          setDraft(value);
+          cancelRef.current = false;
           setEditing(true);
         }}
         title="點擊編輯備註"
@@ -277,13 +300,61 @@ function RemarkCell({
     <Textarea
       ref={textareaRef}
       className="text-xs min-w-[120px] min-h-[32px] p-1.5 resize-none"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+      defaultValue={value}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Escape") setEditing(false);
+        if (e.key === "Escape") {
+          cancelRef.current = true;
+          setEditing(false);
+        }
       }}
     />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Study-status filter chip                                           */
+/* ------------------------------------------------------------------ */
+
+function StudyStatusFilterChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={active}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "border-[#1f6f78] bg-[#1f6f78] text-white"
+          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      <span
+        className={`flex size-3.5 items-center justify-center rounded-[3px] border ${
+          active ? "border-white bg-white/20" : "border-slate-300"
+        }`}
+      >
+        {active && <Check className="size-2.5" />}
+      </span>
+      {label}
+      <span
+        className={`rounded px-1 text-[10px] ${
+          active ? "bg-white/20" : "bg-slate-100 text-slate-500"
+        }`}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
@@ -389,8 +460,41 @@ export function DashboardTable({
     [effectiveApplications],
   );
 
+  // Study-status (請領別) filter: empty set means "show all".
+  const [studyStatusFilter, setStudyStatusFilter] = useState<
+    Set<StudyStatusGroup>
+  >(() => new Set());
+
+  const studyStatusCounts = useMemo(() => {
+    let newCount = 0;
+    let renewalCount = 0;
+    for (const row of rows) {
+      const group = classifyStudyStatus(row.studyStatus);
+      if (group === "new") newCount += 1;
+      else if (group === "renewal") renewalCount += 1;
+    }
+    return { new: newCount, renewal: renewalCount };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (studyStatusFilter.size === 0) return rows;
+    return rows.filter((row) => {
+      const group = classifyStudyStatus(row.studyStatus);
+      return group !== null && studyStatusFilter.has(group);
+    });
+  }, [rows, studyStatusFilter]);
+
+  const toggleStudyStatusFilter = useCallback((group: StudyStatusGroup) => {
+    setStudyStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }, []);
+
   const sortedRows = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       switch (sortColumn) {
         case "rowNumber":
           return comparePrimitive(a.rowNumber, b.rowNumber, sortDirection);
@@ -430,7 +534,7 @@ export function DashboardTable({
           return 0;
       }
     });
-  }, [rows, sortColumn, sortDirection]);
+  }, [filteredRows, sortColumn, sortDirection]);
 
   function handleSort(col: SortColumn) {
     if (sortColumn === col) {
@@ -446,8 +550,34 @@ export function DashboardTable({
 
   return (
     <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-slate-500">
+          篩選請領別：
+        </span>
+        <StudyStatusFilterChip
+          label="新領"
+          count={studyStatusCounts.new}
+          active={studyStatusFilter.has("new")}
+          onClick={() => toggleStudyStatusFilter("new")}
+        />
+        <StudyStatusFilterChip
+          label="續領"
+          count={studyStatusCounts.renewal}
+          active={studyStatusFilter.has("renewal")}
+          onClick={() => toggleStudyStatusFilter("renewal")}
+        />
+        {studyStatusFilter.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setStudyStatusFilter(new Set())}
+            className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
+          >
+            清除篩選
+          </button>
+        )}
+      </div>
       <div className="w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <Table className="min-w-[1300px]">
+        <Table className="w-full">
           <TableHeader>
             {/* ── Row 1: grouped header ── */}
             <TableRow className="bg-slate-50">
