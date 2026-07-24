@@ -30,6 +30,7 @@ public.scholarship_applications
 | `submission_status` | `text` | 學生填寫狀態：`draft` 草稿、`submitted` 已送出 |
 | `review_status` | `text` | 文獻真實性審查狀態：`未審核`、`系所審核通過`、`院辦審核通過` |
 | `reviewer_remarks` | `text` | 審查備註（審查人員可讀寫的文字備註） |
+| `review_sort_order` | `integer` | 後台人工排序；`0` 代表未指定 |
 | `payload` | `jsonb` | 完整表單資料 JSON |
 | `files` | `jsonb` | 上傳檔案資料 JSON |
 | `submitted_at` | `timestamptz` | 送出時間 |

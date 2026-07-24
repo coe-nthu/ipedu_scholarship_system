@@ -48,6 +48,7 @@ import { ApplicationDetail } from "./application-detail";
 
 type SortColumn =
   | "rowNumber"
+  | "reviewSortOrder"
   | "department"
   | "studentId"
   | "name"
@@ -75,6 +76,7 @@ function classifyStudyStatus(status: string): StudyStatusGroup | null {
 type DashboardRow = {
   rowNumber: number;
   application: ScholarshipApplication;
+  reviewSortOrder: number;
   department: string;
   studentId: string;
   name: string;
@@ -103,6 +105,7 @@ function toRows(apps: ScholarshipApplication[]): DashboardRow[] {
     return {
       rowNumber: idx + 1,
       application: app,
+      reviewSortOrder: app.review_sort_order ?? 0,
       department: app.department,
       studentId: app.student_id,
       name: app.applicant_name,
@@ -133,6 +136,19 @@ function comparePrimitive(
   if (b == null) return -factor;
   if (typeof a === "number" && typeof b === "number") return (a - b) * factor;
   return String(a).localeCompare(String(b), "zh-Hant") * factor;
+}
+
+function compareReviewSortOrder(
+  a: number,
+  b: number,
+  dir: SortDirection,
+): number {
+  const aUnspecified = a === 0;
+  const bUnspecified = b === 0;
+  if (aUnspecified && bUnspecified) return 0;
+  if (aUnspecified) return 1;
+  if (bUnspecified) return -1;
+  return comparePrimitive(a, b, dir);
 }
 
 /* ------------------------------------------------------------------ */
@@ -242,6 +258,48 @@ function SortIcon({
 /* ------------------------------------------------------------------ */
 /*  Editable remark cell                                               */
 /* ------------------------------------------------------------------ */
+
+function SortOrderCell({
+  appId,
+  value,
+  onChange,
+}: {
+  appId: string;
+  value: number;
+  onChange: (id: string, val: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = useCallback(() => {
+    const parsed = Number(draft);
+    const next = Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+    setDraft(String(next));
+    if (next !== value) onChange(appId, next);
+  }, [appId, draft, value, onChange]);
+
+  return (
+    <input
+      type="number"
+      min={0}
+      step={1}
+      inputMode="numeric"
+      className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-center text-xs font-medium text-slate-700 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+      value={draft}
+      aria-label="排序"
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 function RemarkCell({
   appId,
@@ -369,7 +427,8 @@ export function DashboardTable({
   applications: ScholarshipApplication[];
   permissions: DashboardActionPermissions;
 }) {
-  const [sortColumn, setSortColumn] = useState<SortColumn>("rowNumber");
+  const [sortColumn, setSortColumn] =
+    useState<SortColumn>("reviewSortOrder");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
@@ -387,6 +446,14 @@ export function DashboardTable({
     const map: Record<string, string> = {};
     for (const app of applications) {
       map[app.id] = app.reviewer_remarks ?? "";
+    }
+    return map;
+  });
+
+  const [sortOrders, setSortOrders] = useState<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const app of applications) {
+      map[app.id] = app.review_sort_order ?? 0;
     }
     return map;
   });
@@ -416,6 +483,27 @@ export function DashboardTable({
       .catch(() => {
         toast.error("備註儲存失敗，請重試。");
       });
+  }, []);
+
+  const handleSortOrderChange = useCallback((id: string, value: number) => {
+    setSortOrders((prev) => {
+      const previousValue = prev[id] ?? 0;
+
+      fetch("/api/dashboard", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ applicationId: id, review_sort_order: value }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("儲存排序失敗");
+        })
+        .catch(() => {
+          setSortOrders((p) => ({ ...p, [id]: previousValue }));
+          toast.error("排序儲存失敗，請重試。");
+        });
+
+      return { ...prev, [id]: value };
+    });
   }, []);
 
   // Optimistic review status update with API persistence
@@ -498,6 +586,14 @@ export function DashboardTable({
       switch (sortColumn) {
         case "rowNumber":
           return comparePrimitive(a.rowNumber, b.rowNumber, sortDirection);
+        case "reviewSortOrder": {
+          const orderResult = compareReviewSortOrder(
+            sortOrders[a.application.id] ?? a.reviewSortOrder,
+            sortOrders[b.application.id] ?? b.reviewSortOrder,
+            sortDirection,
+          );
+          return orderResult || comparePrimitive(a.rowNumber, b.rowNumber, "asc");
+        }
         case "department":
           return comparePrimitive(a.department, b.department, sortDirection);
         case "studentId":
@@ -534,7 +630,7 @@ export function DashboardTable({
           return 0;
       }
     });
-  }, [filteredRows, sortColumn, sortDirection]);
+  }, [filteredRows, sortColumn, sortDirection, sortOrders]);
 
   function handleSort(col: SortColumn) {
     if (sortColumn === col) {
@@ -580,8 +676,9 @@ export function DashboardTable({
         <Table className="w-full table-fixed text-xs [&_td]:whitespace-normal [&_td]:break-words [&_th]:whitespace-normal">
           <colgroup>
             <col className="w-[4%]" />
-            <col className="w-[10%]" />
-            <col className="w-[12%]" />
+            <col className="w-[6%]" />
+            <col className="w-[9%]" />
+            <col className="w-[11%]" />
             <col className="w-[8%]" />
             <col className="w-[13%]" />
             <col className="w-[10%]" />
@@ -589,8 +686,8 @@ export function DashboardTable({
             <col className="w-[6%]" />
             <col className="w-[5%]" />
             <col className="w-[7%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
+            <col className="w-[6%]" />
+            <col className="w-[6%]" />
           </colgroup>
           <TableHeader>
             {/* ── Row 1: grouped header ── */}
@@ -603,6 +700,18 @@ export function DashboardTable({
                 編號
                 <SortIcon
                   column="rowNumber"
+                  current={sortColumn}
+                  direction={sortDirection}
+                />
+              </TableHead>
+              <TableHead
+                rowSpan={2}
+                className={thClass}
+                onClick={() => handleSort("reviewSortOrder")}
+              >
+                排序
+                <SortIcon
+                  column="reviewSortOrder"
                   current={sortColumn}
                   direction={sortDirection}
                 />
@@ -720,7 +829,7 @@ export function DashboardTable({
             {sortedRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={12}
+                  colSpan={13}
                   className="h-28 text-center text-sm text-slate-500"
                 >
                   目前沒有此獎學金項目的已送出申請案。
@@ -737,7 +846,14 @@ export function DashboardTable({
                   <TableCell className="text-center font-medium">
                     {row.rowNumber}
                   </TableCell>
-                  <TableCell className="whitespace-normal min-w-[120px] max-w-[200px]">
+                  <TableCell className="text-center">
+                    <SortOrderCell
+                      appId={appId}
+                      value={sortOrders[appId] ?? row.reviewSortOrder}
+                      onChange={handleSortOrderChange}
+                    />
+                  </TableCell>
+                  <TableCell className="whitespace-normal min-w-[100px] max-w-[180px]">
                     <RemarkCell
                       appId={appId}
                       value={remarks[appId] ?? ""}
@@ -834,6 +950,10 @@ export function DashboardTable({
           setRemarks((prev) => ({
             ...prev,
             [updated.id]: updated.reviewer_remarks ?? "",
+          }));
+          setSortOrders((prev) => ({
+            ...prev,
+            [updated.id]: updated.review_sort_order ?? 0,
           }));
           setReviewStatuses((prev) => ({
             ...prev,

@@ -183,7 +183,7 @@ export async function GET() {
     const { serviceRoleKey, url } = getSupabaseConfig();
 
     const response = await fetch(
-      `${url}/rest/v1/scholarship_applications?submission_status=eq.submitted&order=submitted_at.desc&select=id,applicant_name,student_id,department,advisor_name,gpa,gpa_scale,program_key,scholarship_program,submission_status,review_status,reviewer_remarks,payload,files,submitted_at,created_at,updated_at`,
+      `${url}/rest/v1/scholarship_applications?submission_status=eq.submitted&order=submitted_at.desc&select=id,applicant_name,student_id,department,advisor_name,gpa,gpa_scale,program_key,scholarship_program,submission_status,review_status,reviewer_remarks,review_sort_order,payload,files,submitted_at,created_at,updated_at`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -209,7 +209,7 @@ export async function GET() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  PATCH — Update review_status and/or reviewer_remarks               */
+/*  PATCH — Update review_status, reviewer_remarks, and sort order     */
 /* ------------------------------------------------------------------ */
 
 export async function PATCH(request: Request) {
@@ -227,10 +227,17 @@ export async function PATCH(request: Request) {
       applicationId?: string;
       review_status?: string;
       reviewer_remarks?: string;
+      review_sort_order?: number;
       payload?: ScholarshipPayload;
     };
 
-    const { applicationId, review_status, reviewer_remarks, payload } = body;
+    const {
+      applicationId,
+      review_status,
+      reviewer_remarks,
+      review_sort_order,
+      payload,
+    } = body;
 
     if (!applicationId) {
       return jsonError("缺少 applicationId。");
@@ -243,6 +250,7 @@ export async function PATCH(request: Request) {
     if (
       review_status === undefined &&
       reviewer_remarks === undefined &&
+      review_sort_order === undefined &&
       payload === undefined
     ) {
       return jsonError("請提供要更新的欄位。");
@@ -255,6 +263,13 @@ export async function PATCH(request: Request) {
 
     if (review_status !== undefined && !isValidReviewStatus(review_status)) {
       return jsonError("不合法的審查狀態。");
+    }
+
+    if (
+      review_sort_order !== undefined &&
+      (!Number.isInteger(review_sort_order) || review_sort_order < 0)
+    ) {
+      return jsonError("排序值必須為 0 或正整數。");
     }
 
     const existingResponse = await fetch(
@@ -297,6 +312,9 @@ export async function PATCH(request: Request) {
     }
     if (reviewer_remarks !== undefined) {
       updateFields.reviewer_remarks = reviewer_remarks;
+    }
+    if (review_sort_order !== undefined) {
+      updateFields.review_sort_order = review_sort_order;
     }
 
     if (payload !== undefined) {

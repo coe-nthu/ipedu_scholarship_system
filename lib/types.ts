@@ -186,6 +186,7 @@ export type ScholarshipApplication = {
   submission_status: SubmissionStatus;
   review_status: ReviewStatus;
   reviewer_remarks: string;
+  review_sort_order: number;
   payload: ScholarshipPayload;
   files: SupabaseFileRecord[];
   submitted_at: string | null;
