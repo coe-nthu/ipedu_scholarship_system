@@ -523,6 +523,7 @@ create table public.scholarship_applications (
                                '院辦審核通過'
                              )),
   reviewer_remarks         text not null default '',
+  review_sort_order        integer not null default 0,
   reviewed_by              uuid references auth.users(id) on delete set null,
   reviewed_at              timestamptz,
   payload                  jsonb not null default '{}'::jsonb,
@@ -538,6 +539,7 @@ comment on column public.scholarship_applications.program_key is '穩定獎學�
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
 comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：未審核、系所審核通過、院辦審核通過';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
+comment on column public.scholarship_applications.review_sort_order is '後台人工排序；0 代表未指定';
 comment on column public.scholarship_applications.reviewed_by is '最後審核的教師 auth.users ID';
 comment on column public.scholarship_applications.reviewed_at is '最後審核時間';
 comment on column public.scholarship_applications.payload is '完整表單 JSON 資料';
@@ -556,6 +558,8 @@ create index if not exists idx_applications_submission_status
   on public.scholarship_applications(submission_status);
 create index if not exists idx_applications_review_status
   on public.scholarship_applications(review_status);
+create index if not exists idx_applications_review_sort_order
+  on public.scholarship_applications(review_sort_order);
 create index if not exists idx_applications_department
   on public.scholarship_applications(department);
 create index if not exists idx_applications_submitted_at

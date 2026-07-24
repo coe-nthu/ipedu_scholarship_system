@@ -691,6 +691,7 @@ create table if not exists public.scholarship_applications (
   submission_status text not null default 'draft',
   review_status text not null default '未審核',
   reviewer_remarks text not null default '',
+  review_sort_order integer not null default 0,
   reviewed_by uuid references auth.users(id) on delete set null,
   reviewed_at timestamptz,
   payload jsonb not null default '{}'::jsonb,
@@ -717,6 +718,7 @@ alter table public.scholarship_applications
   add column if not exists submission_status text not null default 'draft',
   add column if not exists review_status text not null default '等待人工審核',
   add column if not exists reviewer_remarks text not null default '',
+  add column if not exists review_sort_order integer not null default 0,
   add column if not exists reviewed_by uuid references auth.users(id) on delete set null,
   add column if not exists reviewed_at timestamptz,
   add column if not exists payload jsonb not null default '{}'::jsonb,
@@ -771,6 +773,15 @@ where submission_status is null
   or submission_status not in ('draft', 'submitted');
 
 update public.scholarship_applications
+set review_sort_order = substring(btrim(reviewer_remarks) from '^排序([0-9]+)$')::integer,
+    reviewer_remarks = ''
+where btrim(reviewer_remarks) ~ '^排序[0-9]+$';
+
+update public.scholarship_applications
+set review_sort_order = 0
+where review_sort_order is null;
+
+update public.scholarship_applications
 set program_key = case scholarship_program
   when '國科會-博士生研究獎助學金(適用114學年度入學新生)' then 'nstc-research-grant'
   when '校長獎學金 (新生獎學金)' then 'presidential-new-student'
@@ -796,6 +807,8 @@ alter table public.scholarship_applications
   alter column review_status set default '未審核',
   alter column reviewer_remarks set not null,
   alter column reviewer_remarks set default '',
+  alter column review_sort_order set not null,
+  alter column review_sort_order set default 0,
   alter column payload set not null,
   alter column payload set default '{}'::jsonb,
   alter column files set not null,
@@ -818,6 +831,7 @@ comment on column public.scholarship_applications.program_key is '穩定獎學�
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
 comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：未審核、系所審核通過、院辦審核通過';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
+comment on column public.scholarship_applications.review_sort_order is '後台人工排序；0 代表未指定';
 comment on column public.scholarship_applications.reviewed_by is '最後審核的教師 auth.users ID';
 comment on column public.scholarship_applications.reviewed_at is '最後審核時間';
 comment on column public.scholarship_applications.payload is '完整表單 JSON 資料';
@@ -831,6 +845,8 @@ create index if not exists idx_applications_submission_status
   on public.scholarship_applications(submission_status);
 create index if not exists idx_applications_review_status
   on public.scholarship_applications(review_status);
+create index if not exists idx_applications_review_sort_order
+  on public.scholarship_applications(review_sort_order);
 create index if not exists idx_applications_department
   on public.scholarship_applications(department);
 create index if not exists idx_applications_submitted_at
