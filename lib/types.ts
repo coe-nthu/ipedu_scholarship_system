@@ -194,6 +194,17 @@ export type ScholarshipApplication = {
   updated_at: string;
 };
 
+export type ScholarshipCorrectionRecord = {
+  id: string;
+  application_id: string;
+  correction_number: number;
+  message: string;
+  notified_by: string | null;
+  notifier_role: DashboardRole;
+  notifier_display_name?: string | null;
+  created_at: string;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Publication verification types                                     */
 /* ------------------------------------------------------------------ */

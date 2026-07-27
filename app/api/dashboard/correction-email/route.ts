@@ -25,6 +25,16 @@ type ScholarshipApplicationRecord = {
   submission_status: string;
 };
 
+type CorrectionRecord = {
+  id: string;
+  application_id: string;
+  correction_number: number;
+  message: string;
+  notified_by: string | null;
+  notifier_role: "teacher" | "admin";
+  created_at: string;
+};
+
 function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -53,6 +63,90 @@ function getRecipientEmail(application: ScholarshipApplicationRecord) {
     application.payload.applicantInfo?.email?.trim() ||
     ""
   );
+}
+
+async function getNextCorrectionNumber({
+  applicationId,
+  serviceRoleKey,
+  url,
+}: {
+  applicationId: string;
+  serviceRoleKey: string;
+  url: string;
+}) {
+  const query = new URLSearchParams({
+    application_id: `eq.${applicationId}`,
+    limit: "1",
+    order: "correction_number.desc",
+    select: "correction_number",
+  });
+
+  const response = await fetch(
+    `${url}/rest/v1/scholarship_correction_records?${query}`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("查詢補正紀錄失敗。");
+  }
+
+  const [latest] = (await response.json()) as {
+    correction_number: number;
+  }[];
+  return (latest?.correction_number ?? 0) + 1;
+}
+
+async function createCorrectionRecord({
+  applicationId,
+  auth,
+  message,
+  serviceRoleKey,
+  url,
+}: {
+  applicationId: string;
+  auth: Extract<Awaited<ReturnType<typeof checkDashboardAccess>>, { authorized: true }>;
+  message: string;
+  serviceRoleKey: string;
+  url: string;
+}) {
+  const correctionNumber = await getNextCorrectionNumber({
+    applicationId,
+    serviceRoleKey,
+    url,
+  });
+
+  const response = await fetch(
+    `${url}/rest/v1/scholarship_correction_records`,
+    {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+        "content-type": "application/json",
+        prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        application_id: applicationId,
+        correction_number: correctionNumber,
+        message,
+        notified_by: auth.userId,
+        notifier_role: auth.role,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("補正紀錄寫入失敗。");
+  }
+
+  const [record] = (await response.json()) as CorrectionRecord[];
+  return record;
 }
 
 export async function POST(request: Request) {
@@ -172,10 +266,18 @@ export async function POST(request: Request) {
     }
 
     const [updated] = (await updateResponse.json()) as unknown[];
+    const correctionRecord = await createCorrectionRecord({
+      applicationId: application.id,
+      auth,
+      message,
+      serviceRoleKey,
+      url,
+    });
 
     return NextResponse.json({
       success: true,
       application: updated,
+      correctionRecord,
       emailId,
     });
   } catch (error) {

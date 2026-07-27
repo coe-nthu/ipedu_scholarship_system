@@ -1040,6 +1040,83 @@ create trigger log_review_changes_trigger
   execute function public.log_review_changes();
 
 -- ============================================================
+-- 4. scholarship_correction_records
+-- ============================================================
+
+create table if not exists public.scholarship_correction_records (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references public.scholarship_applications(id) on delete cascade,
+  correction_number integer not null,
+  message text not null,
+  notified_by uuid references auth.users(id) on delete set null,
+  notifier_role text not null,
+  created_at timestamptz not null default now(),
+  constraint scholarship_correction_records_application_number_key
+    unique (application_id, correction_number)
+);
+
+alter table public.scholarship_correction_records
+  add column if not exists application_id uuid references public.scholarship_applications(id) on delete cascade,
+  add column if not exists correction_number integer,
+  add column if not exists message text,
+  add column if not exists notified_by uuid references auth.users(id) on delete set null,
+  add column if not exists notifier_role text,
+  add column if not exists created_at timestamptz not null default now();
+
+alter table public.scholarship_correction_records
+  alter column application_id set not null,
+  alter column correction_number set not null,
+  alter column message set not null,
+  alter column notifier_role set not null,
+  alter column created_at set not null,
+  alter column created_at set default now(),
+  drop constraint if exists scholarship_correction_records_correction_number_check,
+  add constraint scholarship_correction_records_correction_number_check
+    check (correction_number > 0),
+  drop constraint if exists scholarship_correction_records_notifier_role_check,
+  add constraint scholarship_correction_records_notifier_role_check
+    check (notifier_role in ('teacher', 'admin')),
+  drop constraint if exists scholarship_correction_records_application_id_correction_number_key,
+  drop constraint if exists scholarship_correction_records_application_number_key,
+  add constraint scholarship_correction_records_application_number_key
+    unique (application_id, correction_number);
+
+comment on table public.scholarship_correction_records is '通知學生補正時保存的補正內容紀錄';
+comment on column public.scholarship_correction_records.correction_number is '同一申請案的第幾次補正';
+comment on column public.scholarship_correction_records.message is '通知補正時填寫的需補正內容';
+comment on column public.scholarship_correction_records.notified_by is '通知補正的後台使用者 auth.users ID；帳密登入可能為空';
+comment on column public.scholarship_correction_records.notifier_role is '通知補正者角色：teacher=系所, admin=管理員';
+
+create index if not exists idx_correction_records_application_id
+  on public.scholarship_correction_records(application_id);
+create index if not exists idx_correction_records_created_at
+  on public.scholarship_correction_records(created_at desc);
+
+alter table public.scholarship_correction_records enable row level security;
+
+drop policy if exists "Teachers can view correction records"
+  on public.scholarship_correction_records;
+create policy "Teachers can view correction records"
+  on public.scholarship_correction_records for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('teacher', 'admin')
+    )
+  );
+
+drop policy if exists "Service role can manage correction records"
+  on public.scholarship_correction_records;
+create policy "Service role can manage correction records"
+  on public.scholarship_correction_records for all
+  to service_role
+  using (true)
+  with check (true);
+
+-- ============================================================
 -- 5. Storage setup
 -- ============================================================
 -- Supabase documents the `storage` schema as Storage-managed metadata.
@@ -1162,6 +1239,7 @@ grant select on public.scholarship_program_settings to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.scholarship_applications to authenticated;
 grant select on public.review_logs to authenticated;
+grant select on public.scholarship_correction_records to authenticated;
 grant select on public.application_summary to authenticated;
 grant execute on function public.get_journals(uuid) to authenticated;
 grant execute on function public.get_conferences(uuid) to authenticated;

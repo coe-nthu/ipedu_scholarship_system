@@ -57,6 +57,7 @@ import type {
   ResearchAward,
   ResearchExperience,
   ScholarshipApplication,
+  ScholarshipCorrectionRecord,
   ScholarshipPayload,
 } from "@/lib/types";
 import {
@@ -451,6 +452,70 @@ function BoolRow({
   );
 }
 
+function formatCorrectionCreatedAt(value: string) {
+  return new Date(value).toLocaleString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function CorrectionRecordsCard({
+  loading,
+  records,
+}: {
+  loading: boolean;
+  records: ScholarshipCorrectionRecord[];
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Mail className="size-4 text-amber-600" />
+          補正紀錄
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading ? (
+          <p className="text-sm text-slate-500">正在載入補正紀錄...</p>
+        ) : records.length === 0 ? (
+          <p className="text-sm text-slate-500">尚無補正紀錄。</p>
+        ) : (
+          records.map((record) => {
+            const notifier =
+              record.notifier_display_name ||
+              (record.notifier_role === "admin" ? "管理員" : "系所");
+
+            return (
+              <div
+                key={record.id}
+                className="rounded-md border border-amber-200 bg-amber-50/50 p-3"
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <Badge className="bg-amber-100 text-amber-800">
+                    第 {record.correction_number} 次補正
+                  </Badge>
+                  <span>{formatCorrectionCreatedAt(record.created_at)}</span>
+                  <span>通知人：{notifier}</span>
+                  <span>
+                    角色：
+                    {record.notifier_role === "admin" ? "管理員" : "系所"}
+                  </span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {record.message}
+                </p>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                           */
 /* ------------------------------------------------------------------ */
@@ -475,6 +540,11 @@ export function ApplicationDetail({
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
   const [sendingCorrection, setSendingCorrection] = useState(false);
+  const [correctionRecords, setCorrectionRecords] = useState<
+    ScholarshipCorrectionRecord[]
+  >([]);
+  const [loadingCorrectionRecords, setLoadingCorrectionRecords] =
+    useState(false);
 
   // Reset local state when switching to a different application
   useEffect(() => {
@@ -485,7 +555,41 @@ export function ApplicationDetail({
     setCorrectionMessage("");
     setSendingCorrection(false);
     setExportingPdf(false);
+    setCorrectionRecords([]);
+    setLoadingCorrectionRecords(false);
   }, [application?.id]);
+
+  const loadCorrectionRecords = useCallback(async (applicationId: string) => {
+    setLoadingCorrectionRecords(true);
+    try {
+      const res = await fetch(
+        `/api/dashboard/correction-records?applicationId=${encodeURIComponent(
+          applicationId
+        )}`
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success || !Array.isArray(data.records)) {
+        toast.error(data.error || "補正紀錄載入失敗。");
+        setCorrectionRecords([]);
+        return;
+      }
+
+      setCorrectionRecords(data.records as ScholarshipCorrectionRecord[]);
+    } catch {
+      toast.error("補正紀錄載入失敗。");
+      setCorrectionRecords([]);
+    } finally {
+      setLoadingCorrectionRecords(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open || !application?.id) {
+      return;
+    }
+
+    loadCorrectionRecords(application.id);
+  }, [application?.id, loadCorrectionRecords, open]);
 
   const triggerVerify = useCallback(
     async (journalIndex?: number) => {
@@ -626,16 +730,16 @@ export function ApplicationDetail({
       if (updated) {
         onUpdated?.(updated);
       }
+      await loadCorrectionRecords(application.id);
       setCorrectionOpen(false);
       setCorrectionMessage("");
       toast.success("已寄出補正通知，申請案已退回可修改。");
-      onOpenChange(false);
     } catch {
       toast.error("補正通知請求失敗，請重試。");
     } finally {
       setSendingCorrection(false);
     }
-  }, [application, correctionMessage, onOpenChange, onUpdated]);
+  }, [application, correctionMessage, loadCorrectionRecords, onUpdated]);
 
   const handleDelete = useCallback(async () => {
     if (!application) return;
@@ -913,6 +1017,13 @@ export function ApplicationDetail({
         </Dialog>
 
         <div className="px-4 pb-6">
+          <div className="mb-4 mt-4">
+            <CorrectionRecordsCard
+              loading={loadingCorrectionRecords}
+              records={correctionRecords}
+            />
+          </div>
+
           <Tabs defaultValue="basic" className="flex-col">
             <TabsList className="mt-2 mb-4">
               <TabsTrigger value="basic">基本資料</TabsTrigger>

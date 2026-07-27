@@ -746,7 +746,60 @@ create trigger log_review_changes_trigger
   execute function public.log_review_changes();
 
 -- ============================================================
--- 5. Storage setup
+-- 5. 補正紀錄表 (scholarship_correction_records)
+-- ============================================================
+-- 每次通知學生補正時，保存當次「需補正內容」與通知者資訊。
+
+create table public.scholarship_correction_records (
+  id                uuid primary key default gen_random_uuid(),
+  application_id    uuid not null references public.scholarship_applications(id) on delete cascade,
+  correction_number integer not null check (correction_number > 0),
+  message           text not null,
+  notified_by       uuid references auth.users(id) on delete set null,
+  notifier_role     text not null check (notifier_role in ('teacher', 'admin')),
+  created_at        timestamptz not null default now(),
+  constraint scholarship_correction_records_application_number_key
+    unique (application_id, correction_number)
+);
+
+comment on table public.scholarship_correction_records is '通知學生補正時保存的補正內容紀錄';
+comment on column public.scholarship_correction_records.correction_number is '同一申請案的第幾次補正';
+comment on column public.scholarship_correction_records.message is '通知補正時填寫的需補正內容';
+comment on column public.scholarship_correction_records.notified_by is '通知補正的後台使用者 auth.users ID；帳密登入可能為空';
+comment on column public.scholarship_correction_records.notifier_role is '通知補正者角色：teacher=系所, admin=管理員';
+
+create index if not exists idx_correction_records_application_id
+  on public.scholarship_correction_records(application_id);
+create index if not exists idx_correction_records_created_at
+  on public.scholarship_correction_records(created_at desc);
+
+alter table public.scholarship_correction_records enable row level security;
+
+drop policy if exists "Teachers can view correction records"
+  on public.scholarship_correction_records;
+create policy "Teachers can view correction records"
+  on public.scholarship_correction_records for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('teacher', 'admin')
+    )
+  );
+
+drop policy if exists "Service role can manage correction records"
+  on public.scholarship_correction_records;
+create policy "Service role can manage correction records"
+  on public.scholarship_correction_records for all
+  to service_role
+  using (true)
+  with check (true);
+
+grant select on public.scholarship_correction_records to authenticated;
+
+-- ============================================================
+-- 6. Storage setup
 -- ============================================================
 -- Supabase documents the `storage` schema as Storage-managed metadata.
 -- This migration intentionally does not insert/update/delete rows or alter/drop
