@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CircleDot,
   Clock,
+  Download,
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -149,6 +150,55 @@ function compareReviewSortOrder(
   if (aUnspecified) return 1;
   if (bUnspecified) return -1;
   return comparePrimitive(a, b, dir);
+}
+
+function escapeExcelCell(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function downloadExcelFile({
+  fileName,
+  rows,
+}: {
+  fileName: string;
+  rows: (string | number | null | undefined)[][];
+}) {
+  const tableHtml = rows
+    .map(
+      (row) =>
+        `<tr>${row
+          .map(
+            (cell) =>
+              `<td style="mso-number-format:'\\@';">${escapeExcelCell(cell)}</td>`,
+          )
+          .join("")}</tr>`,
+    )
+    .join("");
+  const html = `<!doctype html><html><head><meta charset="utf-8" /></head><body><table>${tableHtml}</table></body></html>`;
+  const blob = new Blob([html], {
+    type: "application/vnd.ms-excel;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatFileDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}${month}${day}-${hour}${minute}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -641,36 +691,98 @@ export function DashboardTable({
     }
   }
 
+  const handleExportExcel = useCallback(() => {
+    if (sortedRows.length === 0) {
+      toast.info("目前沒有可匯出的申請案。");
+      return;
+    }
+
+    const header = [
+      "編號",
+      "排序",
+      "備註",
+      "系所",
+      "學號",
+      "姓名",
+      "最新送出時間",
+      "累計GPA",
+      "學分數",
+      "期刊（累計）",
+      "I級期刊",
+      "研討會（累計）",
+      "文獻真實性審核",
+    ];
+    const dataRows = sortedRows.map((row) => {
+      const appId = row.application.id;
+      const effectiveStatus =
+        reviewStatuses[appId] ?? row.application.review_status;
+
+      return [
+        row.rowNumber,
+        sortOrders[appId] ?? row.reviewSortOrder,
+        remarks[appId] ?? "",
+        row.department,
+        row.studentId,
+        row.name,
+        formatSubmittedAt(row.submittedAt),
+        row.gpa != null ? row.gpa.toFixed(2) : "",
+        row.completedCredits,
+        row.journalCount,
+        row.levelOneJournalCount,
+        row.conferenceCount,
+        REVIEW_STATUS_LABELS[effectiveStatus],
+      ];
+    });
+
+    downloadExcelFile({
+      fileName: `獎學金申請案列表_${formatFileDate()}.xls`,
+      rows: [header, ...dataRows],
+    });
+    toast.success(`已匯出 ${dataRows.length} 件申請案。`);
+  }, [remarks, reviewStatuses, sortOrders, sortedRows]);
+
   const thClass =
     "cursor-pointer select-none hover:bg-slate-100 transition-colors";
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-slate-500">
-          篩選請領別：
-        </span>
-        <StudyStatusFilterChip
-          label="新領"
-          count={studyStatusCounts.new}
-          active={studyStatusFilter.has("new")}
-          onClick={() => toggleStudyStatusFilter("new")}
-        />
-        <StudyStatusFilterChip
-          label="續領"
-          count={studyStatusCounts.renewal}
-          active={studyStatusFilter.has("renewal")}
-          onClick={() => toggleStudyStatusFilter("renewal")}
-        />
-        {studyStatusFilter.size > 0 && (
-          <button
-            type="button"
-            onClick={() => setStudyStatusFilter(new Set())}
-            className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
-          >
-            清除篩選
-          </button>
-        )}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-500">
+            篩選請領別：
+          </span>
+          <StudyStatusFilterChip
+            label="新領"
+            count={studyStatusCounts.new}
+            active={studyStatusFilter.has("new")}
+            onClick={() => toggleStudyStatusFilter("new")}
+          />
+          <StudyStatusFilterChip
+            label="續領"
+            count={studyStatusCounts.renewal}
+            active={studyStatusFilter.has("renewal")}
+            onClick={() => toggleStudyStatusFilter("renewal")}
+          />
+          {studyStatusFilter.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setStudyStatusFilter(new Set())}
+              className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
+            >
+              清除篩選
+            </button>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs"
+          onClick={handleExportExcel}
+        >
+          <Download className="size-3.5" />
+          匯出 Excel
+        </Button>
       </div>
       <div className="w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <Table className="w-full table-fixed text-xs [&_td]:whitespace-normal [&_td]:break-words [&_th]:whitespace-normal">
