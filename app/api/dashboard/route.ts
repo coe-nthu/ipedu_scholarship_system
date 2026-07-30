@@ -257,6 +257,9 @@ export async function PATCH(request: Request) {
     }
 
     const permissions = await getDashboardRolePermissions(auth.role);
+    if (review_status !== undefined && !permissions.changeReviewStatus) {
+      return jsonError("此角色目前無法修改文獻真實性審查狀態。", 403);
+    }
     if (payload !== undefined && !permissions.editApplication) {
       return jsonError("此角色目前無法編輯申請資料。", 403);
     }

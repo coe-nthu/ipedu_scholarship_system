@@ -4,7 +4,8 @@ export type DashboardActionKey =
   | "exportPdf"
   | "sendCorrection"
   | "editApplication"
-  | "deleteApplication";
+  | "deleteApplication"
+  | "changeReviewStatus";
 
 export type DashboardActionPermissions = Record<DashboardActionKey, boolean>;
 
@@ -14,6 +15,7 @@ export type DashboardPermissionSettings = Record<
 >;
 
 export const DASHBOARD_ACTION_LABELS: Record<DashboardActionKey, string> = {
+  changeReviewStatus: "文獻真實性審核",
   deleteApplication: "刪除",
   editApplication: "編輯",
   exportPdf: "匯出 PDF",
@@ -26,6 +28,7 @@ export const DASHBOARD_ROLE_LABELS: Record<DashboardRole, string> = {
 };
 
 export const DASHBOARD_ACTION_KEYS: DashboardActionKey[] = [
+  "changeReviewStatus",
   "exportPdf",
   "sendCorrection",
   "editApplication",
@@ -35,12 +38,14 @@ export const DASHBOARD_ACTION_KEYS: DashboardActionKey[] = [
 export const DEFAULT_DASHBOARD_PERMISSION_SETTINGS: DashboardPermissionSettings =
   {
     admin: {
+      changeReviewStatus: true,
       deleteApplication: true,
       editApplication: true,
       exportPdf: true,
       sendCorrection: true,
     },
     teacher: {
+      changeReviewStatus: true,
       deleteApplication: false,
       editApplication: true,
       exportPdf: false,
@@ -68,6 +73,10 @@ function normalizePermissions(
   if (!value || typeof value !== "object") return defaults;
   const source = value as Partial<Record<DashboardActionKey, unknown>>;
   return {
+    changeReviewStatus:
+      typeof source.changeReviewStatus === "boolean"
+        ? source.changeReviewStatus
+        : defaults.changeReviewStatus,
     deleteApplication:
       typeof source.deleteApplication === "boolean"
         ? source.deleteApplication

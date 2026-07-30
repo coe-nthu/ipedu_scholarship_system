@@ -1026,10 +1026,14 @@ export function DashboardTable({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <ReviewStatusSelect
-                      status={effectiveStatus}
-                      onStatusChange={(s) => handleReviewStatusChange(appId, s)}
-                    />
+                    {permissions.changeReviewStatus ? (
+                      <ReviewStatusSelect
+                        status={effectiveStatus}
+                        onStatusChange={(s) => handleReviewStatusChange(appId, s)}
+                      />
+                    ) : (
+                      <ReviewStatusBadge status={effectiveStatus} />
+                    )}
                   </TableCell>
                   <TableCell>
                     <Button
