@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { patchScholarshipApplication } from "@/lib/supabase/patch-application";
 import {
   DEFAULT_SCHOLARSHIP_PROGRAM_KEY,
   getDefaultScholarshipProgramSetting,
@@ -433,29 +434,20 @@ export async function POST(request: Request) {
     // Only the status resets; reviewer_remarks is left alone so the 補正 note
     // written by 系辦/院辦 survives the student's resubmission.
     if (isResubmission) {
-      const resetResponse = await fetch(
-        `${url}/rest/v1/scholarship_applications?id=eq.${resolvedId}`,
-        {
-          method: "PATCH",
-          headers: {
-            apikey: serviceRoleKey,
-            authorization: `Bearer ${serviceRoleKey}`,
-            "content-type": "application/json",
-          },
-          // The label lands in review_logs.actor_label, so the audit trail
-          // shows plainly that the student's resubmission caused the reset.
-          body: JSON.stringify({
-            review_status: "未審核",
-            reviewed_by: null,
-            reviewed_by_label: "學生重新送出",
-          }),
-        }
-      );
-      if (!resetResponse.ok) {
-        console.error(
-          "Review status reset failed:",
-          await resetResponse.text().catch(() => "")
-        );
+      const resetResult = await patchScholarshipApplication({
+        applicationId: resolvedId,
+        // The label lands in review_logs.actor_label, so the audit trail shows
+        // plainly that the student's resubmission caused the reset.
+        fields: {
+          review_status: "未審核",
+          reviewed_by: null,
+          reviewed_by_label: "學生重新送出",
+        },
+        serviceRoleKey,
+        url,
+      });
+      if (!resetResult.ok) {
+        console.error("Review status reset failed:", resetResult.detail);
       }
     }
 

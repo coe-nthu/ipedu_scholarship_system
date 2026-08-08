@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth";
 import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { sendScholarshipCorrectionEmail } from "@/lib/email/resend";
+import { patchScholarshipApplication } from "@/lib/supabase/patch-application";
 import type { ScholarshipPayload } from "@/lib/types";
 import { isValidUUID } from "@/lib/validation";
 
@@ -241,32 +242,31 @@ export async function POST(request: Request) {
       scholarshipProgram: application.scholarship_program || "獎學金申請",
     });
 
-    const updateResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${application.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: serviceRoleKey,
-          authorization: `Bearer ${serviceRoleKey}`,
-          "content-type": "application/json",
-          prefer: "return=representation",
-        },
-        body: JSON.stringify({
-          reviewed_by: auth.userId,
-          reviewed_by_label: auth.displayName || auth.username || auth.email,
-          review_status: "未審核",
-          reviewer_remarks: message,
-          submission_status: "draft",
-          submitted_at: null,
-        }),
-      }
-    );
+    const updateResult = await patchScholarshipApplication({
+      applicationId: application.id,
+      fields: {
+        reviewed_by: auth.userId,
+        reviewed_by_label: auth.displayName || auth.username || auth.email,
+        review_status: "未審核",
+        reviewer_remarks: message,
+        submission_status: "draft",
+        submitted_at: null,
+      },
+      returnRepresentation: true,
+      serviceRoleKey,
+      url,
+    });
 
-    if (!updateResponse.ok) {
+    if (!updateResult.ok) {
+      console.error(
+        "Correction PATCH failed:",
+        updateResult.status,
+        updateResult.detail
+      );
       throw new Error("退回申請案失敗。");
     }
 
-    const [updated] = (await updateResponse.json()) as unknown[];
+    const [updated] = updateResult.data;
     const correctionRecord = await createCorrectionRecord({
       applicationId: application.id,
       auth,

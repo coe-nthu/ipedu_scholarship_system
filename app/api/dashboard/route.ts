@@ -7,6 +7,7 @@ import {
 import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { derivePayloadAcademicGpa } from "@/lib/academic-gpa";
 import { withDerivedDashboardGpas } from "@/lib/dashboard-application-display";
+import { patchScholarshipApplication } from "@/lib/supabase/patch-application";
 import { isValidUUID, isValidReviewStatus } from "@/lib/validation";
 import {
   DATABASE_OPTIONS,
@@ -385,40 +386,30 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const updateResponse = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}`,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: serviceRoleKey,
-          authorization: `Bearer ${serviceRoleKey}`,
-          "content-type": "application/json",
-          prefer: "return=representation",
-        },
-        body: JSON.stringify(updateFields),
-      }
-    );
+    const updateResult = await patchScholarshipApplication({
+      applicationId,
+      fields: updateFields,
+      returnRepresentation: true,
+      serviceRoleKey,
+      url,
+    });
 
-    if (!updateResponse.ok) {
+    if (!updateResult.ok) {
       // Surface the underlying PostgREST/Postgres error so schema issues (e.g. a
       // missing reviewed_at / reviewed_by column referenced by the update
       // trigger) are diagnosable instead of hidden behind a generic 500.
-      const detail = await updateResponse.text().catch(() => "");
       console.error(
         "Dashboard PATCH update failed:",
-        updateResponse.status,
-        detail
+        updateResult.status,
+        updateResult.detail
       );
       return jsonError(
-        `更新失敗：${detail || updateResponse.statusText || "資料庫未回傳錯誤訊息"}`.slice(
-          0,
-          400
-        ),
+        `更新失敗：${updateResult.detail || "資料庫未回傳錯誤訊息"}`.slice(0, 400),
         500
       );
     }
 
-    const [updated] = (await updateResponse.json()) as unknown[];
+    const [updated] = updateResult.data;
     return NextResponse.json({ success: true, application: updated });
   } catch (error) {
     console.error("Dashboard PATCH error:", error);
