@@ -532,6 +532,7 @@ create table public.scholarship_applications (
   reviewer_remarks         text not null default '',
   review_sort_order        integer not null default 0,
   reviewed_by              uuid references auth.users(id) on delete set null,
+  reviewed_by_label        text,
   reviewed_at              timestamptz,
   payload                  jsonb not null default '{}'::jsonb,
   files                    jsonb not null default '[]'::jsonb,
@@ -543,11 +544,13 @@ create table public.scholarship_applications (
 comment on table  public.scholarship_applications is '獎學金申請案';
 comment on column public.scholarship_applications.user_id is '申請人的 auth.users ID';
 comment on column public.scholarship_applications.program_key is '穩定獎學金代碼，用於改名後維持草稿與申請案關聯';
+comment on column public.scholarship_applications.application_type is '申請類別；全時博士生助學金可複選，多值以「、」分隔（例：競爭型、指導教授配合款）';
 comment on column public.scholarship_applications.submission_status is '學生填寫狀態：draft=草稿, submitted=已送出';
 comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：未審核、系所審核通過、院辦審核通過';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
 comment on column public.scholarship_applications.review_sort_order is '後台人工排序；0 代表未指定';
 comment on column public.scholarship_applications.reviewed_by is '最後審核的教師 auth.users ID';
+comment on column public.scholarship_applications.reviewed_by_label is '最後審核者的顯示名稱／帳號，密碼登入的後台帳號也能記錄';
 comment on column public.scholarship_applications.reviewed_at is '最後審核時間';
 comment on column public.scholarship_applications.payload is '完整表單 JSON 資料';
 comment on column public.scholarship_applications.files is '上傳檔案 metadata JSON 陣列';
@@ -678,6 +681,7 @@ create table public.review_logs (
   id              uuid primary key default gen_random_uuid(),
   application_id  uuid not null references public.scholarship_applications(id) on delete cascade,
   reviewer_id     uuid references auth.users(id) on delete set null,
+  actor_label     text,
   action          text not null,   -- 'status_change', 'remark_update'
   old_value       text,
   new_value       text,
@@ -686,6 +690,7 @@ create table public.review_logs (
 
 comment on table  public.review_logs is '審核操作紀錄（審計軌跡）';
 comment on column public.review_logs.action is '操作類型：status_change=審核狀態變更, remark_update=備註修改';
+comment on column public.review_logs.actor_label is '操作者顯示名稱／帳號（reviewer_id 為 null 時的備援）';
 
 create index if not exists idx_review_logs_application_id
   on public.review_logs(application_id);
@@ -724,14 +729,24 @@ as $$
 begin
   -- 記錄審核狀態變更
   if new.review_status is distinct from old.review_status then
-    insert into public.review_logs (application_id, reviewer_id, action, old_value, new_value)
-    values (new.id, new.reviewed_by, 'status_change', old.review_status, new.review_status);
+    insert into public.review_logs (
+      application_id, reviewer_id, actor_label, action, old_value, new_value
+    )
+    values (
+      new.id, new.reviewed_by, new.reviewed_by_label,
+      'status_change', old.review_status, new.review_status
+    );
   end if;
 
   -- 記錄備註變更
   if new.reviewer_remarks is distinct from old.reviewer_remarks then
-    insert into public.review_logs (application_id, reviewer_id, action, old_value, new_value)
-    values (new.id, new.reviewed_by, 'remark_update', old.reviewer_remarks, new.reviewer_remarks);
+    insert into public.review_logs (
+      application_id, reviewer_id, actor_label, action, old_value, new_value
+    )
+    values (
+      new.id, new.reviewed_by, new.reviewed_by_label,
+      'remark_update', old.reviewer_remarks, new.reviewer_remarks
+    );
   end if;
 
   return new;

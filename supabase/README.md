@@ -18,6 +18,18 @@
 
 `sync_to_repo_schema.sql` 不會刪除申請資料，會把舊欄位 `status` 遷移成目前 repo 使用的 `submission_status`，並把英文審核狀態轉成 dashboard 使用的中文狀態。
 
+這支腳本可以重複執行：審核狀態轉換只會針對舊版英文值（`auto_verified` / `pending_manual` / `manual_verified` / `data_error`），已經是「系所審核通過」「院辦審核通過」的資料不會被覆寫。（舊版腳本的 `else '未審核'` 沒有這個限制，每跑一次就會把所有審核結果洗掉，已修正。）
+
+既有專案另外需要跑一次的增量腳本（都可重複執行）：
+
+```sql
+-- supabase/add_review_actor_label.sql
+--   補上 reviewed_by_label / review_logs.actor_label，讓帳密登入的後台帳號
+--   也能在審核紀錄中被追溯。
+-- supabase/add_full_time_application_type_multi.sql
+--   更新 application_type 欄位註解（全時博士生助學金申請類別改為可複選）。
+```
+
 如果目前只是測試階段，測試資料可以清掉，請先執行：
 
 ```sql

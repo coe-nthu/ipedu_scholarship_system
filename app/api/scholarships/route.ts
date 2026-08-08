@@ -391,10 +391,16 @@ export async function POST(request: Request) {
       gpa: academic.cumulativeGpa || null,
       gpa_scale: academic.cumulativeGpaScale || null,
       submission_status: submissionStatus,
-      review_status: "未審核",
-      reviewer_remarks: "",
       payload: derivedPayload,
     };
+    // Never write review_status / reviewer_remarks here. A new row gets the DB
+    // defaults ('未審核' / ''), and for an existing row those columns belong to
+    // 系辦/院辦 — clobbering them on every save (drafts included) is what wiped
+    // completed 文件真實性審核 and the reviewer's 補正說明.
+    // A genuine re-submission still needs a re-review; that reset happens after
+    // the upsert below, and only for that case.
+    const isResubmission =
+      submissionStatus === "submitted" && Boolean(existingApplication);
     if (submittedAt) {
       upsertBody.submitted_at = submittedAt;
     }
@@ -423,6 +429,36 @@ export async function POST(request: Request) {
     const [record] = (await upsertResponse.json()) as { id: string }[];
     const resolvedId = record?.id || applicationId;
 
+    // ── A real re-submission invalidates the previous 文件真實性審核 ──
+    // Only the status resets; reviewer_remarks is left alone so the 補正 note
+    // written by 系辦/院辦 survives the student's resubmission.
+    if (isResubmission) {
+      const resetResponse = await fetch(
+        `${url}/rest/v1/scholarship_applications?id=eq.${resolvedId}`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: serviceRoleKey,
+            authorization: `Bearer ${serviceRoleKey}`,
+            "content-type": "application/json",
+          },
+          // The label lands in review_logs.actor_label, so the audit trail
+          // shows plainly that the student's resubmission caused the reset.
+          body: JSON.stringify({
+            review_status: "未審核",
+            reviewed_by: null,
+            reviewed_by_label: "學生重新送出",
+          }),
+        }
+      );
+      if (!resetResponse.ok) {
+        console.error(
+          "Review status reset failed:",
+          await resetResponse.text().catch(() => "")
+        );
+      }
+    }
+
     // ── Run publication verification on submission ──
     let verificationSummary = null;
     if (submissionStatus === "submitted") {
@@ -433,7 +469,8 @@ export async function POST(request: Request) {
         if (journals && journals.length > 0) {
           const vResult = await verifyAllPublications(journals);
 
-          // Update the application with enriched payload + review_status
+          // Store the enriched payload only — review_status is not derived
+          // from verification results.
           const enrichedPayload = {
             ...(derivedPayload as Record<string, unknown>),
             journals: vResult.journals,
@@ -450,7 +487,6 @@ export async function POST(request: Request) {
               },
               body: JSON.stringify({
                 payload: enrichedPayload,
-                review_status: vResult.reviewStatus,
               }),
             }
           );

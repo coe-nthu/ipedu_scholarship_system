@@ -13,11 +13,14 @@ import {
   DEPARTMENT_OPTIONS,
   DASHBOARD_STUDY_STATUS_OPTIONS,
   EMPLOYMENT_STATUS_OPTIONS,
+  FULL_TIME_APPLICATION_TYPES,
   GPA_SCALE_OPTIONS,
   OTHER_AID_STATUS_OPTIONS,
   isAllowedMultiOption,
   isAllowedOption,
 } from "@/lib/scholarship-form-options";
+
+const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
 import type {
   Journal,
   ScholarshipApplication,
@@ -35,7 +38,8 @@ import type {
  */
 function validateAndMergePayload(
   incoming: unknown,
-  existing: ScholarshipPayload
+  existing: ScholarshipPayload,
+  programKey: string | null
 ): { ok: true; merged: ScholarshipPayload } | { ok: false; error: string } {
   if (!incoming || typeof incoming !== "object") {
     return { ok: false, error: "payload 格式不合法。" };
@@ -72,6 +76,17 @@ function validateAndMergePayload(
   }
   if (!isAllowedOption(applicantInfo.studyStatus, DASHBOARD_STUDY_STATUS_OPTIONS)) {
     return { ok: false, error: "請領別不合法。" };
+  }
+  // 全時博士生助學金的申請類別可複選，值以「、」串接；其他獎學金為固定單一值，
+  // 由表單設定決定，這裡不限制。
+  if (
+    programKey === FULL_TIME_DOCTORAL_GRANT_KEY &&
+    !isAllowedMultiOption(
+      applicantInfo.applicationType,
+      FULL_TIME_APPLICATION_TYPES
+    )
+  ) {
+    return { ok: false, error: "申請類別不合法。" };
   }
   if (!isAllowedOption(eligibility.gpaScale, GPA_SCALE_OPTIONS)) {
     return { ok: false, error: "GPA 級距不合法。" };
@@ -310,6 +325,11 @@ export async function PATCH(request: Request) {
     if (auth.userId) {
       updateFields.reviewed_by = auth.userId;
     }
+    // Password-based dashboard accounts have no auth.users ID, so reviewed_by
+    // stays null for them and review_logs cannot attribute the change. Record a
+    // plain-text label as well so every review action is traceable.
+    updateFields.reviewed_by_label =
+      auth.displayName || auth.username || auth.email;
     if (review_status !== undefined) {
       updateFields.review_status = review_status;
     }
@@ -323,7 +343,8 @@ export async function PATCH(request: Request) {
     if (payload !== undefined) {
       const result = validateAndMergePayload(
         payload,
-        existingApplication.payload
+        existingApplication.payload,
+        existingApplication.program_key
       );
       if (!result.ok) {
         return jsonError(result.error);
@@ -350,6 +371,7 @@ export async function PATCH(request: Request) {
       updateFields.student_id = applicantInfo.studentId;
       updateFields.department = newDepartment;
       updateFields.advisor_name = applicantInfo.advisorName || null;
+      updateFields.application_type = applicantInfo.applicationType || null;
       const gpaNumber = Number(academicPerformance.cumulativeGpa);
       if (Number.isFinite(gpaNumber) && academicPerformance.cumulativeGpa !== "") {
         updateFields.gpa = gpaNumber;

@@ -43,6 +43,19 @@ export const OTHER_AID_STATUS_OPTIONS = [
   OTHER_AID_STATUS_RECEIVING,
 ] as const;
 
+/**
+ * 全時博士生助學金「申請類別」。This is a *multi-select* field: a student may
+ * apply for both tracks at once, so the value is stored as the selected labels
+ * joined by {@link MULTI_OPTION_DELIMITER}. Every other scholarship keeps a
+ * single fixed 申請類別.
+ */
+export const FULL_TIME_APPLICATION_TYPE_MATCHING_FUND = "指導教授配合款";
+export const FULL_TIME_APPLICATION_TYPE_COMPETITIVE = "競爭型";
+export const FULL_TIME_APPLICATION_TYPES = [
+  FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
+  FULL_TIME_APPLICATION_TYPE_COMPETITIVE,
+] as const;
+
 export const EMPLOYMENT_STATUS_NONE = "無兼職";
 export const EMPLOYMENT_STATUS_TA = "擔任校內外教學助理";
 export const EMPLOYMENT_STATUS_PART_TIME = "有校內外兼職";
@@ -84,13 +97,14 @@ export function isAllowedOption(
 }
 
 /**
- * The Edition / 資料庫別 field can hold several editions (a journal may be
- * indexed in more than one). Multiple values are stored as a single string
- * joined by "、".
+ * Some fixed-option fields accept several values at once — the Edition / 資料庫別
+ * of a journal (a journal may be indexed in more than one), and 全時博士生助學金's
+ * 申請類別. Multiple values are stored as a single string joined by "、", which
+ * keeps the column a plain `text` and leaves single-value rows valid as-is.
  */
-export const DATABASE_MULTI_DELIMITER = "、";
+export const MULTI_OPTION_DELIMITER = "、";
 
-export function parseDatabaseValues(
+export function parseMultiOptionValues(
   value: string | null | undefined
 ): string[] {
   return (value ?? "")
@@ -99,8 +113,8 @@ export function parseDatabaseValues(
     .filter(Boolean);
 }
 
-export function joinDatabaseValues(values: string[]): string {
-  return Array.from(new Set(values)).join(DATABASE_MULTI_DELIMITER);
+export function joinMultiOptionValues(values: string[]): string {
+  return Array.from(new Set(values)).join(MULTI_OPTION_DELIMITER);
 }
 
 /**
@@ -113,5 +127,5 @@ export function isAllowedMultiOption(
 ): boolean {
   if (value === undefined || value === null || value === "") return true;
   if (typeof value !== "string") return false;
-  return parseDatabaseValues(value).every((item) => allowed.includes(item));
+  return parseMultiOptionValues(value).every((item) => allowed.includes(item));
 }

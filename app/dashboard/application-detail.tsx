@@ -38,7 +38,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { DatabaseMultiSelect } from "@/components/database-multi-select";
+import { MultiOptionSelect } from "@/components/multi-option-select";
 import {
   Table,
   TableBody,
@@ -64,6 +64,7 @@ import {
   DATABASE_OPTIONS,
   DEPARTMENT_OPTIONS,
   EMPLOYMENT_STATUS_OPTIONS,
+  FULL_TIME_APPLICATION_TYPES,
   FULL_TIME_STUDY_STATUS_NEW,
   FULL_TIME_STUDY_STATUS_OLD,
   FULL_TIME_STUDY_STATUS_OPTIONS,
@@ -405,16 +406,23 @@ function MultiSelectRow({
   value,
   onChange,
   options,
+  placeholder = "選擇資料庫",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: readonly string[];
+  placeholder?: string;
 }) {
   return (
     <div className="grid grid-cols-[120px_1fr] items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
       <span className="text-sm font-medium text-slate-500">{label}</span>
-      <DatabaseMultiSelect value={value} onChange={onChange} options={options} />
+      <MultiOptionSelect
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder}
+      />
     </div>
   );
 }
@@ -1188,23 +1196,45 @@ export function ApplicationDetail({
                           )
                         }
                       />
-                      <TextRow
-                        label="申請類別"
-                        value={draft.applicantInfo.applicationType}
-                        onChange={(v) =>
-                          setDraft((d) =>
-                            d
-                              ? {
-                                  ...d,
-                                  applicantInfo: {
-                                    ...d.applicantInfo,
-                                    applicationType: v,
-                                  },
-                                }
-                              : d
-                          )
-                        }
-                      />
+                      {isFullTimeGrant ? (
+                        <MultiSelectRow
+                          label="申請類別（可複選）"
+                          value={draft.applicantInfo.applicationType}
+                          options={FULL_TIME_APPLICATION_TYPES}
+                          placeholder="請選擇申請類別（可複選）"
+                          onChange={(v) =>
+                            setDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    applicantInfo: {
+                                      ...d.applicantInfo,
+                                      applicationType: v,
+                                    },
+                                  }
+                                : d
+                            )
+                          }
+                        />
+                      ) : (
+                        <TextRow
+                          label="申請類別"
+                          value={draft.applicantInfo.applicationType}
+                          onChange={(v) =>
+                            setDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    applicantInfo: {
+                                      ...d.applicantInfo,
+                                      applicationType: v,
+                                    },
+                                  }
+                                : d
+                            )
+                          }
+                        />
+                      )}
                     </>
                   ) : (
                     <>

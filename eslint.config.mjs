@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output from nested workspaces/worktrees is not source code.
+    "**/.next/**",
   ]),
 ]);
 

@@ -3,7 +3,6 @@ import { applyJournalIndexMatch } from "@/lib/journal-index-service";
 import type {
   Journal,
   PublicationVerification,
-  ReviewStatus,
   VerificationSummary,
 } from "@/lib/types";
 
@@ -332,10 +331,18 @@ export async function verifyPublication(
 /*  Verify all publications in a payload                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Runs DOI verification over every journal entry and returns the enriched
+ * journals plus an overall summary.
+ *
+ * NOTE: this must never derive `review_status`. 文件真實性審核 is a human
+ * decision made by 系辦/院辦 in the dashboard; letting an automated re-verify
+ * write that column is what caused reviewed applications to silently revert
+ * to 「未審核」.
+ */
 export async function verifyAllPublications(journals: Journal[]): Promise<{
   journals: Journal[];
   summary: VerificationSummary;
-  reviewStatus: ReviewStatus;
 }> {
   if (!journals || journals.length === 0) {
     return {
@@ -344,7 +351,6 @@ export async function verifyAllPublications(journals: Journal[]): Promise<{
         status: "all_passed",
         verifiedAt: new Date().toISOString(),
       },
-      reviewStatus: "未審核",
     };
   }
 
@@ -373,25 +379,19 @@ export async function verifyAllPublications(journals: Journal[]): Promise<{
   );
 
   let summaryStatus: VerificationSummary["status"];
-  let reviewStatus: ReviewStatus;
 
   if (hasFail) {
     summaryStatus = "has_issues";
-    reviewStatus = "未審核";
   } else if (hasTimeout) {
     summaryStatus = "timeout";
-    reviewStatus = "未審核";
   } else if (allGood) {
     summaryStatus = "all_passed";
-    reviewStatus = "未審核";
   } else {
     summaryStatus = "pending";
-    reviewStatus = "未審核";
   }
 
   return {
     journals: enriched,
     summary: { status: summaryStatus, verifiedAt: new Date().toISOString() },
-    reviewStatus,
   };
 }

@@ -37,6 +37,7 @@ import {
   formatSubmittedAt,
   getDashboardGpaSummary,
 } from "@/lib/dashboard-application-display";
+import { useDashboardReviewState } from "./dashboard-review-state";
 import {
   getNonEmptyConferences,
   getNonEmptyJournals,
@@ -482,106 +483,21 @@ export function DashboardTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedApp, setSelectedApp] =
     useState<ScholarshipApplication | null>(null);
-  // Records the admin has deleted this session, hidden from the list.
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set());
 
-  // Payload edits made in the detail Sheet are reflected here so the list and
-  // the open detail view stay in sync without a full refetch.
-  const [appOverrides, setAppOverrides] = useState<
-    Record<string, ScholarshipApplication>
-  >({});
-
-  // Initialize state from DB data (via server component props)
-  const [remarks, setRemarks] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const app of applications) {
-      map[app.id] = app.reviewer_remarks ?? "";
-    }
-    return map;
-  });
-
-  const [sortOrders, setSortOrders] = useState<Record<string, number>>(() => {
-    const map: Record<string, number> = {};
-    for (const app of applications) {
-      map[app.id] = app.review_sort_order ?? 0;
-    }
-    return map;
-  });
-
-  const [reviewStatuses, setReviewStatuses] = useState<
-    Record<string, ReviewStatus>
-  >(() => {
-    const map: Record<string, ReviewStatus> = {};
-    for (const app of applications) {
-      map[app.id] = app.review_status;
-    }
-    return map;
-  });
-
-  // Optimistic remark update with API persistence
-  const handleRemarkChange = useCallback((id: string, value: string) => {
-    setRemarks((prev) => ({ ...prev, [id]: value }));
-
-    fetch("/api/dashboard", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ applicationId: id, reviewer_remarks: value }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("儲存備註失敗");
-      })
-      .catch(() => {
-        toast.error("備註儲存失敗，請重試。");
-      });
-  }, []);
-
-  const handleSortOrderChange = useCallback((id: string, value: number) => {
-    setSortOrders((prev) => {
-      const previousValue = prev[id] ?? 0;
-
-      fetch("/api/dashboard", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ applicationId: id, review_sort_order: value }),
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("儲存排序失敗");
-        })
-        .catch(() => {
-          setSortOrders((p) => ({ ...p, [id]: previousValue }));
-          toast.error("排序儲存失敗，請重試。");
-        });
-
-      return { ...prev, [id]: value };
-    });
-  }, []);
-
-  // Optimistic review status update with API persistence
-  const handleReviewStatusChange = useCallback(
-    (id: string, status: ReviewStatus) => {
-      setReviewStatuses((prev) => {
-        const previousStatus = prev[id];
-
-        // Optimistic update
-        fetch("/api/dashboard", {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ applicationId: id, review_status: status }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error("更新審查狀態失敗");
-          })
-          .catch(() => {
-            // Revert on error
-            setReviewStatuses((p) => ({ ...p, [id]: previousStatus }));
-            toast.error("審查狀態更新失敗，請重試。");
-          });
-
-        return { ...prev, [id]: status };
-      });
-    },
-    [],
-  );
+  // Shared across every DashboardTable instance so switching tabs (which
+  // unmounts the inactive table) never rolls edits back to the page-load props.
+  const {
+    appOverrides,
+    deletedIds,
+    remarks,
+    reviewStatuses,
+    sortOrders,
+    handleRemarkChange,
+    handleReviewStatusChange,
+    handleSortOrderChange,
+    markDeleted,
+    applyUpdatedApplication,
+  } = useDashboardReviewState();
 
   const effectiveApplications = useMemo(
     () =>
@@ -720,7 +636,7 @@ export function DashboardTable({
       return [
         row.rowNumber,
         sortOrders[appId] ?? row.reviewSortOrder,
-        remarks[appId] ?? "",
+        remarks[appId] ?? row.application.reviewer_remarks ?? "",
         row.department,
         row.studentId,
         row.name,
@@ -968,7 +884,11 @@ export function DashboardTable({
                   <TableCell className="whitespace-normal min-w-[100px] max-w-[180px]">
                     <RemarkCell
                       appId={appId}
-                      value={remarks[appId] ?? ""}
+                      value={
+                        remarks[appId] ??
+                        row.application.reviewer_remarks ??
+                        ""
+                      }
                       onChange={handleRemarkChange}
                     />
                   </TableCell>
@@ -1061,24 +981,10 @@ export function DashboardTable({
         onOpenChange={(open) => {
           if (!open) setSelectedApp(null);
         }}
-        onUpdated={(updated) => {
-          setAppOverrides((prev) => ({ ...prev, [updated.id]: updated }));
-          setRemarks((prev) => ({
-            ...prev,
-            [updated.id]: updated.reviewer_remarks ?? "",
-          }));
-          setSortOrders((prev) => ({
-            ...prev,
-            [updated.id]: updated.review_sort_order ?? 0,
-          }));
-          setReviewStatuses((prev) => ({
-            ...prev,
-            [updated.id]: updated.review_status,
-          }));
-        }}
+        onUpdated={applyUpdatedApplication}
         permissions={permissions}
         onDeleted={(id) => {
-          setDeletedIds((prev) => new Set(prev).add(id));
+          markDeleted(id);
           setSelectedApp(null);
         }}
       />

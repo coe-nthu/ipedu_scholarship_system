@@ -703,6 +703,7 @@ create table if not exists public.scholarship_applications (
   reviewer_remarks text not null default '',
   review_sort_order integer not null default 0,
   reviewed_by uuid references auth.users(id) on delete set null,
+  reviewed_by_label text,
   reviewed_at timestamptz,
   payload jsonb not null default '{}'::jsonb,
   files jsonb not null default '[]'::jsonb,
@@ -726,10 +727,11 @@ alter table public.scholarship_applications
   add column if not exists gpa numeric(4, 2),
   add column if not exists gpa_scale numeric(3, 1),
   add column if not exists submission_status text not null default 'draft',
-  add column if not exists review_status text not null default '等待人工審核',
+  add column if not exists review_status text not null default '未審核',
   add column if not exists reviewer_remarks text not null default '',
   add column if not exists review_sort_order integer not null default 0,
   add column if not exists reviewed_by uuid references auth.users(id) on delete set null,
+  add column if not exists reviewed_by_label text,
   add column if not exists reviewed_at timestamptz,
   add column if not exists payload jsonb not null default '{}'::jsonb,
   add column if not exists files jsonb not null default '[]'::jsonb,
@@ -763,14 +765,20 @@ begin
 end;
 $$;
 
+-- 只轉換舊版英文審核狀態；已經是中文狀態的列必須原封不動。
+-- 這支腳本會被重複執行，先前版本的 `else '未審核'` 會把所有「系所審核通過」/
+-- 「院辦審核通過」一次全部洗回「未審核」。
 update public.scholarship_applications
 set review_status = case review_status
-  when 'auto_verified' then '未審核'
-  when 'pending_manual' then '未審核'
   when 'manual_verified' then '系所審核通過'
-  when 'data_error' then '未審核'
   else '未審核'
-end;
+end
+where review_status in (
+  'auto_verified',
+  'pending_manual',
+  'manual_verified',
+  'data_error'
+);
 
 update public.scholarship_applications
 set review_status = '未審核'
@@ -842,7 +850,9 @@ comment on column public.scholarship_applications.submission_status is '學生�
 comment on column public.scholarship_applications.review_status is '文獻真實性審查狀態：未審核、系所審核通過、院辦審核通過';
 comment on column public.scholarship_applications.reviewer_remarks is '審查教師備註';
 comment on column public.scholarship_applications.review_sort_order is '後台人工排序；0 代表未指定';
+comment on column public.scholarship_applications.application_type is '申請類別；全時博士生助學金可複選，多值以「、」分隔（例：競爭型、指導教授配合款）';
 comment on column public.scholarship_applications.reviewed_by is '最後審核的教師 auth.users ID';
+comment on column public.scholarship_applications.reviewed_by_label is '最後審核者的顯示名稱／帳號，密碼登入的後台帳號也能記錄';
 comment on column public.scholarship_applications.reviewed_at is '最後審核時間';
 comment on column public.scholarship_applications.payload is '完整表單 JSON 資料';
 comment on column public.scholarship_applications.files is '上傳檔案 metadata JSON 陣列';
@@ -962,6 +972,7 @@ create table if not exists public.review_logs (
   id uuid primary key default gen_random_uuid(),
   application_id uuid not null references public.scholarship_applications(id) on delete cascade,
   reviewer_id uuid references auth.users(id) on delete set null,
+  actor_label text,
   action text not null,
   old_value text,
   new_value text,
@@ -971,6 +982,7 @@ create table if not exists public.review_logs (
 alter table public.review_logs
   add column if not exists application_id uuid references public.scholarship_applications(id) on delete cascade,
   add column if not exists reviewer_id uuid references auth.users(id) on delete set null,
+  add column if not exists actor_label text,
   add column if not exists action text,
   add column if not exists old_value text,
   add column if not exists new_value text,
@@ -1019,13 +1031,23 @@ security definer
 as $$
 begin
   if new.review_status is distinct from old.review_status then
-    insert into public.review_logs (application_id, reviewer_id, action, old_value, new_value)
-    values (new.id, new.reviewed_by, 'status_change', old.review_status, new.review_status);
+    insert into public.review_logs (
+      application_id, reviewer_id, actor_label, action, old_value, new_value
+    )
+    values (
+      new.id, new.reviewed_by, new.reviewed_by_label,
+      'status_change', old.review_status, new.review_status
+    );
   end if;
 
   if new.reviewer_remarks is distinct from old.reviewer_remarks then
-    insert into public.review_logs (application_id, reviewer_id, action, old_value, new_value)
-    values (new.id, new.reviewed_by, 'remark_update', old.reviewer_remarks, new.reviewer_remarks);
+    insert into public.review_logs (
+      application_id, reviewer_id, actor_label, action, old_value, new_value
+    )
+    values (
+      new.id, new.reviewed_by, new.reviewed_by_label,
+      'remark_update', old.reviewer_remarks, new.reviewer_remarks
+    );
   end if;
 
   return new;

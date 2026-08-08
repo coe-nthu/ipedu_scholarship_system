@@ -253,6 +253,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           reviewed_by: auth.userId,
+          reviewed_by_label: auth.displayName || auth.username || auth.email,
           review_status: "未審核",
           reviewer_remarks: message,
           submission_status: "draft",

@@ -49,7 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DatabaseMultiSelect } from "@/components/database-multi-select";
+import { MultiOptionSelect } from "@/components/multi-option-select";
 import { isValidDoi, normalizeDoi } from "@/lib/doi";
 import {
   getInitialScholarshipLanguage,
@@ -88,6 +88,7 @@ import {
   EMPLOYMENT_STATUS_OPTIONS,
   EMPLOYMENT_STATUS_PART_TIME,
   EMPLOYMENT_STATUS_TA,
+  FULL_TIME_APPLICATION_TYPES,
   FULL_TIME_STUDY_STATUS_NEW,
   FULL_TIME_STUDY_STATUS_OLD,
   FULL_TIME_STUDY_STATUS_OPTIONS,
@@ -96,6 +97,9 @@ import {
   OTHER_AID_STATUS_RECEIVING,
   STUDY_STATUS_NEW,
   STUDY_STATUS_RENEWAL,
+  isAllowedMultiOption,
+  joinMultiOptionValues,
+  parseMultiOptionValues,
 } from "@/lib/scholarship-form-options";
 
 type ScholarshipFormConfig = {
@@ -103,6 +107,8 @@ type ScholarshipFormConfig = {
   amount: string;
   applicationType: string;
   applicationTypeOptions?: readonly string[];
+  /** 申請類別可複選時，值以「、」串接（見 lib/scholarship-form-options.ts）。 */
+  applicationTypeMultiSelect?: boolean;
   description: string;
   documentFields?: readonly DocumentField[];
   eligibilityReminder: string;
@@ -202,7 +208,6 @@ const INVALID_FIELD_CLASS =
 
 const PENDING_ADVISOR_NAME = "找尋中，待定";
 const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
-const FULL_TIME_APPLICATION_TYPES = ["指導教授配合款", "競爭型"] as const;
 const BILINGUAL_PROGRAM_KEYS = new Set<ScholarshipProgramKey>([
   "nstc-doctoral",
   "nstc-research-grant",
@@ -364,6 +369,34 @@ function normalizeStudyStatusForConfig(
   return fallback;
 }
 
+/**
+ * Keep 申請類別 consistent with whatever the current program allows.
+ *
+ * For a multi-select program the stored value is several labels joined by 「、」,
+ * so a plain `options.includes(value)` never matches and would silently reset a
+ * student's selection to the first option — which is exactly what wiped their
+ * choice when reloading a draft during 補正. Here each selected label is checked
+ * individually and only the invalid ones are dropped.
+ */
+function normalizeApplicationTypeForConfig(
+  value: string,
+  applicationTypeOptions: readonly string[],
+  multiSelect: boolean,
+  fallback: string
+) {
+  if (multiSelect) {
+    return joinMultiOptionValues(
+      parseMultiOptionValues(value).filter((item) =>
+        applicationTypeOptions.includes(item)
+      )
+    );
+  }
+
+  return applicationTypeOptions.includes(value)
+    ? value
+    : applicationTypeOptions[0] ?? fallback;
+}
+
 function documentText(document: DocumentField, englishMode: boolean) {
   return englishMode
     ? DOCUMENT_ENGLISH_COPY[document.key] ?? document.label
@@ -423,8 +456,10 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
   "/scholarships/full-time-doctoral-grant": {
     academicForm: "doctoralResearchGrant",
     amount: "實際核發金額及核發月數由學院審查委員會核定",
-    applicationType: FULL_TIME_APPLICATION_TYPES[0],
+    // 複選欄位，預設不勾選任何一項。
+    applicationType: "",
     applicationTypeOptions: FULL_TIME_APPLICATION_TYPES,
+    applicationTypeMultiSelect: true,
     description: "全時博士生助學金申請表單",
     documentFields: [
       { key: "applicationForm", label: "申請單", required: true },
@@ -842,6 +877,7 @@ export default function ScholarshipForm() {
     () => config.applicationTypeOptions ?? [config.applicationType],
     [config.applicationType, config.applicationTypeOptions]
   );
+  const isApplicationTypeMultiSelect = Boolean(config.applicationTypeMultiSelect);
   const configuredDocumentFields = useMemo(
     () => config.documentFields ?? standardDocumentFields,
     [config.documentFields]
@@ -1000,9 +1036,12 @@ export default function ScholarshipForm() {
   useEffect(() => {
     setApplicantInfo((current) => ({
       ...current,
-      applicationType: applicationTypeOptions.includes(current.applicationType)
-        ? current.applicationType
-        : applicationTypeOptions[0] ?? config.applicationType,
+      applicationType: normalizeApplicationTypeForConfig(
+        current.applicationType,
+        applicationTypeOptions,
+        isApplicationTypeMultiSelect,
+        config.applicationType
+      ),
       studyStatus: normalizeStudyStatusForConfig(
         current.studyStatus,
         config.studyStatusOptions,
@@ -1027,6 +1066,7 @@ export default function ScholarshipForm() {
     config.programKey,
     config.studyStatusOptions,
     defaultStudyStatus,
+    isApplicationTypeMultiSelect,
   ]);
 
   useEffect(() => {
@@ -1071,11 +1111,12 @@ export default function ScholarshipForm() {
         );
         setApplicantInfo({
           ...p.applicantInfo,
-          applicationType: applicationTypeOptions.includes(
-            p.applicantInfo.applicationType
-          )
-            ? p.applicantInfo.applicationType
-            : applicationTypeOptions[0] ?? config.applicationType,
+          applicationType: normalizeApplicationTypeForConfig(
+            p.applicantInfo.applicationType,
+            applicationTypeOptions,
+            isApplicationTypeMultiSelect,
+            config.applicationType
+          ),
           studyStatus: normalizedStudyStatus,
           advisorName:
             isNewStudyStatus(normalizedStudyStatus) &&
@@ -1139,6 +1180,7 @@ export default function ScholarshipForm() {
       config.programKey,
       config.studyStatusOptions,
       defaultStudyStatus,
+      isApplicationTypeMultiSelect,
     ]
   );
 
@@ -2188,10 +2230,17 @@ export default function ScholarshipForm() {
       return;
     }
 
-    if (
-      status === "submitted" &&
-      !applicationTypeOptions.includes(applicantInfo.applicationType)
-    ) {
+    // Multi-select programs must have at least one valid selection; single
+    // select programs must match exactly one option.
+    const isApplicationTypeValid = isApplicationTypeMultiSelect
+      ? parseMultiOptionValues(applicantInfo.applicationType).length > 0 &&
+        isAllowedMultiOption(
+          applicantInfo.applicationType,
+          applicationTypeOptions
+        )
+      : applicationTypeOptions.includes(applicantInfo.applicationType);
+
+    if (status === "submitted" && !isApplicationTypeValid) {
       failValidation(
         "basic",
         {
@@ -3206,33 +3255,55 @@ export default function ScholarshipForm() {
                 </Select>
               </Field>
               <Field
-                label="申請類別"
+                label={
+                  isApplicationTypeMultiSelect ? "申請類別（可複選）" : "申請類別"
+                }
                 english={bilingual ? FORM_ENGLISH_COPY.applicationType : undefined}
                 htmlFor="applicationType"
                 error={topLevelErrors.applicationType}
               >
-                <Select
-                  value={applicantInfo.applicationType}
-                  onValueChange={(value) =>
-                    updateApplicant("applicationType", value ?? "")
-                  }
-                >
-                  <SelectTrigger
+                {isApplicationTypeMultiSelect ? (
+                  <MultiOptionSelect
                     id="applicationType"
+                    value={applicantInfo.applicationType}
+                    onChange={(value) =>
+                      updateApplicant("applicationType", value)
+                    }
+                    options={applicationTypeOptions}
+                    renderOption={(option) => optionText(option, bilingual)}
+                    placeholder={bi(
+                      bilingual,
+                      "請選擇申請類別（可複選）",
+                      "Select application type(s)"
+                    )}
                     className={cn(
                       topLevelErrors.applicationType && INVALID_FIELD_CLASS
                     )}
+                  />
+                ) : (
+                  <Select
+                    value={applicantInfo.applicationType}
+                    onValueChange={(value) =>
+                      updateApplicant("applicationType", value ?? "")
+                    }
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {applicationTypeOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {optionText(option, bilingual)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger
+                      id="applicationType"
+                      className={cn(
+                        topLevelErrors.applicationType && INVALID_FIELD_CLASS
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {applicationTypeOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {optionText(option, bilingual)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Field>
             </CardContent>
           </Card>
@@ -4947,7 +5018,7 @@ export default function ScholarshipForm() {
                           />
                         </TableCell>
                         <TableCell className="align-top">
-                          <DatabaseMultiSelect
+                          <MultiOptionSelect
                             value={journal.database}
                             disabled={isJournalRowLocked(index)}
                             onChange={(value) =>

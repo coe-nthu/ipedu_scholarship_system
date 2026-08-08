@@ -9,25 +9,27 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  joinDatabaseValues,
-  parseDatabaseValues,
+  joinMultiOptionValues,
+  parseMultiOptionValues,
 } from "@/lib/scholarship-form-options";
 import { cn } from "@/lib/utils";
 
 /**
- * Multi-select for the Edition / 資料庫別 field. A journal can be indexed in
- * several editions, so the user (or auto-detect) may pick more than one. The
- * value is a single string with editions joined by "、".
+ * Checkbox dropdown for a fixed-option field that accepts several values at
+ * once (Edition / 資料庫別, 全時博士生助學金's 申請類別). The value is a single
+ * string with the selections joined by "、".
  */
-export function DatabaseMultiSelect({
+export function MultiOptionSelect({
+  id,
   value,
   onChange,
   options,
-  placeholder = "選擇資料庫",
+  placeholder = "請選擇",
   className,
   disabled,
   renderOption,
 }: {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   options: readonly string[];
@@ -36,7 +38,7 @@ export function DatabaseMultiSelect({
   disabled?: boolean;
   renderOption?: (option: string) => React.ReactNode;
 }) {
-  const selected = new Set(parseDatabaseValues(value));
+  const selected = new Set(parseMultiOptionValues(value));
 
   const toggle = (option: string) => {
     const next = new Set(selected);
@@ -46,12 +48,13 @@ export function DatabaseMultiSelect({
       next.add(option);
     }
     // Keep the original option order in the stored string.
-    onChange(joinDatabaseValues(options.filter((item) => next.has(item))));
+    onChange(joinMultiOptionValues(options.filter((item) => next.has(item))));
   };
 
   return (
     <Popover>
       <PopoverTrigger
+        id={id}
         disabled={disabled}
         className={cn(
           "flex min-h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-left text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",

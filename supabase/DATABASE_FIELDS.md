@@ -24,7 +24,7 @@ public.scholarship_applications
 | `phone` | `text` | 手機 |
 | `advisor_name` | `text` | 指導教授姓名 |
 | `admission_academic_year` | `text` | 入學學年度 |
-| `application_type` | `text` | 申請類別 |
+| `application_type` | `text` | 申請類別；全時博士生助學金可複選，多值以「、」分隔（例：`競爭型、指導教授配合款`） |
 | `gpa` | `numeric(4,2)` | 學業表現 GPA |
 | `gpa_scale` | `numeric(3,1)` | GPA 滿分制，例如 `4.3` |
 | `submission_status` | `text` | 學生填寫狀態：`draft` 草稿、`submitted` 已送出 |
@@ -66,7 +66,7 @@ public.scholarship_applications
 | `advisorName` | 指導教授 |
 | `admissionAcademicYear` | 入學學年度 |
 | `studyStatus` | 請領別，目前固定為續領 |
-| `applicationType` | 申請類別 |
+| `applicationType` | 申請類別；全時博士生助學金可複選（競爭型／指導教授配合款），多值以「、」分隔 |
 
 ## 請領資格：`payload.eligibility`
 

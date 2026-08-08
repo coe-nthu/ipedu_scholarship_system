@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { canAccessDepartment, checkDashboardAccess } from "@/lib/auth";
+import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { applyJournalIndexMatch } from "@/lib/journal-index-service";
 import { isValidUUID } from "@/lib/validation";
 import { verifyPublication, verifyAllPublications } from "@/lib/verification";
@@ -31,6 +32,10 @@ function jsonError(message: string, status = 400) {
  *   - journalIndex = N     → verify only journals[N]
  *
  * Returns the updated verification results.
+ *
+ * This endpoint only rewrites `payload` (journal verification data). It must
+ * never touch `review_status` — 文件真實性審核 belongs to 系辦/院辦 and is
+ * changed exclusively through PATCH /api/dashboard.
  */
 export async function POST(request: Request) {
   try {
@@ -40,6 +45,13 @@ export async function POST(request: Request) {
         auth.reason === "not_authenticated" ? "請先登入。" : "無權限存取。",
         auth.reason === "not_authenticated" ? 401 : 403
       );
+    }
+
+    // Re-verifying rewrites the stored payload, so it needs the same
+    // permission as editing the application.
+    const permissions = await getDashboardRolePermissions(auth.role);
+    if (!permissions.editApplication) {
+      return jsonError("此角色目前無法重新驗證文獻資料。", 403);
     }
 
     const body = (await request.json()) as {
@@ -59,7 +71,7 @@ export async function POST(request: Request) {
 
     // Fetch the application
     const fetchRes = await fetch(
-      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department,payload,review_status`,
+      `${url}/rest/v1/scholarship_applications?id=eq.${applicationId}&select=id,department,payload`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -76,7 +88,6 @@ export async function POST(request: Request) {
       id: string;
       department: string | null;
       payload: ScholarshipPayload;
-      review_status: string;
     }[];
 
     if (records.length === 0) {
@@ -97,7 +108,6 @@ export async function POST(request: Request) {
     }
 
     let updatedJournals: Journal[];
-    let reviewStatus: string;
     let summary;
 
     if (journalIndex !== undefined && journalIndex >= 0) {
@@ -127,23 +137,18 @@ export async function POST(request: Request) {
 
       if (hasFail) {
         summary = { status: "has_issues" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "未審核";
       } else if (hasTimeout) {
         summary = { status: "timeout" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "未審核";
       } else if (allGood) {
         summary = { status: "all_passed" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "未審核";
       } else {
         summary = { status: "pending" as const, verifiedAt: new Date().toISOString() };
-        reviewStatus = "未審核";
       }
     } else {
       // Verify all journals
       const vResult = await verifyAllPublications(journals);
       updatedJournals = vResult.journals;
       summary = vResult.summary;
-      reviewStatus = vResult.reviewStatus;
     }
 
     // Save results back
@@ -164,7 +169,6 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           payload: enrichedPayload,
-          review_status: reviewStatus,
         }),
       }
     );
@@ -177,7 +181,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       summary,
-      reviewStatus,
       journals: updatedJournals.map((j, i) => ({
         index: i,
         doi: j.doi,
