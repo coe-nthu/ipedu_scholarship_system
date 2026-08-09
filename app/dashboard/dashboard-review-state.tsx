@@ -27,8 +27,16 @@ type DashboardReviewState = {
   reviewStatuses: Record<string, ReviewStatus>;
   sortOrders: Record<string, number>;
   handleRemarkChange: (id: string, value: string) => void;
-  handleReviewStatusChange: (id: string, status: ReviewStatus) => void;
-  handleSortOrderChange: (id: string, value: number) => void;
+  handleReviewStatusChange: (
+    id: string,
+    status: ReviewStatus,
+    previousStatus: ReviewStatus
+  ) => void;
+  handleSortOrderChange: (
+    id: string,
+    value: number,
+    previousValue: number
+  ) => void;
   markDeleted: (id: string) => void;
   applyUpdatedApplication: (updated: ScholarshipApplication) => void;
 };
@@ -107,34 +115,33 @@ export function DashboardReviewStateProvider({
       });
   }, []);
 
-  const handleSortOrderChange = useCallback((id: string, value: number) => {
-    let previousValue = 0;
-    setSortOrders((prev) => {
-      previousValue = prev[id] ?? 0;
-      return { ...prev, [id]: value };
-    });
+  // The previous value is passed in by the caller (the cell already renders
+  // it) instead of being read inside a setState updater. React may invoke an
+  // updater more than once, and a second run would capture the value we just
+  // wrote — making the failure rollback restore the wrong number.
+  const handleSortOrderChange = useCallback(
+    (id: string, value: number, previousValue: number) => {
+      setSortOrders((prev) => ({ ...prev, [id]: value }));
 
-    fetch("/api/dashboard", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ applicationId: id, review_sort_order: value }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("儲存排序失敗");
+      fetch("/api/dashboard", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ applicationId: id, review_sort_order: value }),
       })
-      .catch(() => {
-        setSortOrders((p) => ({ ...p, [id]: previousValue }));
-        toast.error("排序儲存失敗，請重試。");
-      });
-  }, []);
+        .then((res) => {
+          if (!res.ok) throw new Error("儲存排序失敗");
+        })
+        .catch(() => {
+          setSortOrders((p) => ({ ...p, [id]: previousValue }));
+          toast.error("排序儲存失敗，請重試。");
+        });
+    },
+    []
+  );
 
   const handleReviewStatusChange = useCallback(
-    async (id: string, status: ReviewStatus) => {
-      let previousStatus: ReviewStatus | undefined;
-      setReviewStatuses((prev) => {
-        previousStatus = prev[id];
-        return { ...prev, [id]: status };
-      });
+    async (id: string, status: ReviewStatus, previousStatus: ReviewStatus) => {
+      setReviewStatuses((prev) => ({ ...prev, [id]: status }));
 
       try {
         const res = await fetch("/api/dashboard", {
@@ -154,19 +161,17 @@ export function DashboardReviewStateProvider({
 
         // Trust what the database actually returned rather than the optimistic
         // value, so a rejected or coerced write can never look like a success.
-        if (data.application) {
-          applyUpdatedApplication(data.application);
+        //
+        // Only the status is taken from the response. Replacing the whole row
+        // in appOverrides would drop the cross-application GPA fallbacks that
+        // withDerivedDashboardGpas applies across the full list, blanking the
+        // GPA column for applications that depend on them.
+        const savedStatus = data.application?.review_status;
+        if (savedStatus) {
+          setReviewStatuses((p) => ({ ...p, [id]: savedStatus }));
         }
       } catch (error) {
-        setReviewStatuses((p) => {
-          const next = { ...p };
-          if (previousStatus === undefined) {
-            delete next[id];
-          } else {
-            next[id] = previousStatus;
-          }
-          return next;
-        });
+        setReviewStatuses((p) => ({ ...p, [id]: previousStatus }));
         toast.error(
           error instanceof Error && error.message
             ? error.message
@@ -174,7 +179,7 @@ export function DashboardReviewStateProvider({
         );
       }
     },
-    [applyUpdatedApplication]
+    []
   );
 
   const value = useMemo<DashboardReviewState>(

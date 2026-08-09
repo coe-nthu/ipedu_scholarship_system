@@ -20,13 +20,13 @@ import {
   isAllowedMultiOption,
   isAllowedOption,
 } from "@/lib/scholarship-form-options";
-
-const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
 import type {
   Journal,
   ScholarshipApplication,
   ScholarshipPayload,
 } from "@/lib/types";
+
+const FULL_TIME_DOCTORAL_GRANT_KEY = "full-time-doctoral-grant";
 
 /**
  * Validate the reviewer-edited payload and merge it over the existing one.

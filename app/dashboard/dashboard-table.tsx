@@ -317,7 +317,7 @@ function SortOrderCell({
 }: {
   appId: string;
   value: number;
-  onChange: (id: string, val: number) => void;
+  onChange: (id: string, val: number, previous: number) => void;
 }) {
   const [draft, setDraft] = useState(String(value));
 
@@ -329,7 +329,7 @@ function SortOrderCell({
     const parsed = Number(draft);
     const next = Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
     setDraft(String(next));
-    if (next !== value) onChange(appId, next);
+    if (next !== value) onChange(appId, next, value);
   }, [appId, draft, value, onChange]);
 
   return (
@@ -949,7 +949,9 @@ export function DashboardTable({
                     {permissions.changeReviewStatus ? (
                       <ReviewStatusSelect
                         status={effectiveStatus}
-                        onStatusChange={(s) => handleReviewStatusChange(appId, s)}
+                        onStatusChange={(s) =>
+                          handleReviewStatusChange(appId, s, effectiveStatus)
+                        }
                       />
                     ) : (
                       <ReviewStatusBadge status={effectiveStatus} />
