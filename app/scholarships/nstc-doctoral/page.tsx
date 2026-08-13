@@ -895,9 +895,6 @@ export default function ScholarshipForm() {
   const requiresMatchingFundDetails =
     config.programKey === "moe-doctoral" ||
     config.programKey === "presidential-new-student";
-  const hasAdvisorMatchingFund = parseMultiOptionValues(
-    applicantInfo.applicationType
-  ).includes(FULL_TIME_APPLICATION_TYPE_MATCHING_FUND);
   const supportsLanguageSwitch = isBilingualProgram(config.programKey);
   const [language, setLanguage] = useState<ScholarshipLanguage>(
     getInitialScholarshipLanguage
@@ -915,6 +912,9 @@ export default function ScholarshipForm() {
     studyStatus: defaultStudyStatus,
     applicationType: config.applicationType,
   });
+  const hasAdvisorMatchingFund = parseMultiOptionValues(
+    applicantInfo.applicationType
+  ).includes(FULL_TIME_APPLICATION_TYPE_MATCHING_FUND);
   const [eligibility, setEligibility] =
     useState<Eligibility>(createEmptyEligibility);
   const [academicPerformance, setAcademicPerformance] =
