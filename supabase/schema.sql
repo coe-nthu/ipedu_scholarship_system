@@ -46,19 +46,22 @@ comment on table  public.profiles is '使用者角色與基本資料';
 comment on column public.profiles.role is 'student=學生, teacher=教師, admin=管理者';
 
 create table public.dashboard_accounts (
-  username          text primary key,
-  display_name      text not null,
-  recovery_email    text,
-  password_hash     text not null,
-  role              text not null check (role in ('teacher', 'admin')),
-  department_scope  jsonb not null default '"all"'::jsonb,
-  is_active         boolean not null default true,
-  created_at        timestamptz not null default now(),
-  updated_at        timestamptz not null default now()
+  username            text primary key,
+  display_name        text not null,
+  recovery_email      text,
+  notification_emails jsonb not null default '[]'::jsonb
+                        check (jsonb_typeof(notification_emails) = 'array'),
+  password_hash       text not null,
+  role                text not null check (role in ('teacher', 'admin')),
+  department_scope    jsonb not null default '"all"'::jsonb,
+  is_active           boolean not null default true,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
 );
 
 comment on table public.dashboard_accounts is '後台固定帳密登入帳號';
 comment on column public.dashboard_accounts.recovery_email is '後台帳密帳號忘記密碼驗證碼收件信箱';
+comment on column public.dashboard_accounts.notification_emails is '學生重新送出申請時的通知收件信箱，JSON 字串陣列，由帳號自行維護（與 recovery_email 分開）';
 comment on column public.dashboard_accounts.password_hash is '後台帳密登入密碼雜湊，格式 sha256:<hex>';
 comment on column public.dashboard_accounts.department_scope is '後台可檢視系所範圍，JSON 字串 "all" 或字串陣列';
 

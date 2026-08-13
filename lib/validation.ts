@@ -7,6 +7,16 @@ export function isValidUUID(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
+/**
+ * Loose email shape check. This exact regex was duplicated across the dashboard
+ * routes and the admin panel; keep the single copy here so they cannot drift.
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(value: unknown): value is string {
+  return typeof value === "string" && EMAIL_RE.test(value.trim());
+}
+
 /** Allowed review_status values for the dashboard PATCH */
 const VALID_REVIEW_STATUSES = [
   "未審核",

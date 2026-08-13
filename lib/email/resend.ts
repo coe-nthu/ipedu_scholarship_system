@@ -18,6 +18,18 @@ type SendScholarshipCorrectionEmailInput = {
   scholarshipProgram: string;
 };
 
+type SendDepartmentResubmissionEmailInput = {
+  applicantName: string;
+  applicationId: string;
+  dashboardUrl: string | null;
+  department: string;
+  isCorrectionResubmission: boolean;
+  recipientEmails: string[];
+  scholarshipProgram: string;
+  studentId: string | null;
+  submittedAt: string | null;
+};
+
 type SendDashboardPasswordResetCodeEmailInput = {
   code: string;
   displayName: string;
@@ -198,6 +210,102 @@ function buildCorrectionText({
   ].join("\n");
 }
 
+function buildDepartmentResubmissionHtml({
+  applicantName,
+  applicationId,
+  dashboardUrl,
+  department,
+  isCorrectionResubmission,
+  scholarshipProgram,
+  studentId,
+  submittedAt,
+}: SendDepartmentResubmissionEmailInput) {
+  const safeApplicantName = escapeHtml(applicantName || "未填寫");
+  const safeApplicationId = escapeHtml(applicationId);
+  const safeDepartment = escapeHtml(department || "未填寫");
+  const safeScholarshipProgram = escapeHtml(scholarshipProgram);
+  const safeStudentId = escapeHtml(studentId || "未填寫");
+  const safeSubmittedAt = escapeHtml(formatSubmittedAt(submittedAt));
+
+  const correctionBlock = isCorrectionResubmission
+    ? `
+      <div style="margin: 20px 0; padding: 14px 16px; border-left: 4px solid #f59e0b; background: #fffbeb;">
+        <p style="margin: 0;">此案為通知補正後的重新送出。</p>
+      </div>
+    `
+    : "";
+
+  const dashboardLink = dashboardUrl
+    ? `<p><a href="${escapeHtml(
+        dashboardUrl
+      )}" style="color: #1f6f78;">前往審查後台</a></p>`
+    : "";
+
+  return `
+    <div style="font-family: Arial, 'Noto Sans TC', sans-serif; line-height: 1.7; color: #0f172a;">
+      <h1 style="font-size: 20px; margin: 0 0 16px;">學生已重新送出獎學金申請</h1>
+      <p>學生已更新並重新送出「${safeScholarshipProgram}」申請資料，案件審核狀態已重設為「未審核」，請登入後台重新審核。</p>
+      <table style="border-collapse: collapse; margin: 20px 0; width: 100%; max-width: 560px;">
+        <tbody>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請項目</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeScholarshipProgram}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請人</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeApplicantName}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">學號</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeStudentId}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">系所</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeDepartment}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">重新送出時間</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeSubmittedAt}</td>
+          </tr>
+          <tr>
+            <th style="text-align: left; padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc;">申請編號</th>
+            <td style="padding: 8px 12px; border: 1px solid #cbd5e1;">${safeApplicationId}</td>
+          </tr>
+        </tbody>
+      </table>
+      ${correctionBlock}
+      ${dashboardLink}
+      <p style="color: #475569; font-size: 13px;">此信件由系統自動寄出，請勿直接回覆。</p>
+    </div>
+  `;
+}
+
+function buildDepartmentResubmissionText({
+  applicantName,
+  applicationId,
+  dashboardUrl,
+  department,
+  isCorrectionResubmission,
+  scholarshipProgram,
+  studentId,
+  submittedAt,
+}: SendDepartmentResubmissionEmailInput) {
+  return [
+    `學生已更新並重新送出「${scholarshipProgram}」申請資料，案件審核狀態已重設為「未審核」，請登入後台重新審核。`,
+    "",
+    `申請項目：${scholarshipProgram}`,
+    `申請人：${applicantName || "未填寫"}`,
+    `學號：${studentId || "未填寫"}`,
+    `系所：${department || "未填寫"}`,
+    `重新送出時間：${formatSubmittedAt(submittedAt)}`,
+    `申請編號：${applicationId}`,
+    ...(isCorrectionResubmission ? ["", "此案為通知補正後的重新送出。"] : []),
+    ...(dashboardUrl ? ["", `審查後台：${dashboardUrl}`] : []),
+    "",
+    "此信件由系統自動寄出，請勿直接回覆。",
+  ].join("\n");
+}
+
 function buildDashboardPasswordResetHtml({
   code,
   displayName,
@@ -251,7 +359,10 @@ async function sendResendEmail({
 }: {
   html: string;
   idempotencyKey: string;
-  recipientEmail: string;
+  // Array form is for notifications that go to several addresses belonging to
+  // the *same* recipient account — never mix different accounts into one call,
+  // or each one sees the others' addresses in the `to` header.
+  recipientEmail: string | string[];
   subject: string;
   text: string;
 }) {
@@ -265,7 +376,7 @@ async function sendResendEmail({
     },
     body: JSON.stringify({
       from: fromEmail,
-      to: [recipientEmail],
+      to: Array.isArray(recipientEmail) ? recipientEmail : [recipientEmail],
       subject,
       html,
       text,
@@ -307,6 +418,26 @@ export async function sendScholarshipCorrectionEmail(
     recipientEmail: input.recipientEmail,
     subject: "獎學金申請資料需補正",
     text: buildCorrectionText(input),
+  });
+}
+
+export async function sendDepartmentResubmissionEmail(
+  input: SendDepartmentResubmissionEmailInput & { idempotencySuffix: string }
+) {
+  // The subject varies (unlike the three fixed ones above) because a 系所 inbox
+  // receives many of these and needs to triage them from the message list.
+  const subject = input.applicantName
+    ? `學生重新送出獎學金申請－${input.applicantName}（${
+        input.department || "未填寫系所"
+      }）`
+    : "學生重新送出獎學金申請";
+
+  return sendResendEmail({
+    html: buildDepartmentResubmissionHtml(input),
+    idempotencyKey: `scholarship-resubmission-${input.applicationId}-${input.idempotencySuffix}`,
+    recipientEmail: input.recipientEmails,
+    subject,
+    text: buildDepartmentResubmissionText(input),
   });
 }
 

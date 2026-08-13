@@ -28,6 +28,9 @@
 --   也能在審核紀錄中被追溯。
 -- supabase/add_full_time_application_type_multi.sql
 --   更新 application_type 欄位註解（全時博士生助學金申請類別改為可複選）。
+-- supabase/add_dashboard_notification_emails.sql
+--   補上 dashboard_accounts.notification_emails，讓各系所／院辦帳號自行填寫
+--   收信信箱；學生補正或修改後重新送出時會收到通知信。
 ```
 
 如果目前只是測試階段，測試資料可以清掉，請先執行：
@@ -65,6 +68,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_TUYFQeR6YRZZuhjsdsh_nA_cJFLD
 # Resend 寄送申請確認信
 RESEND_API_KEY=re_xxxxxxxxx
 RESEND_FROM_EMAIL="IPEDU Scholarship <onboarding@resend.dev>"
+
+# 對外網址；用於 Google 登入 redirect 與通知信裡的後台連結。
+# 未設定時會退回請求本身的 origin。
+NEXT_PUBLIC_SITE_URL=https://your-domain.example
 
 # Dashboard 帳密登入 session 簽章與密碼雜湊
 DASHBOARD_SESSION_SECRET=請使用至少32字元的隨機字串

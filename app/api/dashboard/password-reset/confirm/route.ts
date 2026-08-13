@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { createDashboardPasswordHash } from "@/lib/auth";
+import { isValidEmail } from "@/lib/validation";
 
 const MAX_CODE_ATTEMPTS = 5;
 
@@ -50,10 +51,6 @@ function authHeaders(serviceRoleKey: string) {
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function isValidCode(value: string) {

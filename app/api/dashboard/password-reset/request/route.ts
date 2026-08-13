@@ -1,6 +1,7 @@
 import { createHmac, randomInt } from "crypto";
 import { NextResponse } from "next/server";
 import { sendDashboardPasswordResetCodeEmail } from "@/lib/email/resend";
+import { isValidEmail } from "@/lib/validation";
 
 const CODE_EXPIRES_MINUTES = 10;
 const MIN_REQUEST_INTERVAL_SECONDS = 60;
@@ -58,10 +59,6 @@ function genericSuccess() {
     success: true,
     message: GENERIC_SUCCESS_MESSAGE,
   });
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function createCodeHash(username: string, recoveryEmail: string, code: string) {

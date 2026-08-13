@@ -80,6 +80,7 @@ import {
   type DashboardPermissionSettings,
 } from "@/lib/dashboard-permissions";
 import { cn } from "@/lib/utils";
+import { isValidEmail } from "@/lib/validation";
 import type { ScholarshipProgramSetting } from "@/lib/scholarship-settings";
 import type {
   DashboardAccountEntry,
@@ -1434,7 +1435,7 @@ function RecoveryEmailEditorDialog({
 
   const handleSave = () => {
     const trimmed = email.trim().toLowerCase();
-    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    if (trimmed && !isValidEmail(trimmed)) {
       setError("請輸入有效的信箱格式。");
       return;
     }

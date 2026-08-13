@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkDashboardAccess, isDashboardScope } from "@/lib/auth";
-import { isValidUUID } from "@/lib/validation";
+import { isValidEmail, isValidUUID } from "@/lib/validation";
 import type {
   DashboardAccountEntry,
   DashboardDepartmentScope,
@@ -40,10 +40,6 @@ function normalizeEmail(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toLowerCase();
   return trimmed || null;
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 /* ------------------------------------------------------------------ */

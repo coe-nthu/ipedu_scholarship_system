@@ -7,7 +7,7 @@ import { getDashboardRolePermissions } from "@/lib/dashboard-permissions";
 import { sendScholarshipCorrectionEmail } from "@/lib/email/resend";
 import { patchScholarshipApplication } from "@/lib/supabase/patch-application";
 import type { ScholarshipPayload } from "@/lib/types";
-import { isValidUUID } from "@/lib/validation";
+import { isValidEmail, isValidUUID } from "@/lib/validation";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -52,10 +52,6 @@ function getSupabaseConfig() {
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function getRecipientEmail(application: ScholarshipApplicationRecord) {

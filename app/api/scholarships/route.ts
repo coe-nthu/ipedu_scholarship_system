@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyDepartmentOfResubmission } from "@/lib/notifications/resubmission-notice";
 import { patchScholarshipApplication } from "@/lib/supabase/patch-application";
 import {
   DEFAULT_SCHOLARSHIP_PROGRAM_KEY,
@@ -46,6 +47,22 @@ function getSupabaseConfig() {
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
+}
+
+/**
+ * 通知信裡的後台連結來源：優先用 NEXT_PUBLIC_SITE_URL（components/auth-button.tsx
+ * 已在用同一個變數），否則退回這次請求的 origin。production 下取不到 https 網址
+ * 就不放連結，避免寄出內部主機名這種點不開的連結。
+ */
+function getDashboardUrl(request: Request) {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  const origin = configured || new URL(request.url).origin;
+
+  if (!/^https:\/\//i.test(origin) && process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  return `${origin}/dashboard`;
 }
 
 function normalizeScholarshipProgram(value?: string | null) {
@@ -402,6 +419,10 @@ export async function POST(request: Request) {
     // the upsert below, and only for that case.
     const isResubmission =
       submissionStatus === "submitted" && Boolean(existingApplication);
+    // 通知系所時要用「這次 upsert 前」的狀態，才能把「草稿→首次送出」跟真正的
+    // 重新送出分開。詳見 lib/notifications/resubmission-notice.ts。
+    const previousSubmissionStatus =
+      existingApplication?.submission_status ?? null;
     if (submittedAt) {
       upsertBody.submitted_at = submittedAt;
     }
@@ -449,6 +470,26 @@ export async function POST(request: Request) {
       if (!resetResult.ok) {
         console.error("Review status reset failed:", resetResult.detail);
       }
+
+      // ── Tell the 系所 the case needs reviewing again ──
+      // after() runs this once the response is already on its way, so the
+      // student never waits on Resend and a mail failure can never fail the
+      // submission. request.url is read here, outside the callback.
+      const dashboardUrl = getDashboardUrl(request);
+      after(() =>
+        notifyDepartmentOfResubmission({
+          applicantName: applicantInfo.applicantName || "",
+          applicationId: resolvedId,
+          dashboardUrl,
+          department: applicantInfo.department || "",
+          previousSubmissionStatus,
+          scholarshipProgram,
+          serviceRoleKey,
+          studentId: applicantInfo.studentId || null,
+          submittedAt: submittedAt ?? null,
+          url,
+        })
+      );
     }
 
     // ── Run publication verification on submission ──

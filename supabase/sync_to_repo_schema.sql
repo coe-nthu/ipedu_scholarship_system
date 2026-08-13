@@ -65,6 +65,7 @@ create table if not exists public.dashboard_accounts (
   username text primary key,
   display_name text not null,
   recovery_email text,
+  notification_emails jsonb not null default '[]'::jsonb,
   password_hash text not null,
   role text not null,
   department_scope jsonb not null default '"all"'::jsonb,
@@ -76,6 +77,7 @@ create table if not exists public.dashboard_accounts (
 alter table public.dashboard_accounts
   add column if not exists display_name text,
   add column if not exists recovery_email text,
+  add column if not exists notification_emails jsonb not null default '[]'::jsonb,
   add column if not exists password_hash text,
   add column if not exists role text,
   add column if not exists department_scope jsonb not null default '"all"'::jsonb,
@@ -95,12 +97,18 @@ alter table public.dashboard_accounts
   alter column created_at set default now(),
   alter column updated_at set not null,
   alter column updated_at set default now(),
+  alter column notification_emails set not null,
+  alter column notification_emails set default '[]'::jsonb,
   drop constraint if exists dashboard_accounts_role_check,
   add constraint dashboard_accounts_role_check
-    check (role in ('teacher', 'admin'));
+    check (role in ('teacher', 'admin')),
+  drop constraint if exists dashboard_accounts_notification_emails_check,
+  add constraint dashboard_accounts_notification_emails_check
+    check (jsonb_typeof(notification_emails) = 'array');
 
 comment on table public.dashboard_accounts is '後台固定帳密登入帳號';
 comment on column public.dashboard_accounts.recovery_email is '後台帳密帳號忘記密碼驗證碼收件信箱';
+comment on column public.dashboard_accounts.notification_emails is '學生重新送出申請時的通知收件信箱，JSON 字串陣列，由帳號自行維護（與 recovery_email 分開）';
 comment on column public.dashboard_accounts.password_hash is '後台帳密登入密碼雜湊，格式 sha256:<hex>';
 comment on column public.dashboard_accounts.department_scope is '後台可檢視系所範圍，JSON 字串 "all" 或字串陣列';
 
