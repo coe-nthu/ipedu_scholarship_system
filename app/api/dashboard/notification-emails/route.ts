@@ -6,10 +6,14 @@ import {
 } from "@/lib/notification-emails";
 
 /**
- * Self-serve notification inbox settings for 帳密 dashboard accounts.
+ * Self-serve notification inbox settings for dashboard accounts.
  *
- * Mirrors app/api/dashboard/password/route.ts: 系所 accounts never see the
+ * Mirrors app/api/dashboard/password/route.ts. 系所 accounts never see the
  * admin panel, so this is the only way they can maintain their own field.
+ *
+ * Two kinds of account, two tables:
+ *   帳密登入   → dashboard_accounts.notification_emails (keyed by username)
+ *   Google登入 → authorized_emails.notification_emails  (keyed by email)
  */
 
 const MISSING_COLUMN_ERROR =
@@ -40,12 +44,21 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
 }
 
-type PasswordAccountGuard =
-  | { ok: true; username: string }
-  | { error: NextResponse; ok: false };
+/**
+ * Where this account's notification emails live. Both tables are queried with
+ * the service role key, so the filter below is the only thing scoping the write
+ * to the caller's own row — it must come from the verified session, never body.
+ */
+type AccountTarget = {
+  filter: string;
+  table: "authorized_emails" | "dashboard_accounts";
+};
 
-/** 只有帳密登入的後台帳號有 dashboard_accounts 列可以寫。 */
-async function requirePasswordAccount(): Promise<PasswordAccountGuard> {
+type AccountGuard =
+  | { error: NextResponse; ok: false }
+  | { ok: true; target: AccountTarget };
+
+async function requireDashboardAccount(): Promise<AccountGuard> {
   const auth = await checkDashboardAccess();
 
   if (!auth.authorized) {
@@ -58,32 +71,56 @@ async function requirePasswordAccount(): Promise<PasswordAccountGuard> {
     };
   }
 
-  if (auth.authProvider !== "password" || !auth.username) {
+  if (auth.authProvider === "password") {
+    if (!auth.username) {
+      return { error: jsonError("找不到目前登入帳號。", 404), ok: false };
+    }
     return {
-      error: jsonError("只有帳密登入的系所帳號可以設定通知信箱。", 403),
-      ok: false,
+      ok: true,
+      target: {
+        filter: `username=eq.${encodeURIComponent(
+          auth.username.trim().toLowerCase()
+        )}`,
+        table: "dashboard_accounts",
+      },
     };
   }
 
-  return { ok: true, username: auth.username.trim().toLowerCase() };
+  if (!auth.email) {
+    return { error: jsonError("找不到目前登入帳號。", 404), ok: false };
+  }
+
+  return {
+    ok: true,
+    target: {
+      filter: `email=eq.${encodeURIComponent(auth.email.trim().toLowerCase())}`,
+      table: "authorized_emails",
+    },
+  };
 }
 
-type DashboardAccountRow = {
-  is_active: boolean;
+type AccountRow = {
+  is_active?: boolean;
   notification_emails: unknown;
 };
 
 async function fetchAccountRow({
-  encodedUsername,
   serviceRoleKey,
+  target,
   url,
 }: {
-  encodedUsername: string;
   serviceRoleKey: string;
+  target: AccountTarget;
   url: string;
 }) {
+  // authorized_emails has no is_active column — only dashboard_accounts does.
+  const select =
+    target.table === "dashboard_accounts"
+      ? "notification_emails,is_active"
+      : "notification_emails";
+
   const response = await fetch(
-    `${url}/rest/v1/dashboard_accounts?username=eq.${encodedUsername}&select=notification_emails,is_active&limit=1`,
+    `${url}/rest/v1/${target.table}?${target.filter}&select=${select}&limit=1`,
     { headers: authHeaders(serviceRoleKey), cache: "no-store" }
   );
 
@@ -92,19 +129,33 @@ async function fetchAccountRow({
     return { detail, ok: false as const };
   }
 
-  const [row] = (await response.json()) as DashboardAccountRow[];
+  const [row] = (await response.json()) as AccountRow[];
   return { ok: true as const, row: row ?? null };
+}
+
+/**
+ * A Google account can be authorized through profiles.role alone (the legacy
+ * fallback in lib/auth.ts), in which case there is no authorized_emails row to
+ * store anything on. Say so plainly instead of failing with a generic error.
+ */
+function missingRowError(target: AccountTarget) {
+  return target.table === "authorized_emails"
+    ? jsonError(
+        "此 Google 帳號不在後台授權名單中，無法設定通知信箱，請聯絡管理員將您加入名單。",
+        404
+      )
+    : jsonError("找不到目前登入帳號。", 404);
 }
 
 export async function GET() {
   try {
-    const guard = await requirePasswordAccount();
+    const guard = await requireDashboardAccount();
     if (!guard.ok) return guard.error;
 
     const { serviceRoleKey, url } = getSupabaseConfig();
     const result = await fetchAccountRow({
-      encodedUsername: encodeURIComponent(guard.username),
       serviceRoleKey,
+      target: guard.target,
       url,
     });
 
@@ -119,7 +170,7 @@ export async function GET() {
     }
 
     if (!result.row) {
-      return jsonError("找不到目前登入帳號。", 404);
+      return missingRowError(guard.target);
     }
 
     return NextResponse.json({
@@ -136,7 +187,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const guard = await requirePasswordAccount();
+    const guard = await requireDashboardAccount();
     if (!guard.ok) return guard.error;
 
     const body = (await request.json()) as { notificationEmails?: unknown };
@@ -146,10 +197,9 @@ export async function POST(request: Request) {
     }
 
     const { serviceRoleKey, url } = getSupabaseConfig();
-    const encodedUsername = encodeURIComponent(guard.username);
     const result = await fetchAccountRow({
-      encodedUsername,
       serviceRoleKey,
+      target: guard.target,
       url,
     });
 
@@ -164,14 +214,14 @@ export async function POST(request: Request) {
     }
 
     if (!result.row) {
-      return jsonError("找不到目前登入帳號。", 404);
+      return missingRowError(guard.target);
     }
-    if (!result.row.is_active) {
+    if (result.row.is_active === false) {
       return jsonError("目前帳號已停用，無法修改通知信箱。", 403);
     }
 
     const updateRes = await fetch(
-      `${url}/rest/v1/dashboard_accounts?username=eq.${encodedUsername}`,
+      `${url}/rest/v1/${guard.target.table}?${guard.target.filter}`,
       {
         method: "PATCH",
         headers: {

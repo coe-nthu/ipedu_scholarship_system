@@ -3,17 +3,9 @@
 import type { FormEvent } from "react";
 import { useEffect, useState, useTransition } from "react";
 import type { User } from "@supabase/supabase-js";
-import {
-  KeyRound,
-  Loader2,
-  LogIn,
-  LogOut,
-  Mail,
-  Plus,
-  Trash2,
-  UserCircle,
-} from "lucide-react";
+import { KeyRound, Loader2, LogIn, LogOut, UserCircle } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { NotificationEmailsButton } from "@/components/notification-emails-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,10 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  MAX_NOTIFICATION_EMAILS,
-  validateNotificationEmails,
-} from "@/lib/notification-emails";
 import { createClient } from "@/lib/supabase/client";
 
 function getSiteOrigin() {
@@ -38,8 +26,16 @@ function getSiteOrigin() {
 
 export function AuthButton({
   dashboardIdentity,
+  dashboardNotifications = false,
 }: {
+  /** 帳密登入的後台身分；有值才顯示「修改密碼」並改用後台登出流程。 */
   dashboardIdentity?: { displayName: string };
+  /**
+   * 在後台頁面顯示「通知信箱」設定入口。Google 登入的教師／管理員走下面的
+   * `user` 分支，而 AuthButton 也用在學生頁面，所以必須由後台頁面明確開啟，
+   * 否則學生也會看到一顆按不動的按鈕。
+   */
+  dashboardNotifications?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,12 +49,6 @@ export function AuthButton({
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
-  const [notificationEmails, setNotificationEmails] = useState<string[]>([""]);
-  const [notificationLoading, setNotificationLoading] = useState(false);
-  const [notificationSaving, setNotificationSaving] = useState(false);
-  const [notificationMessage, setNotificationMessage] = useState("");
-  const [notificationSuccess, setNotificationSuccess] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -182,106 +172,6 @@ export function AuthButton({
     }
   };
 
-  // 永遠留一列空白輸入框，讓「還沒設定」的狀態可以直接開始打字。
-  const toEmailRows = (emails: string[]) => (emails.length ? emails : [""]);
-
-  const handleNotificationDialogChange = (open: boolean) => {
-    setNotificationDialogOpen(open);
-    setNotificationMessage("");
-    setNotificationSuccess("");
-
-    if (!open) {
-      setNotificationEmails([""]);
-      return;
-    }
-
-    setNotificationLoading(true);
-    void (async () => {
-      try {
-        const response = await fetch("/api/dashboard/notification-emails");
-        const result = (await response.json()) as {
-          error?: string;
-          notificationEmails?: string[];
-          success?: boolean;
-        };
-
-        if (!response.ok || !result.success) {
-          setNotificationMessage(result.error || "讀取通知信箱失敗，請重試。");
-          return;
-        }
-
-        setNotificationEmails(toEmailRows(result.notificationEmails ?? []));
-      } catch {
-        setNotificationMessage("讀取通知信箱失敗，請重試。");
-      } finally {
-        setNotificationLoading(false);
-      }
-    })();
-  };
-
-  const updateNotificationEmail = (index: number, value: string) =>
-    setNotificationEmails((prev) =>
-      prev.map((email, i) => (i === index ? value : email))
-    );
-
-  const removeNotificationEmail = (index: number) =>
-    setNotificationEmails((prev) =>
-      toEmailRows(prev.filter((_, i) => i !== index))
-    );
-
-  const addNotificationEmail = () =>
-    setNotificationEmails((prev) =>
-      prev.length >= MAX_NOTIFICATION_EMAILS ? prev : [...prev, ""]
-    );
-
-  const saveNotificationEmails = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setNotificationMessage("");
-    setNotificationSuccess("");
-
-    // 先在本地擋掉明顯的錯誤，伺服器仍會再驗一次。
-    const validation = validateNotificationEmails(notificationEmails);
-    if (!validation.ok) {
-      setNotificationMessage(validation.error);
-      return;
-    }
-
-    setNotificationSaving(true);
-    try {
-      const response = await fetch("/api/dashboard/notification-emails", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ notificationEmails: validation.emails }),
-      });
-      const result = (await response.json()) as {
-        error?: string;
-        notificationEmails?: string[];
-        success?: boolean;
-      };
-
-      if (!response.ok || !result.success) {
-        setNotificationMessage(result.error || "通知信箱更新失敗，請重試。");
-        return;
-      }
-
-      const saved = result.notificationEmails ?? [];
-      setNotificationEmails(toEmailRows(saved));
-      setNotificationSuccess(
-        saved.length
-          ? "通知信箱已更新。"
-          : "已清空通知信箱，將不再收到通知。"
-      );
-      window.setTimeout(() => {
-        setNotificationDialogOpen(false);
-        setNotificationSuccess("");
-      }, 900);
-    } catch {
-      setNotificationMessage("通知信箱更新失敗，請重試。");
-    } finally {
-      setNotificationSaving(false);
-    }
-  };
-
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
       {dashboardIdentity ? (
@@ -303,16 +193,7 @@ export function AuthButton({
               <KeyRound className="size-4" />
               修改密碼
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleNotificationDialogChange(true)}
-              disabled={isPending}
-            >
-              <Mail className="size-4" />
-              通知信箱
-            </Button>
+            <NotificationEmailsButton disabled={isPending} />
             <Button
               type="button"
               variant="outline"
@@ -421,97 +302,6 @@ export function AuthButton({
               </form>
             </DialogContent>
           </Dialog>
-          <Dialog
-            open={notificationDialogOpen}
-            onOpenChange={handleNotificationDialogChange}
-          >
-            <DialogContent className="bg-white text-slate-900 sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>設定通知信箱</DialogTitle>
-                <DialogDescription>
-                  學生補正或修改後重新送出申請時，系統會寄通知信到以下信箱，提醒貴系所重新審核。最多可設定{" "}
-                  {MAX_NOTIFICATION_EMAILS} 組。
-                </DialogDescription>
-              </DialogHeader>
-              {notificationLoading ? (
-                <div className="flex justify-center py-6">
-                  <Loader2 className="size-4 animate-spin text-slate-400" />
-                </div>
-              ) : (
-                <form className="space-y-4" onSubmit={saveNotificationEmails}>
-                  <div className="space-y-2">
-                    {notificationEmails.map((email, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <Input
-                          autoComplete="email"
-                          placeholder="dept@nthu.edu.tw"
-                          type="email"
-                          value={email}
-                          onChange={(event) =>
-                            updateNotificationEmail(index, event.target.value)
-                          }
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="移除信箱"
-                          disabled={notificationSaving}
-                          onClick={() => removeNotificationEmail(index)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={
-                      notificationSaving ||
-                      notificationEmails.length >= MAX_NOTIFICATION_EMAILS
-                    }
-                    onClick={addNotificationEmail}
-                  >
-                    <Plus className="size-4" />
-                    新增信箱
-                  </Button>
-                  <p className="text-xs text-slate-500">
-                    全部留空即代表關閉通知。此信箱與「忘記密碼」的重設信箱是分開的。
-                  </p>
-                  {notificationMessage ? (
-                    <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                      {notificationMessage}
-                    </p>
-                  ) : null}
-                  {notificationSuccess ? (
-                    <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                      {notificationSuccess}
-                    </p>
-                  ) : null}
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={notificationSaving}
-                      onClick={() => handleNotificationDialogChange(false)}
-                    >
-                      取消
-                    </Button>
-                    <Button type="submit" disabled={notificationSaving}>
-                      {notificationSaving ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Mail className="size-4" />
-                      )}
-                      儲存
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </DialogContent>
-          </Dialog>
         </div>
       ) : user ? (
         <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -519,16 +309,21 @@ export function AuthButton({
             <UserCircle className="size-4" />
             <span className="max-w-56 truncate">{user.email}</span>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={signOut}
-            disabled={isPending}
-          >
-            <LogOut className="size-4" />
-            登出
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {dashboardNotifications ? (
+              <NotificationEmailsButton disabled={isPending} />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={signOut}
+              disabled={isPending}
+            >
+              <LogOut className="size-4" />
+              登出
+            </Button>
+          </div>
         </div>
       ) : (
         <Button

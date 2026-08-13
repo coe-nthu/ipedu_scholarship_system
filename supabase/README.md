@@ -29,8 +29,9 @@
 -- supabase/add_full_time_application_type_multi.sql
 --   更新 application_type 欄位註解（全時博士生助學金申請類別改為可複選）。
 -- supabase/add_dashboard_notification_emails.sql
---   補上 dashboard_accounts.notification_emails，讓各系所／院辦帳號自行填寫
---   收信信箱；學生補正或修改後重新送出時會收到通知信。
+--   補上 dashboard_accounts.notification_emails 與 authorized_emails.notification_emails，
+--   讓帳密與 Google 登入的系所／院辦帳號都能自行填寫收信信箱；學生補正或修改後
+--   重新送出時會收到通知信。
 ```
 
 如果目前只是測試階段，測試資料可以清掉，請先執行：

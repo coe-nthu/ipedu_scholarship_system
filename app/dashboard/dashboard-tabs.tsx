@@ -60,6 +60,7 @@ export function DashboardTabs({
               dashboardIdentity={
                 authProvider === "password" ? { displayName } : undefined
               }
+              dashboardNotifications={authProvider === "google"}
             />
           </div>
         </div>

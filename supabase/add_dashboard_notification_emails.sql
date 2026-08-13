@@ -10,6 +10,10 @@
 -- 不適合當通知信箱。本腳本另外新增 notification_emails（可存多組），由各帳號
 -- 自行在後台維護。
 --
+-- 兩張後台帳號表都要加：帳密帳號在 dashboard_accounts，Google 登入的教師／
+-- 管理員在 authorized_emails。通知信箱與登入用的 email 刻意分開 —— 系辦的收件
+-- 信箱通常不是承辦人自己的 Google 帳號。
+--
 -- 可安全重複執行。在 Supabase SQL Editor 執行一次即可。
 -- ============================================================================
 
@@ -24,3 +28,15 @@ alter table public.dashboard_accounts
 
 comment on column public.dashboard_accounts.notification_emails is
   '學生重新送出申請時的通知收件信箱，JSON 字串陣列，由帳號自行維護（與 recovery_email 分開）';
+
+alter table public.authorized_emails
+  add column if not exists notification_emails jsonb not null default '[]'::jsonb;
+
+alter table public.authorized_emails
+  drop constraint if exists authorized_emails_notification_emails_check;
+alter table public.authorized_emails
+  add constraint authorized_emails_notification_emails_check
+    check (jsonb_typeof(notification_emails) = 'array');
+
+comment on column public.authorized_emails.notification_emails is
+  '學生重新送出申請時的通知收件信箱，JSON 字串陣列，由帳號自行維護（與登入用的 email 分開）';

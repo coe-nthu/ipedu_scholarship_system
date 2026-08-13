@@ -117,7 +117,7 @@ export async function notifyDepartmentOfResubmission({
           applicationId,
           dashboardUrl,
           department,
-          idempotencySuffix: `${recipient.username}-${minuteBucket}`,
+          idempotencySuffix: `${recipient.accountKey}-${minuteBucket}`,
           isCorrectionResubmission,
           recipientEmails: recipient.emails,
           scholarshipProgram,
@@ -127,7 +127,7 @@ export async function notifyDepartmentOfResubmission({
       } catch (error) {
         // Missing RESEND_API_KEY, unverified domain, a bad address — log only.
         console.error(
-          `Resubmission notice to ${recipient.username} failed:`,
+          `Resubmission notice to ${recipient.accountKey} failed:`,
           error
         );
       }
