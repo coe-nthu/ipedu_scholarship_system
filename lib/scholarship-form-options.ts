@@ -36,6 +36,12 @@ export const DASHBOARD_STUDY_STATUS_OPTIONS = [
   ...FULL_TIME_STUDY_STATUS_OPTIONS,
 ] as const;
 
+export const ADMISSION_CHANNEL_OPTIONS = [
+  "甄試",
+  "考試",
+  "逕修博",
+] as const;
+
 export const OTHER_AID_STATUS_NONE = "未兼領";
 export const OTHER_AID_STATUS_RECEIVING = "有領取";
 export const OTHER_AID_STATUS_OPTIONS = [
@@ -54,6 +60,13 @@ export const FULL_TIME_APPLICATION_TYPE_COMPETITIVE = "競爭型";
 export const FULL_TIME_APPLICATION_TYPES = [
   FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
   FULL_TIME_APPLICATION_TYPE_COMPETITIVE,
+] as const;
+
+export const MATCHING_FUND_SOURCE_OPTIONS = [
+  "國科會",
+  "教育部",
+  "其他",
+  "無",
 ] as const;
 
 export const EMPLOYMENT_STATUS_NONE = "無兼職";

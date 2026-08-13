@@ -83,15 +83,18 @@ import type {
   SupabaseFileRecord,
 } from "@/lib/types";
 import {
+  ADMISSION_CHANNEL_OPTIONS,
   DATABASE_OPTIONS as databaseOptions,
   DEPARTMENT_OPTIONS,
   EMPLOYMENT_STATUS_OPTIONS,
   EMPLOYMENT_STATUS_PART_TIME,
   EMPLOYMENT_STATUS_TA,
+  FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
   FULL_TIME_APPLICATION_TYPES,
   FULL_TIME_STUDY_STATUS_NEW,
   FULL_TIME_STUDY_STATUS_OLD,
   FULL_TIME_STUDY_STATUS_OPTIONS,
+  MATCHING_FUND_SOURCE_OPTIONS,
   OTHER_AID_STATUS_NONE,
   OTHER_AID_STATUS_OPTIONS,
   OTHER_AID_STATUS_RECEIVING,
@@ -266,6 +269,8 @@ const FORM_ENGLISH_COPY = {
   otherAidMonthlyAmount: "Monthly Amount",
   otherAidOrganization: "Awarding Unit",
   otherAidStatus: "Other Scholarship/Aid Status",
+  matchingFundAccountingProjectNumber: "Accounting Project Number",
+  matchingFundSource: "Matching Fund Source",
   taIncome: "Average Monthly Teaching Assistant Income",
   uploadsNoteFullTime:
     "Recommended filename format: year_grant_application/transcript/research statement_department_name. Filename format is recommended, not enforced.",
@@ -304,6 +309,7 @@ const OPTION_ENGLISH_COPY: Record<string, string> = {
   逕博: "Direct Doctoral Program",
   甄試: "Recommendation Admission",
   考試: "Entrance Exam",
+  逕修博: "Direct Doctoral Program",
   僅申請續領校長獎學金: "Renew Presidential Scholarship Only",
   同意達標準時更換申請教育部博士生獎學金:
     "Switch to MOE Doctoral Scholarship if eligible",
@@ -557,6 +563,8 @@ const createEmptyEligibility = (): Eligibility => ({
   employmentMonthlyIncome: "",
   taMonthlyIncome: "",
   eligibilityNotes: "",
+  matchingFundSource: "",
+  matchingFundAccountingProjectNumber: "",
   otherAidStatus: "",
   otherAidOrganization: "",
   otherAidMonthlyAmount: "",
@@ -884,6 +892,12 @@ export default function ScholarshipForm() {
   );
   const isFullTimeDoctoralGrant =
     config.programKey === FULL_TIME_DOCTORAL_GRANT_KEY;
+  const requiresMatchingFundDetails =
+    config.programKey === "moe-doctoral" ||
+    config.programKey === "presidential-new-student";
+  const hasAdvisorMatchingFund = parseMultiOptionValues(
+    applicantInfo.applicationType
+  ).includes(FULL_TIME_APPLICATION_TYPE_MATCHING_FUND);
   const supportsLanguageSwitch = isBilingualProgram(config.programKey);
   const [language, setLanguage] = useState<ScholarshipLanguage>(
     getInitialScholarshipLanguage
@@ -1563,7 +1577,12 @@ export default function ScholarshipForm() {
     setTopLevelErrors((current) => {
       const next = { ...current };
       delete next.basic;
-      if (field === "applicationType") delete next.applicationType;
+      if (field === "applicationType") {
+        delete next.applicationType;
+        delete next.otherAid;
+        delete next.matchingFundAccountingProjectNumber;
+        delete next.matchingFundSource;
+      }
       return next;
     });
     setApplicantInfo((current) => {
@@ -1601,7 +1620,9 @@ export default function ScholarshipForm() {
       if (
         field === "otherAidStatus" ||
         field === "otherAidOrganization" ||
-        field === "otherAidMonthlyAmount"
+        field === "otherAidMonthlyAmount" ||
+        field === "matchingFundAccountingProjectNumber" ||
+        field === "matchingFundSource"
       ) {
         delete next.otherAid;
         delete next[field];
@@ -1620,6 +1641,9 @@ export default function ScholarshipForm() {
       [field]: value,
       ...(field === "otherAidStatus" && value === OTHER_AID_STATUS_NONE
         ? { otherAidMonthlyAmount: "", otherAidOrganization: "" }
+        : {}),
+      ...(field === "matchingFundSource" && value === "無"
+        ? { matchingFundAccountingProjectNumber: "" }
         : {}),
     }));
   };
@@ -2264,7 +2288,63 @@ export default function ScholarshipForm() {
       return;
     }
 
+    if (status === "submitted" && requiresMatchingFundDetails) {
+      const missingMatchingFundSource = !eligibility.matchingFundSource.trim();
+      const missingAccountingProjectNumber =
+        eligibility.matchingFundSource !== "無" &&
+        !eligibility.matchingFundAccountingProjectNumber.trim();
+
+      if (missingMatchingFundSource || missingAccountingProjectNumber) {
+        failValidation(
+          "otherAid",
+          {
+            otherAid: missingMatchingFundSource
+              ? "送出前請選擇配合款來源。"
+              : "請填寫會計計畫編號。",
+            matchingFundSource: missingMatchingFundSource
+              ? "請選擇配合款來源。"
+              : "",
+            matchingFundAccountingProjectNumber:
+              missingAccountingProjectNumber
+                ? "請填寫會計計畫編號。"
+                : "",
+          },
+          missingMatchingFundSource
+            ? "送出前請選擇配合款來源。"
+            : "請填寫會計計畫編號。"
+        );
+        return;
+      }
+    }
+
     if (status === "submitted" && isFullTimeDoctoralGrant) {
+      if (
+        hasAdvisorMatchingFund &&
+        !eligibility.matchingFundAccountingProjectNumber.trim()
+      ) {
+        failValidation(
+          "otherAid",
+          {
+            otherAid: bi(
+              bilingual,
+              "申請指導教授配合款時，請填寫會計計畫編號。",
+              "Please enter the accounting project number for advisor matching funds."
+            ),
+            matchingFundAccountingProjectNumber: bi(
+              bilingual,
+              "請填寫會計計畫編號。",
+              "Please enter the accounting project number."
+            ),
+          },
+          bi(
+            bilingual,
+            "申請指導教授配合款時，請填寫會計計畫編號。",
+            "Please enter the accounting project number for advisor matching funds."
+          )
+        );
+        return;
+      }
+
       if (!eligibility.employmentStatus) {
         failValidation(
           "employment",
@@ -3225,6 +3305,25 @@ export default function ScholarshipForm() {
                   placeholder="111 或 112"
                 />
               </Field>
+              <Field label="入學管道" htmlFor="admissionChannel">
+                <Select
+                  value={academicPerformance.admissionChannel}
+                  onValueChange={(value) =>
+                    updateAcademicPerformance("admissionChannel", value ?? "")
+                  }
+                >
+                  <SelectTrigger id="admissionChannel">
+                    <SelectValue placeholder="請選擇入學管道" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ADMISSION_CHANNEL_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field
                 label="請領別"
                 english={bilingual ? FORM_ENGLISH_COPY.studyStatus : undefined}
@@ -3452,109 +3551,204 @@ export default function ScholarshipForm() {
             </Card>
           ) : null}
 
-          {isFullTimeDoctoralGrant ? (
+          {isFullTimeDoctoralGrant || requiresMatchingFundDetails ? (
             <Card
               ref={setSectionRef("otherAid")}
               className={cn("shadow-sm", sectionErrorClass("otherAid"))}
             >
               <CardHeader>
                 <CardTitle className="text-lg">
-                  <BiText enabled={bilingual} english={FORM_ENGLISH_COPY.otherAid}>
-                    領取獎助學金調查
-                  </BiText>
+                  {isFullTimeDoctoralGrant ? (
+                    <BiText enabled={bilingual} english={FORM_ENGLISH_COPY.otherAid}>
+                      領取獎助學金調查
+                    </BiText>
+                  ) : (
+                    "配合款資訊"
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ValidationMessage message={topLevelErrors.otherAid} />
-                <Field
-                  label="領取獎助學金調查"
-                  english={bilingual ? FORM_ENGLISH_COPY.otherAidStatus : undefined}
-                  htmlFor="otherAidStatus"
-                  required
-                  error={topLevelErrors.otherAidStatus}
-                >
-                  <Select
-                    value={eligibility.otherAidStatus}
-                    onValueChange={(value) =>
-                      updateEligibility("otherAidStatus", value ?? "")
-                    }
-                  >
-                    <SelectTrigger
-                      id="otherAidStatus"
-                      className={cn(
-                        topLevelErrors.otherAidStatus && INVALID_FIELD_CLASS
-                      )}
-                    >
-                      <SelectValue placeholder="請選擇是否兼領其他獎助學金" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OTHER_AID_STATUS_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option === OTHER_AID_STATUS_NONE
-                            ? "未兼領其他獎助學金證明"
-                            : "有領取校內其他獎助學金"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                {eligibility.otherAidStatus === OTHER_AID_STATUS_RECEIVING ? (
+                {requiresMatchingFundDetails ? (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Field
-                      label="獎助學金核發單位"
-                      english={
-                        bilingual
-                          ? FORM_ENGLISH_COPY.otherAidOrganization
-                          : undefined
-                      }
-                      htmlFor="otherAidOrganization"
+                      label="配合款來源"
+                      htmlFor="matchingFundSource"
                       required
-                      error={topLevelErrors.otherAidOrganization}
+                      error={topLevelErrors.matchingFundSource}
                     >
-                      <Input
-                        id="otherAidOrganization"
-                        value={eligibility.otherAidOrganization}
-                        onChange={(event) =>
-                          updateEligibility(
-                            "otherAidOrganization",
-                            event.target.value
-                          )
+                      <Select
+                        value={eligibility.matchingFundSource}
+                        onValueChange={(value) =>
+                          updateEligibility("matchingFundSource", value ?? "")
                         }
-                        className={cn(
-                          topLevelErrors.otherAidOrganization &&
-                            INVALID_FIELD_CLASS
-                        )}
-                        placeholder="例：系所、院辦、計畫單位"
-                      />
+                      >
+                        <SelectTrigger
+                          id="matchingFundSource"
+                          className={cn(
+                            topLevelErrors.matchingFundSource &&
+                              INVALID_FIELD_CLASS
+                          )}
+                        >
+                          <SelectValue placeholder="請選擇配合款來源" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MATCHING_FUND_SOURCE_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </Field>
                     <Field
-                      label="每月支領金額"
-                      english={
-                        bilingual
-                          ? FORM_ENGLISH_COPY.otherAidMonthlyAmount
-                          : undefined
-                      }
-                      htmlFor="otherAidMonthlyAmount"
-                      required
-                      error={topLevelErrors.otherAidMonthlyAmount}
+                      label="會計計畫編號"
+                      htmlFor="matchingFundAccountingProjectNumber"
+                      required={eligibility.matchingFundSource !== "無"}
+                      error={topLevelErrors.matchingFundAccountingProjectNumber}
                     >
                       <Input
-                        id="otherAidMonthlyAmount"
-                        value={eligibility.otherAidMonthlyAmount}
+                        id="matchingFundAccountingProjectNumber"
+                        value={eligibility.matchingFundAccountingProjectNumber}
                         onChange={(event) =>
                           updateEligibility(
-                            "otherAidMonthlyAmount",
+                            "matchingFundAccountingProjectNumber",
                             event.target.value
                           )
                         }
                         className={cn(
-                          topLevelErrors.otherAidMonthlyAmount &&
+                          topLevelErrors.matchingFundAccountingProjectNumber &&
                             INVALID_FIELD_CLASS
                         )}
-                        placeholder="例：8000"
+                        placeholder="請填寫會計計畫編號"
                       />
                     </Field>
                   </div>
+                ) : null}
+                {hasAdvisorMatchingFund ? (
+                  <Field
+                    label="會計計畫編號"
+                    english={
+                      bilingual
+                        ? FORM_ENGLISH_COPY.matchingFundAccountingProjectNumber
+                        : undefined
+                    }
+                    htmlFor="matchingFundAccountingProjectNumber"
+                    required
+                    error={topLevelErrors.matchingFundAccountingProjectNumber}
+                  >
+                    <Input
+                      id="matchingFundAccountingProjectNumber"
+                      value={
+                        eligibility.matchingFundAccountingProjectNumber
+                      }
+                      onChange={(event) =>
+                        updateEligibility(
+                          "matchingFundAccountingProjectNumber",
+                          event.target.value
+                        )
+                      }
+                      className={cn(
+                        topLevelErrors.matchingFundAccountingProjectNumber &&
+                          INVALID_FIELD_CLASS
+                      )}
+                      placeholder="請填寫指導教授配合款會計計畫編號"
+                    />
+                  </Field>
+                ) : null}
+                {isFullTimeDoctoralGrant ? (
+                  <>
+                    <Field
+                      label="領取獎助學金調查"
+                      english={bilingual ? FORM_ENGLISH_COPY.otherAidStatus : undefined}
+                      htmlFor="otherAidStatus"
+                      required
+                      error={topLevelErrors.otherAidStatus}
+                    >
+                      <Select
+                        value={eligibility.otherAidStatus}
+                        onValueChange={(value) =>
+                          updateEligibility("otherAidStatus", value ?? "")
+                        }
+                      >
+                        <SelectTrigger
+                          id="otherAidStatus"
+                          className={cn(
+                            topLevelErrors.otherAidStatus && INVALID_FIELD_CLASS
+                          )}
+                        >
+                          <SelectValue placeholder="請選擇是否兼領其他獎助學金" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {OTHER_AID_STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option === OTHER_AID_STATUS_NONE
+                                ? "未兼領其他獎助學金證明"
+                                : "有領取校內其他獎助學金"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    {eligibility.otherAidStatus === OTHER_AID_STATUS_RECEIVING ? (
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <Field
+                          label="獎助學金核發單位"
+                          english={
+                            bilingual
+                              ? FORM_ENGLISH_COPY.otherAidOrganization
+                              : undefined
+                          }
+                          htmlFor="otherAidOrganization"
+                          required
+                          error={topLevelErrors.otherAidOrganization}
+                        >
+                          <Input
+                            id="otherAidOrganization"
+                            value={eligibility.otherAidOrganization}
+                            onChange={(event) =>
+                              updateEligibility(
+                                "otherAidOrganization",
+                                event.target.value
+                              )
+                            }
+                            className={cn(
+                              topLevelErrors.otherAidOrganization &&
+                                INVALID_FIELD_CLASS
+                            )}
+                            placeholder="例：系所、院辦、計畫單位"
+                          />
+                        </Field>
+                        <Field
+                          label="每月支領金額"
+                          english={
+                            bilingual
+                              ? FORM_ENGLISH_COPY.otherAidMonthlyAmount
+                              : undefined
+                          }
+                          htmlFor="otherAidMonthlyAmount"
+                          required
+                          error={topLevelErrors.otherAidMonthlyAmount}
+                        >
+                          <Input
+                            id="otherAidMonthlyAmount"
+                            value={eligibility.otherAidMonthlyAmount}
+                            onChange={(event) =>
+                              updateEligibility(
+                                "otherAidMonthlyAmount",
+                                event.target.value
+                              )
+                            }
+                            className={cn(
+                              topLevelErrors.otherAidMonthlyAmount &&
+                                INVALID_FIELD_CLASS
+                            )}
+                            placeholder="例：8000"
+                          />
+                        </Field>
+                      </div>
+                    ) : null}
+                  </>
                 ) : null}
               </CardContent>
             </Card>
@@ -3844,26 +4038,6 @@ export default function ScholarshipForm() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-                      <Field label="入學管道" htmlFor="admissionChannel">
-                        <Select
-                          value={academicPerformance.admissionChannel}
-                          onValueChange={(value) =>
-                            updateAcademicPerformance(
-                              "admissionChannel",
-                              value ?? ""
-                            )
-                          }
-                        >
-                          <SelectTrigger id="admissionChannel">
-                            <SelectValue placeholder="請選擇" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="逕博">逕博</SelectItem>
-                            <SelectItem value="甄試">甄試</SelectItem>
-                            <SelectItem value="考試">考試</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </Field>
                       <Field label="碩士論文題目" htmlFor="masterThesisTitle">
                         <Input
                           id="masterThesisTitle"

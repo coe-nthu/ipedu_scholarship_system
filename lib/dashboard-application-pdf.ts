@@ -283,6 +283,10 @@ export async function createApplicationDetailPdf(
     { label: "電話", value: applicantInfo.phone },
     { label: "指導教授", value: applicantInfo.advisorName },
     { label: "入學學年度", value: applicantInfo.admissionAcademicYear },
+    {
+      label: "入學管道",
+      value: application.payload.academicPerformance.admissionChannel,
+    },
     { label: "請領別", value: applicantInfo.studyStatus },
     { label: "申請類別", value: applicantInfo.applicationType },
     { label: "送出時間", value: formatSubmittedAt(application.submitted_at) },

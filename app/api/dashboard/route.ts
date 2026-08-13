@@ -16,6 +16,7 @@ import {
   EMPLOYMENT_STATUS_OPTIONS,
   FULL_TIME_APPLICATION_TYPES,
   GPA_SCALE_OPTIONS,
+  MATCHING_FUND_SOURCE_OPTIONS,
   OTHER_AID_STATUS_OPTIONS,
   isAllowedMultiOption,
   isAllowedOption,
@@ -102,6 +103,11 @@ function validateAndMergePayload(
   }
   if (!isAllowedOption(eligibility.otherAidStatus, OTHER_AID_STATUS_OPTIONS)) {
     return { ok: false, error: "獎助調查不合法。" };
+  }
+  if (
+    !isAllowedOption(eligibility.matchingFundSource, MATCHING_FUND_SOURCE_OPTIONS)
+  ) {
+    return { ok: false, error: "配合款來源不合法。" };
   }
   for (const j of journals) {
     // Journal Edition / 資料庫別 may hold several editions joined by "、".

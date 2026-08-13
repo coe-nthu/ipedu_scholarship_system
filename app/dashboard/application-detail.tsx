@@ -61,20 +61,24 @@ import type {
   ScholarshipPayload,
 } from "@/lib/types";
 import {
+  ADMISSION_CHANNEL_OPTIONS,
   DATABASE_OPTIONS,
   DEPARTMENT_OPTIONS,
   EMPLOYMENT_STATUS_OPTIONS,
   FULL_TIME_APPLICATION_TYPES,
+  FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
   FULL_TIME_STUDY_STATUS_NEW,
   FULL_TIME_STUDY_STATUS_OLD,
   FULL_TIME_STUDY_STATUS_OPTIONS,
   GPA_SCALE_OPTIONS,
+  MATCHING_FUND_SOURCE_OPTIONS,
   OTHER_AID_STATUS_NONE,
   OTHER_AID_STATUS_OPTIONS,
   OTHER_AID_STATUS_RECEIVING,
   STUDY_STATUS_NEW,
   STUDY_STATUS_OPTIONS,
   STUDY_STATUS_RENEWAL,
+  parseMultiOptionValues,
 } from "@/lib/scholarship-form-options";
 import {
   formatSubmittedAt,
@@ -817,6 +821,12 @@ export function ApplicationDetail({
   const eligibilityDisplayRows = getEligibilityDisplayRows(application);
   const academicDisplayRows = getAcademicDisplayRows(application);
   const isFullTimeGrant = isFullTimeDoctoralGrant(application);
+  const requiresMatchingFundDetails =
+    application.program_key === "moe-doctoral" ||
+    application.program_key === "presidential-new-student";
+  const hasAdvisorMatchingFund = parseMultiOptionValues(
+    applicantInfo.applicationType
+  ).includes(FULL_TIME_APPLICATION_TYPE_MATCHING_FUND);
   const showEmploymentRows = !isNstcDoctoralProgram(application);
   const studyStatusOptions = isFullTimeGrant
     ? FULL_TIME_STUDY_STATUS_OPTIONS
@@ -1179,6 +1189,25 @@ export function ApplicationDetail({
                         }
                       />
                       <SelectRow
+                        label="入學管道"
+                        value={draft.academicPerformance.admissionChannel}
+                        options={ADMISSION_CHANNEL_OPTIONS}
+                        placeholder="請選擇入學管道"
+                        onChange={(v) =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  academicPerformance: {
+                                    ...d.academicPerformance,
+                                    admissionChannel: v,
+                                  },
+                                }
+                              : d
+                          )
+                        }
+                      />
+                      <SelectRow
                         label="請領別"
                         value={draft.applicantInfo.studyStatus}
                         options={studyStatusOptions}
@@ -1258,6 +1287,10 @@ export function ApplicationDetail({
                       <InfoRow
                         label="入學學年度"
                         value={applicantInfo.admissionAcademicYear}
+                      />
+                      <InfoRow
+                        label="入學管道"
+                        value={payload.academicPerformance.admissionChannel}
                       />
                       <InfoRow
                         label="請領別"
@@ -1480,6 +1513,29 @@ export function ApplicationDetail({
                       ) : null}
                       {isFullTimeGrant ? (
                         <>
+                          {hasAdvisorMatchingFund ? (
+                            <TextRow
+                              label="會計計畫編號"
+                              value={
+                                draft.eligibility
+                                  .matchingFundAccountingProjectNumber ?? ""
+                              }
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        eligibility: {
+                                        ...d.eligibility,
+                                          matchingFundAccountingProjectNumber:
+                                            v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                          ) : null}
                           <SelectRow
                             label="獎助調查"
                             value={draft.eligibility.otherAidStatus ?? ""}
@@ -1551,6 +1607,53 @@ export function ApplicationDetail({
                               />
                             </>
                           ) : null}
+                        </>
+                      ) : null}
+                      {requiresMatchingFundDetails ? (
+                        <>
+                          <SelectRow
+                            label="配合款來源"
+                            value={draft.eligibility.matchingFundSource ?? ""}
+                            options={MATCHING_FUND_SOURCE_OPTIONS}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        matchingFundSource: v,
+                                        matchingFundAccountingProjectNumber:
+                                          v === "無"
+                                            ? ""
+                                            : d.eligibility
+                                                .matchingFundAccountingProjectNumber,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          <TextRow
+                            label="會計計畫編號"
+                            value={
+                              draft.eligibility
+                                .matchingFundAccountingProjectNumber ?? ""
+                            }
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        matchingFundAccountingProjectNumber: v,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
                         </>
                       ) : null}
                       <TextRow

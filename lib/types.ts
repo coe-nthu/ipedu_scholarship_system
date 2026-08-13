@@ -25,6 +25,8 @@ export type Eligibility = {
   employmentMonthlyIncome: string;
   taMonthlyIncome: string;
   eligibilityNotes: string;
+  matchingFundSource: string;
+  matchingFundAccountingProjectNumber: string;
   otherAidStatus: string;
   otherAidOrganization: string;
   otherAidMonthlyAmount: string;

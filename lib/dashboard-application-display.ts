@@ -4,6 +4,10 @@ import {
   getDerivedAcademicGpaSummary,
   shouldUseDoctoralStudyGpa,
 } from "@/lib/academic-gpa";
+import {
+  FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
+  parseMultiOptionValues,
+} from "@/lib/scholarship-form-options";
 
 type DisplayRow = {
   label: string;
@@ -45,6 +49,13 @@ function getProgramKey(application: ScholarshipApplication) {
 
 function isMasterGraduateGpaProgram(application: ScholarshipApplication) {
   return MASTER_GRADUATE_GPA_PROGRAMS.has(getProgramKey(application));
+}
+
+function requiresMatchingFundDetails(application: ScholarshipApplication) {
+  return (
+    getProgramKey(application) === "moe-doctoral" ||
+    getProgramKey(application) === "presidential-new-student"
+  );
 }
 
 function getApplicantKey(application: ScholarshipApplication) {
@@ -248,6 +259,18 @@ export function getEligibilityDisplayRows(
   application: ScholarshipApplication
 ): DisplayRow[] {
   const { eligibility } = application.payload;
+  const matchingFundRows = requiresMatchingFundDetails(application)
+    ? [
+        {
+          label: "配合款來源",
+          value: eligibility.matchingFundSource ?? "",
+        },
+        {
+          label: "會計計畫編號",
+          value: eligibility.matchingFundAccountingProjectNumber ?? "",
+        },
+      ]
+    : [];
   const declarationRows = [
     {
       label: "內容屬實",
@@ -264,6 +287,18 @@ export function getEligibilityDisplayRows(
   ];
 
   if (isFullTimeDoctoralGrant(application)) {
+    const advisorMatchingRows =
+      parseMultiOptionValues(
+        application.payload.applicantInfo.applicationType
+      ).includes(FULL_TIME_APPLICATION_TYPE_MATCHING_FUND)
+        ? [
+            {
+              label: "會計計畫編號",
+              value:
+                eligibility.matchingFundAccountingProjectNumber ?? "",
+            },
+          ]
+        : [];
     const otherAidRows =
       eligibility.otherAidStatus === "有領取"
         ? [
@@ -286,13 +321,14 @@ export function getEligibilityDisplayRows(
       { label: "教學助理月薪", value: eligibility.taMonthlyIncome },
       { label: "兼職工作", value: eligibility.employmentDescription },
       { label: "兼職平均月薪", value: eligibility.employmentMonthlyIncome },
+      ...advisorMatchingRows,
       ...otherAidRows,
       { label: "補充說明", value: eligibility.eligibilityNotes },
     ];
   }
 
   if (isMasterGraduateGpaProgram(application) && !isNstcDoctoralProgram(application)) {
-    return declarationRows;
+    return [...declarationRows, ...matchingFundRows];
   }
 
   const qualificationRows = [
@@ -400,7 +436,6 @@ export function getAcademicDisplayRows(
 
     if (getProgramKey(application) === "presidential-new-student") {
       rows.push(
-        { label: "入學管道", value: academic.admissionChannel },
         { label: "碩士論文題目", value: academic.masterThesisTitle },
         { label: "博班研究主題", value: academic.doctoralResearchTopic },
         { label: "學術表現", value: academic.academicAchievementSummary },
