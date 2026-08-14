@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sendScholarshipConfirmationEmail } from "@/lib/email/resend";
 import { notifyDepartmentOfResubmission } from "@/lib/notifications/resubmission-notice";
 import { patchScholarshipApplication } from "@/lib/supabase/patch-application";
 import {
@@ -29,6 +30,15 @@ type ExistingApplicationAccessRecord = {
   id: string;
   program_key: string;
   submission_status: string;
+};
+
+type SavedApplicationRecord = {
+  id: string;
+  applicant_name: string | null;
+  department: string | null;
+  email: string | null;
+  scholarship_program: string | null;
+  submitted_at: string | null;
 };
 
 function getSupabaseConfig() {
@@ -68,6 +78,36 @@ function getDashboardUrl(request: Request) {
 function normalizeScholarshipProgram(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed || DEFAULT_SCHOLARSHIP_PROGRAM;
+}
+
+async function sendStudentSubmissionConfirmation({
+  application,
+  fallbackEmail,
+}: {
+  application: SavedApplicationRecord;
+  fallbackEmail: string | null | undefined;
+}) {
+  const recipientEmail = application.email || fallbackEmail;
+  if (!recipientEmail) {
+    console.error(
+      "Scholarship confirmation email skipped: no recipient email",
+      application.id
+    );
+    return;
+  }
+
+  try {
+    await sendScholarshipConfirmationEmail({
+      applicationId: application.id,
+      applicantName: application.applicant_name || "",
+      department: application.department || "",
+      recipientEmail,
+      scholarshipProgram: application.scholarship_program || "獎學金申請",
+      submittedAt: application.submitted_at,
+    });
+  } catch (error) {
+    console.error("Scholarship confirmation email failed:", error);
+  }
 }
 
 function normalizeProgramKey(
@@ -448,8 +488,26 @@ export async function POST(request: Request) {
       throw new Error("Supabase 資料寫入失敗。");
     }
 
-    const [record] = (await upsertResponse.json()) as { id: string }[];
+    const [record] = (await upsertResponse.json()) as SavedApplicationRecord[];
     const resolvedId = record?.id || applicationId;
+
+    if (submissionStatus === "submitted") {
+      const savedApplication: SavedApplicationRecord = {
+        id: resolvedId,
+        applicant_name: record?.applicant_name ?? applicantInfo.applicantName ?? "",
+        department: record?.department ?? applicantInfo.department ?? "",
+        email: record?.email ?? applicantInfo.email ?? null,
+        scholarship_program: record?.scholarship_program ?? scholarshipProgram,
+        submitted_at: record?.submitted_at ?? submittedAt ?? null,
+      };
+
+      after(() =>
+        sendStudentSubmissionConfirmation({
+          application: savedApplication,
+          fallbackEmail: user.email,
+        })
+      );
+    }
 
     // ── A real re-submission invalidates the previous 文件真實性審核 ──
     // Only the status resets; reviewer_remarks is left alone so the 補正 note

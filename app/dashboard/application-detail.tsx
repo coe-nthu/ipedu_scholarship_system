@@ -745,7 +745,7 @@ export function ApplicationDetail({
       await loadCorrectionRecords(application.id);
       setCorrectionOpen(false);
       setCorrectionMessage("");
-      toast.success("已寄出補正通知，申請案已退回可修改。");
+      toast.success("申請案已退回可修改，補正通知信將寄出。");
     } catch {
       toast.error("補正通知請求失敗，請重試。");
     } finally {

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   canAccessDepartment,
   checkDashboardAccess,
@@ -36,6 +36,15 @@ type CorrectionRecord = {
   created_at: string;
 };
 
+type CorrectionEmailJob = {
+  applicationId: string;
+  applicantName: string;
+  department: string;
+  message: string;
+  recipientEmail: string;
+  scholarshipProgram: string;
+};
+
 function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,6 +69,14 @@ function getRecipientEmail(application: ScholarshipApplicationRecord) {
     application.payload.applicantInfo?.email?.trim() ||
     ""
   );
+}
+
+async function sendCorrectionNotice(job: CorrectionEmailJob) {
+  try {
+    await sendScholarshipCorrectionEmail(job);
+  } catch (error) {
+    console.error("Scholarship correction email failed:", error);
+  }
 }
 
 async function getNextCorrectionNumber({
@@ -223,7 +240,7 @@ export async function POST(request: Request) {
       return jsonError("找不到可寄送的學生 Email。");
     }
 
-    const emailId = await sendScholarshipCorrectionEmail({
+    const emailJob: CorrectionEmailJob = {
       applicationId: application.id,
       applicantName:
         application.applicant_name ||
@@ -236,7 +253,7 @@ export async function POST(request: Request) {
       message,
       recipientEmail,
       scholarshipProgram: application.scholarship_program || "獎學金申請",
-    });
+    };
 
     const updateResult = await patchScholarshipApplication({
       applicationId: application.id,
@@ -271,11 +288,13 @@ export async function POST(request: Request) {
       url,
     });
 
+    after(() => sendCorrectionNotice(emailJob));
+
     return NextResponse.json({
       success: true,
       application: updated,
       correctionRecord,
-      emailId,
+      emailQueued: true,
     });
   } catch (error) {
     console.error("Dashboard correction email error:", error);
