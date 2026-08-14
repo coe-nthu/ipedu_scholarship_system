@@ -740,6 +740,31 @@ function compactRows<T extends Record<string, unknown>>(rows: T[]) {
   return rows.filter((row) => Object.values(row).some(isFilled));
 }
 
+function compactJournalRows(rows: Journal[]) {
+  return rows.filter((journal) =>
+    [
+      journal.doi,
+      journal.date,
+      journal.author,
+      journal.applicantAuthorName,
+      journal.doiAuthorNames,
+      journal.issns,
+      journal.title,
+      journal.journal,
+      journal.reviewUnit,
+      journal.journalLevel,
+      journal.indexSource,
+      journal.database,
+      journal.authorOrder,
+      journal.authorOrderOriginal,
+      journal.authorOrderChangeNote,
+      journal.publicationAutofillBaseline,
+      journal.publicationChangeNotes,
+      journal.attachmentNote,
+    ].some(isFilled)
+  );
+}
+
 function normalizeAuthorName(value: string) {
   return value
     .toLocaleLowerCase()
@@ -1601,7 +1626,7 @@ export default function ScholarshipForm() {
     };
     const databaseStats: Record<string, number> = {};
 
-    compactRows(journals).forEach((journal) => {
+    compactJournalRows(journals).forEach((journal) => {
       const level =
         journal.journalLevel === "I級期刊" ? "I級期刊" : "非I級期刊";
       const authorOrderBucket = getAuthorOrderBucket(journal.authorOrder);
@@ -2312,7 +2337,7 @@ export default function ScholarshipForm() {
         applicantInfo,
         eligibility,
         academicPerformance,
-        journals: compactRows(journals),
+        journals: compactJournalRows(journals),
         conferences: compactRows(conferences),
         researchExperiences: compactRows(researchExperiences),
         researchAwards: compactRows(researchAwards),
