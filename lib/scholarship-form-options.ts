@@ -69,13 +69,32 @@ export const MATCHING_FUND_SOURCE_OPTIONS = [
   "無",
 ] as const;
 
+/**
+ * 全時博士生助學金「兼職與留職停薪情形調查」。紙本申請書為可複選的勾選欄位，
+ * 因此這裡是 *multi-select* 欄位，值以 {@link MULTI_OPTION_DELIMITER} 串接。
+ * 例：「報考時具專職工作，已辦理留職停薪、受獎期間符合全時就學資格」。
+ */
 export const EMPLOYMENT_STATUS_NONE = "無兼職";
-export const EMPLOYMENT_STATUS_TA = "擔任校內外教學助理";
-export const EMPLOYMENT_STATUS_PART_TIME = "有校內外兼職";
+export const EMPLOYMENT_STATUS_UNPAID_LEAVE = "報考時具專職工作，已辦理留職停薪";
+export const EMPLOYMENT_STATUS_FULL_TIME_STUDY = "受獎期間符合全時就學資格";
+export const EMPLOYMENT_STATUS_PART_TIME = "有兼職（非專職）";
 export const EMPLOYMENT_STATUS_OPTIONS = [
   EMPLOYMENT_STATUS_NONE,
-  EMPLOYMENT_STATUS_TA,
+  EMPLOYMENT_STATUS_UNPAID_LEAVE,
+  EMPLOYMENT_STATUS_FULL_TIME_STUDY,
   EMPLOYMENT_STATUS_PART_TIME,
+] as const;
+
+/**
+ * 舊版單選「兼職情形」的選項。表單已不再提供，但既有申請案仍存著這些值，
+ * 後台編輯與後端驗證必須繼續接受，否則舊資料一存檔就會被擋下來。
+ */
+export const LEGACY_EMPLOYMENT_STATUS_TA = "擔任校內外教學助理";
+export const LEGACY_EMPLOYMENT_STATUS_PART_TIME = "有校內外兼職";
+export const DASHBOARD_EMPLOYMENT_STATUS_OPTIONS = [
+  ...EMPLOYMENT_STATUS_OPTIONS,
+  LEGACY_EMPLOYMENT_STATUS_TA,
+  LEGACY_EMPLOYMENT_STATUS_PART_TIME,
 ] as const;
 
 /**

@@ -1,4 +1,4 @@
-import type { ScholarshipApplication } from "@/lib/types";
+import type { Eligibility, ScholarshipApplication } from "@/lib/types";
 import {
   derivePayloadAcademicGpa,
   getDerivedAcademicGpaSummary,
@@ -317,10 +317,7 @@ export function getEligibilityDisplayRows(
           ];
     return [
       ...declarationRows,
-      { label: "兼職情形", value: eligibility.employmentStatus },
-      { label: "教學助理月薪", value: eligibility.taMonthlyIncome },
-      { label: "兼職工作", value: eligibility.employmentDescription },
-      { label: "兼職平均月薪", value: eligibility.employmentMonthlyIncome },
+      ...getEmploymentRows(eligibility),
       ...advisorMatchingRows,
       ...otherAidRows,
       { label: "補充說明", value: eligibility.eligibilityNotes },
@@ -353,11 +350,33 @@ export function getEligibilityDisplayRows(
 
   return [
     ...qualificationRows,
-    { label: "兼職情形", value: eligibility.employmentStatus },
-    { label: "教學助理月薪", value: eligibility.taMonthlyIncome },
+    ...getEmploymentRows(eligibility),
+    { label: "補充說明", value: eligibility.eligibilityNotes },
+  ];
+}
+
+/**
+ * 兼職與留職停薪情形調查列。留職停薪期間與教學助理月薪（舊版單選才有）
+ * 只在有值時才列出，避免表格與匯出 PDF 出現一整排空欄位。
+ */
+function getEmploymentRows(eligibility: Eligibility): DisplayRow[] {
+  const unpaidLeaveStart = eligibility.unpaidLeaveStartDate ?? "";
+  const unpaidLeaveEnd = eligibility.unpaidLeaveEndDate ?? "";
+  const unpaidLeavePeriod =
+    unpaidLeaveStart || unpaidLeaveEnd
+      ? `${unpaidLeaveStart || "—"} ~ ${unpaidLeaveEnd || "—"}`
+      : "";
+
+  return [
+    { label: "兼職與留職停薪情形", value: eligibility.employmentStatus },
+    ...(unpaidLeavePeriod
+      ? [{ label: "留職停薪期間", value: unpaidLeavePeriod }]
+      : []),
+    ...(eligibility.taMonthlyIncome
+      ? [{ label: "教學助理月薪", value: eligibility.taMonthlyIncome }]
+      : []),
     { label: "兼職工作", value: eligibility.employmentDescription },
     { label: "兼職平均月薪", value: eligibility.employmentMonthlyIncome },
-    { label: "補充說明", value: eligibility.eligibilityNotes },
   ];
 }
 

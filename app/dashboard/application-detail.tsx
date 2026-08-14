@@ -64,7 +64,7 @@ import {
   ADMISSION_CHANNEL_OPTIONS,
   DATABASE_OPTIONS,
   DEPARTMENT_OPTIONS,
-  EMPLOYMENT_STATUS_OPTIONS,
+  DASHBOARD_EMPLOYMENT_STATUS_OPTIONS,
   FULL_TIME_APPLICATION_TYPES,
   FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
   FULL_TIME_STUDY_STATUS_NEW,
@@ -1440,10 +1440,11 @@ export function ApplicationDetail({
                       />
                       {showEmploymentRows ? (
                         <>
-                          <SelectRow
-                            label="兼職情形"
+                          <MultiSelectRow
+                            label="兼職與留職停薪情形"
                             value={draft.eligibility.employmentStatus}
-                            options={EMPLOYMENT_STATUS_OPTIONS}
+                            options={DASHBOARD_EMPLOYMENT_STATUS_OPTIONS}
+                            placeholder="請選擇（可複選）"
                             onChange={(v) =>
                               setDraft((d) =>
                                 d
@@ -1459,8 +1460,8 @@ export function ApplicationDetail({
                             }
                           />
                           <TextRow
-                            label="教學助理月薪"
-                            value={draft.eligibility.taMonthlyIncome}
+                            label="留職停薪起日"
+                            value={draft.eligibility.unpaidLeaveStartDate ?? ""}
                             onChange={(v) =>
                               setDraft((d) =>
                                 d
@@ -1468,13 +1469,50 @@ export function ApplicationDetail({
                                       ...d,
                                       eligibility: {
                                         ...d.eligibility,
-                                        taMonthlyIncome: v,
+                                        unpaidLeaveStartDate: v,
                                       },
                                     }
                                   : d
                               )
                             }
                           />
+                          <TextRow
+                            label="留職停薪迄日"
+                            value={draft.eligibility.unpaidLeaveEndDate ?? ""}
+                            onChange={(v) =>
+                              setDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      eligibility: {
+                                        ...d.eligibility,
+                                        unpaidLeaveEndDate: v,
+                                      },
+                                    }
+                                  : d
+                              )
+                            }
+                          />
+                          {/* 舊版單選「擔任校內外教學助理」才有月薪，僅在既有資料上顯示。 */}
+                          {draft.eligibility.taMonthlyIncome ? (
+                            <TextRow
+                              label="教學助理月薪"
+                              value={draft.eligibility.taMonthlyIncome}
+                              onChange={(v) =>
+                                setDraft((d) =>
+                                  d
+                                    ? {
+                                        ...d,
+                                        eligibility: {
+                                          ...d.eligibility,
+                                          taMonthlyIncome: v,
+                                        },
+                                      }
+                                    : d
+                                )
+                              }
+                            />
+                          ) : null}
                           <TextRow
                             label="兼職工作"
                             value={draft.eligibility.employmentDescription}

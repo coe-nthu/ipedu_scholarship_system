@@ -134,12 +134,12 @@ export const DEFAULT_SCHOLARSHIP_PROGRAM_SETTINGS: ScholarshipProgramSetting[] =
       amount_en:
         "The final amount and award period are determined by the college review committee.",
       description:
-        "填寫基本資料、申請類型、兼職情形調查與指定文件上傳。",
+        "填寫基本資料、申請類型、兼職與留職停薪情形調查與指定文件上傳。",
       description_en:
-        "Application for full-time doctoral students. Complete personal information, employment status, academic records, and required PDF uploads.",
+        "Application for full-time doctoral students. Complete personal information, part-time work and unpaid leave status, academic records, and required PDF uploads.",
       display_order: 50,
       eligibility_reminder:
-        "限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請後如有休學或專職情形，應主動通知院辦公室。",
+        "限全時無專職就讀本院之博士生申請，以一至四年級為原則。通過申請之學生，如有休學、留職停薪期滿復職或申請後有專職者，應主動通知院辦公室，並於事實發生次月取消得獎資格，取消資格後不再恢復獲獎資格。",
       is_correction_open: false,
       is_open: true,
       is_visible: true,

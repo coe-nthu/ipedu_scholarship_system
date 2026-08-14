@@ -79,10 +79,12 @@ public.scholarship_applications
 | `hasSpecialRecommendation` | 是否有特殊表現並經推薦 |
 | `noFullTimeJob` | 是否確認未從事專職工作 |
 | `notReceivingOtherScholarship` | 是否確認未重複請領其他獎助學金 |
-| `employmentStatus` | 全時博士生助學金兼職情形：無兼職、擔任校內外教學助理、有校內外兼職 |
-| `employmentDescription` | 全時博士生助學金兼職工作簡述 |
-| `employmentMonthlyIncome` | 全時博士生助學金兼職平均月薪 |
-| `taMonthlyIncome` | 全時博士生助學金校內外教學助理平均月薪 |
+| `employmentStatus` | 全時博士生助學金兼職與留職停薪情形調查，**可複選**，多值以「、」分隔。選項：無兼職、報考時具專職工作，已辦理留職停薪、受獎期間符合全時就學資格、有兼職（非專職）。舊資料另有單選的「擔任校內外教學助理」「有校內外兼職」，不改寫且仍可通過驗證 |
+| `employmentDescription` | 全時博士生助學金兼職（非專職）工作簡述 |
+| `employmentMonthlyIncome` | 全時博士生助學金兼職（非專職）平均月薪 |
+| `unpaidLeaveStartDate` | 留職停薪期間起日（YYYY-MM-DD），勾選「報考時具專職工作，已辦理留職停薪」時必填 |
+| `unpaidLeaveEndDate` | 留職停薪期間迄日（YYYY-MM-DD），勾選「報考時具專職工作，已辦理留職停薪」時必填 |
+| `taMonthlyIncome` | 舊版「擔任校內外教學助理」平均月薪，僅保留給既有申請案，表單已不再填寫 |
 | `eligibilityNotes` | 資格補充說明 |
 
 ## 學業表現：`payload.academicPerformance`

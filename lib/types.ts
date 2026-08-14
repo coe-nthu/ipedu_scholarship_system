@@ -20,9 +20,15 @@ export type Eligibility = {
   hasSpecialRecommendation: boolean;
   noFullTimeJob: boolean;
   notReceivingOtherScholarship: boolean;
+  /** 兼職與留職停薪情形調查，可複選，多值以「、」分隔。 */
   employmentStatus: string;
   employmentDescription: string;
   employmentMonthlyIncome: string;
+  /** 留職停薪期間（自），YYYY-MM-DD。 */
+  unpaidLeaveStartDate: string;
+  /** 留職停薪期間（至），YYYY-MM-DD。 */
+  unpaidLeaveEndDate: string;
+  /** 舊版「擔任校內外教學助理」平均月薪，僅保留給既有申請案。 */
   taMonthlyIncome: string;
   eligibilityNotes: string;
   matchingFundSource: string;

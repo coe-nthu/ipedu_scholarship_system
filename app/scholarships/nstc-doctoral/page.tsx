@@ -86,14 +86,18 @@ import {
   ADMISSION_CHANNEL_OPTIONS,
   DATABASE_OPTIONS as databaseOptions,
   DEPARTMENT_OPTIONS,
+  EMPLOYMENT_STATUS_FULL_TIME_STUDY,
+  EMPLOYMENT_STATUS_NONE,
   EMPLOYMENT_STATUS_OPTIONS,
   EMPLOYMENT_STATUS_PART_TIME,
-  EMPLOYMENT_STATUS_TA,
+  EMPLOYMENT_STATUS_UNPAID_LEAVE,
   FULL_TIME_APPLICATION_TYPE_MATCHING_FUND,
   FULL_TIME_APPLICATION_TYPES,
   FULL_TIME_STUDY_STATUS_NEW,
   FULL_TIME_STUDY_STATUS_OLD,
   FULL_TIME_STUDY_STATUS_OPTIONS,
+  LEGACY_EMPLOYMENT_STATUS_PART_TIME,
+  LEGACY_EMPLOYMENT_STATUS_TA,
   MATCHING_FUND_SOURCE_OPTIONS,
   OTHER_AID_STATUS_NONE,
   OTHER_AID_STATUS_OPTIONS,
@@ -239,10 +243,12 @@ const FORM_ENGLISH_COPY = {
   },
   documents: "Other Achievements and Required PDF Uploads",
   email: "Email",
-  employment: "Employment Status Survey",
+  employment: "Part-time Work and Unpaid Leave Survey",
   employmentDescription: "Part-time Work Description",
   employmentMonthlyIncome: "Average Monthly Part-time Income",
-  employmentStatus: "Employment Status",
+  employmentStatus: "Part-time Work and Unpaid Leave Status",
+  unpaidLeaveEndDate: "Unpaid Leave End Date",
+  unpaidLeaveStartDate: "Unpaid Leave Start Date",
   fullTimePreviousDegreeCredits: "Total Credits",
   fullTimePreviousDegreeGpa: "GPA",
   fullTimePreviousDegreeRank: "Department/Class Rank",
@@ -298,6 +304,11 @@ const OPTION_ENGLISH_COPY: Record<string, string> = {
   指導教授配合款: "Advisor Matching Fund",
   競爭型: "Competitive Track",
   無兼職: "No Part-time Work",
+  "報考時具專職工作，已辦理留職停薪":
+    "Held a full-time job when applying for admission; currently on unpaid leave",
+  受獎期間符合全時就學資格:
+    "Qualified as a full-time student during the award period",
+  "有兼職（非專職）": "Part-time Work (not full-time employment)",
   擔任校內外教學助理: "Teaching Assistant",
   有校內外兼職: "Part-time Work",
   研究者本人: "Principal Researcher",
@@ -403,6 +414,44 @@ function normalizeApplicationTypeForConfig(
     : applicationTypeOptions[0] ?? fallback;
 }
 
+/**
+ * 舊版單選「兼職情形」的草稿沿用到新的「兼職與留職停薪情形調查」複選欄位：
+ * 「擔任校內外教學助理」與「有校內外兼職」都併入「有兼職（非專職）」，教學助理
+ * 月薪改帶到兼職平均月薪，否則重開草稿時整排勾選會是空的。
+ */
+function normalizeEmploymentStatusForForm(eligibility: Eligibility): Eligibility {
+  const selected = parseMultiOptionValues(eligibility.employmentStatus);
+  const hasLegacyTa = selected.includes(LEGACY_EMPLOYMENT_STATUS_TA);
+  const hasLegacyPartTime = selected.includes(
+    LEGACY_EMPLOYMENT_STATUS_PART_TIME
+  );
+  if (!hasLegacyTa && !hasLegacyPartTime) {
+    return eligibility;
+  }
+
+  const mapped = new Set(
+    selected.map((item) =>
+      item === LEGACY_EMPLOYMENT_STATUS_TA ||
+      item === LEGACY_EMPLOYMENT_STATUS_PART_TIME
+        ? EMPLOYMENT_STATUS_PART_TIME
+        : item
+    )
+  );
+
+  return {
+    ...eligibility,
+    employmentStatus: joinMultiOptionValues(
+      EMPLOYMENT_STATUS_OPTIONS.filter((option) => mapped.has(option))
+    ),
+    employmentDescription:
+      eligibility.employmentDescription ||
+      (hasLegacyTa ? LEGACY_EMPLOYMENT_STATUS_TA : ""),
+    employmentMonthlyIncome:
+      eligibility.employmentMonthlyIncome ||
+      (hasLegacyTa ? eligibility.taMonthlyIncome : ""),
+  };
+}
+
 function documentText(document: DocumentField, englishMode: boolean) {
   return englishMode
     ? DOCUMENT_ENGLISH_COPY[document.key] ?? document.label
@@ -477,7 +526,7 @@ const scholarshipConfigs: Record<string, ScholarshipFormConfig> = {
       },
     ],
     eligibilityReminder:
-      "限全時無專職就讀本院之博士生提出申請，以一至四年級為原則。請填寫申請類型、兼職情形調查並上傳指定文件。",
+      "限全時無專職就讀本院之博士生提出申請，以一至四年級為原則。請填寫申請類型、兼職與留職停薪情形調查並上傳指定文件。通過申請之學生，如有休學、留職停薪期滿復職或申請後有專職者，應主動通知院辦公室，並於事實發生次月取消得獎資格，取消資格後不再恢復獲獎資格。",
     period: "本院全時博士生",
     programKey: FULL_TIME_DOCTORAL_GRANT_KEY,
     program: "全時博士生助學金",
@@ -561,6 +610,8 @@ const createEmptyEligibility = (): Eligibility => ({
   employmentStatus: "",
   employmentDescription: "",
   employmentMonthlyIncome: "",
+  unpaidLeaveStartDate: "",
+  unpaidLeaveEndDate: "",
   taMonthlyIncome: "",
   eligibilityNotes: "",
   matchingFundSource: "",
@@ -917,6 +968,9 @@ export default function ScholarshipForm() {
   ).includes(FULL_TIME_APPLICATION_TYPE_MATCHING_FUND);
   const [eligibility, setEligibility] =
     useState<Eligibility>(createEmptyEligibility);
+  const selectedEmploymentStatuses = new Set(
+    parseMultiOptionValues(eligibility.employmentStatus)
+  );
   const [academicPerformance, setAcademicPerformance] =
     useState<AcademicPerformance>(emptyAcademicPerformance);
   const [doctoralSemesterRecords, setDoctoralSemesterRecords] = useState<
@@ -1140,10 +1194,12 @@ export default function ScholarshipForm() {
         });
       }
       if (p.eligibility) {
-        setEligibility({
-          ...createEmptyEligibility(),
-          ...p.eligibility,
-        });
+        setEligibility(
+          normalizeEmploymentStatusForForm({
+            ...createEmptyEligibility(),
+            ...p.eligibility,
+          })
+        );
       }
       if (p.academicPerformance) {
         const savedAcademicPerformance = {
@@ -1612,7 +1668,9 @@ export default function ScholarshipForm() {
         field === "employmentStatus" ||
         field === "taMonthlyIncome" ||
         field === "employmentDescription" ||
-        field === "employmentMonthlyIncome"
+        field === "employmentMonthlyIncome" ||
+        field === "unpaidLeaveStartDate" ||
+        field === "unpaidLeaveEndDate"
       ) {
         delete next.employment;
         delete next[field];
@@ -1646,6 +1704,53 @@ export default function ScholarshipForm() {
         ? { matchingFundAccountingProjectNumber: "" }
         : {}),
     }));
+  };
+
+  /**
+   * 兼職與留職停薪情形調查為複選。「無兼職」與「有兼職（非專職）」互斥，
+   * 取消勾選時一併清掉該選項附帶的欄位，避免留下孤兒資料。
+   */
+  const toggleEmploymentStatus = (option: string, checked: boolean) => {
+    setTopLevelErrors((current) => {
+      const next = { ...current };
+      delete next.employment;
+      delete next.employmentStatus;
+      delete next.employmentDescription;
+      delete next.employmentMonthlyIncome;
+      delete next.unpaidLeaveStartDate;
+      delete next.unpaidLeaveEndDate;
+      return next;
+    });
+    setEligibility((current) => {
+      const selected = new Set(parseMultiOptionValues(current.employmentStatus));
+      if (checked) {
+        selected.add(option);
+        if (option === EMPLOYMENT_STATUS_NONE) {
+          selected.delete(EMPLOYMENT_STATUS_PART_TIME);
+        }
+        if (option === EMPLOYMENT_STATUS_PART_TIME) {
+          selected.delete(EMPLOYMENT_STATUS_NONE);
+        }
+      } else {
+        selected.delete(option);
+      }
+
+      const hasUnpaidLeave = selected.has(EMPLOYMENT_STATUS_UNPAID_LEAVE);
+      const hasPartTime = selected.has(EMPLOYMENT_STATUS_PART_TIME);
+
+      return {
+        ...current,
+        employmentStatus: joinMultiOptionValues(
+          EMPLOYMENT_STATUS_OPTIONS.filter((item) => selected.has(item))
+        ),
+        unpaidLeaveStartDate: hasUnpaidLeave ? current.unpaidLeaveStartDate : "",
+        unpaidLeaveEndDate: hasUnpaidLeave ? current.unpaidLeaveEndDate : "",
+        employmentDescription: hasPartTime ? current.employmentDescription : "",
+        employmentMonthlyIncome: hasPartTime
+          ? current.employmentMonthlyIncome
+          : "",
+      };
+    });
   };
 
   const updateAcademicPerformance = (
@@ -2345,59 +2450,73 @@ export default function ScholarshipForm() {
         return;
       }
 
-      if (!eligibility.employmentStatus) {
+      const selectedEmploymentStatuses = parseMultiOptionValues(
+        eligibility.employmentStatus
+      );
+
+      if (selectedEmploymentStatuses.length === 0) {
         failValidation(
           "employment",
           {
             employment: bi(
               bilingual,
-              "送出前請完成兼職情形調查。",
-              "Please complete the employment status survey before submitting."
+              "送出前請完成兼職與留職停薪情形調查。",
+              "Please complete the part-time work and unpaid leave survey before submitting."
             ),
             employmentStatus: bi(
               bilingual,
-              "請選擇兼職情形。",
-              "Please select your employment status."
+              "請至少勾選一項兼職與留職停薪情形。",
+              "Please select at least one option."
             ),
           },
           bi(
             bilingual,
-            "送出前請完成兼職情形調查。",
-            "Please complete the employment status survey before submitting."
+            "送出前請完成兼職與留職停薪情形調查。",
+            "Please complete the part-time work and unpaid leave survey before submitting."
           )
         );
         return;
       }
 
       if (
-        eligibility.employmentStatus === EMPLOYMENT_STATUS_TA &&
-        !eligibility.taMonthlyIncome.trim()
+        selectedEmploymentStatuses.includes(EMPLOYMENT_STATUS_UNPAID_LEAVE) &&
+        (!eligibility.unpaidLeaveStartDate.trim() ||
+          !eligibility.unpaidLeaveEndDate.trim())
       ) {
         failValidation(
           "employment",
           {
             employment: bi(
               bilingual,
-              "請填寫校內外教學助理平均月薪。",
-              "Please enter your average monthly teaching assistant income."
+              "請填寫留職停薪期間。",
+              "Please enter your unpaid leave period."
             ),
-            taMonthlyIncome: bi(
-              bilingual,
-              "請填寫校內外教學助理平均月薪。",
-              "Please enter your average monthly teaching assistant income."
-            ),
+            unpaidLeaveStartDate: !eligibility.unpaidLeaveStartDate.trim()
+              ? bi(
+                  bilingual,
+                  "請填寫留職停薪起始日期。",
+                  "Please enter the unpaid leave start date."
+                )
+              : "",
+            unpaidLeaveEndDate: !eligibility.unpaidLeaveEndDate.trim()
+              ? bi(
+                  bilingual,
+                  "請填寫留職停薪結束日期。",
+                  "Please enter the unpaid leave end date."
+                )
+              : "",
           },
           bi(
             bilingual,
-            "請填寫校內外教學助理平均月薪。",
-            "Please enter your average monthly teaching assistant income."
+            "請填寫留職停薪期間。",
+            "Please enter your unpaid leave period."
           )
         );
         return;
       }
 
       if (
-        eligibility.employmentStatus === EMPLOYMENT_STATUS_PART_TIME &&
+        selectedEmploymentStatuses.includes(EMPLOYMENT_STATUS_PART_TIME) &&
         (!eligibility.employmentDescription.trim() ||
           !eligibility.employmentMonthlyIncome.trim())
       ) {
@@ -3418,135 +3537,203 @@ export default function ScholarshipForm() {
                     enabled={bilingual}
                     english={FORM_ENGLISH_COPY.employment}
                   >
-                    兼職情形調查
+                    兼職與留職停薪情形調查
                   </BiText>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm leading-6 text-slate-600">
                   {bilingual
-                    ? "Please report your current work status. If you take a full-time job after applying, notify the college office."
-                    : "請依目前校內外工作情形填寫；若申請後有專職工作，應主動通知院辦公室。"}
+                    ? "Please report your current work and unpaid leave status (multiple selections allowed). If you take a full-time job after applying, notify the college office."
+                    : "請依目前校內外工作與留職停薪情形勾選（可複選）；若申請後有專職工作，應主動通知院辦公室。"}
                 </p>
                 <ValidationMessage message={topLevelErrors.employment} />
-                <Field
-                  label="兼職情形"
-                  english={bilingual ? FORM_ENGLISH_COPY.employmentStatus : undefined}
-                  htmlFor="employmentStatus"
-                  required
-                  error={topLevelErrors.employmentStatus}
-                >
-                  <Select
-                    value={eligibility.employmentStatus}
-                    onValueChange={(value) =>
-                      updateEligibility("employmentStatus", value ?? "")
+                <ValidationMessage message={topLevelErrors.employmentStatus} />
+                <div className="space-y-3">
+                  <EmploymentOption
+                    checked={selectedEmploymentStatuses.has(
+                      EMPLOYMENT_STATUS_NONE
+                    )}
+                    invalid={Boolean(topLevelErrors.employmentStatus)}
+                    label="無兼職"
+                    english={
+                      bilingual
+                        ? optionText(EMPLOYMENT_STATUS_NONE, true)
+                        : undefined
+                    }
+                    onChange={(checked) =>
+                      toggleEmploymentStatus(EMPLOYMENT_STATUS_NONE, checked)
+                    }
+                  />
+                  <EmploymentOption
+                    checked={selectedEmploymentStatuses.has(
+                      EMPLOYMENT_STATUS_UNPAID_LEAVE
+                    )}
+                    invalid={Boolean(topLevelErrors.employmentStatus)}
+                    label="本人報考時具專職工作，現已辦理留職停薪，並檢附留職停薪證明正本"
+                    english={
+                      bilingual
+                        ? "I held a full-time job when applying for admission, am currently on unpaid leave, and have attached the original unpaid leave certificate."
+                        : undefined
+                    }
+                    onChange={(checked) =>
+                      toggleEmploymentStatus(
+                        EMPLOYMENT_STATUS_UNPAID_LEAVE,
+                        checked
+                      )
                     }
                   >
-                    <SelectTrigger
-                      id="employmentStatus"
-                      className={cn(
-                        topLevelErrors.employmentStatus && INVALID_FIELD_CLASS
-                      )}
-                    >
-                      <SelectValue
-                        placeholder={
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Field
+                        label="留職停薪期間：自"
+                        english={
                           bilingual
-                            ? "Select employment status"
-                            : "請選擇兼職情形"
+                            ? FORM_ENGLISH_COPY.unpaidLeaveStartDate
+                            : undefined
                         }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EMPLOYMENT_STATUS_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {optionText(option, bilingual)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                {eligibility.employmentStatus === EMPLOYMENT_STATUS_TA ? (
-                  <Field
-                    label="教學助理平均月薪"
-                    english={bilingual ? FORM_ENGLISH_COPY.taIncome : undefined}
-                    htmlFor="taMonthlyIncome"
-                    required
-                    error={topLevelErrors.taMonthlyIncome}
+                        htmlFor="unpaidLeaveStartDate"
+                        required
+                        error={topLevelErrors.unpaidLeaveStartDate}
+                      >
+                        <Input
+                          id="unpaidLeaveStartDate"
+                          type="date"
+                          value={eligibility.unpaidLeaveStartDate}
+                          onChange={(event) =>
+                            updateEligibility(
+                              "unpaidLeaveStartDate",
+                              event.target.value
+                            )
+                          }
+                          className={cn(
+                            topLevelErrors.unpaidLeaveStartDate &&
+                              INVALID_FIELD_CLASS
+                          )}
+                        />
+                      </Field>
+                      <Field
+                        label="留職停薪期間：至"
+                        english={
+                          bilingual
+                            ? FORM_ENGLISH_COPY.unpaidLeaveEndDate
+                            : undefined
+                        }
+                        htmlFor="unpaidLeaveEndDate"
+                        required
+                        error={topLevelErrors.unpaidLeaveEndDate}
+                      >
+                        <Input
+                          id="unpaidLeaveEndDate"
+                          type="date"
+                          value={eligibility.unpaidLeaveEndDate}
+                          onChange={(event) =>
+                            updateEligibility(
+                              "unpaidLeaveEndDate",
+                              event.target.value
+                            )
+                          }
+                          className={cn(
+                            topLevelErrors.unpaidLeaveEndDate &&
+                              INVALID_FIELD_CLASS
+                          )}
+                        />
+                      </Field>
+                    </div>
+                  </EmploymentOption>
+                  <EmploymentOption
+                    checked={selectedEmploymentStatuses.has(
+                      EMPLOYMENT_STATUS_FULL_TIME_STUDY
+                    )}
+                    invalid={Boolean(topLevelErrors.employmentStatus)}
+                    label="本人於受獎期間符合全時就學資格"
+                    english={
+                      bilingual
+                        ? "I meet the full-time student requirement during the award period."
+                        : undefined
+                    }
+                    onChange={(checked) =>
+                      toggleEmploymentStatus(
+                        EMPLOYMENT_STATUS_FULL_TIME_STUDY,
+                        checked
+                      )
+                    }
+                  />
+                  <EmploymentOption
+                    checked={selectedEmploymentStatuses.has(
+                      EMPLOYMENT_STATUS_PART_TIME
+                    )}
+                    invalid={Boolean(topLevelErrors.employmentStatus)}
+                    label="有兼職（非專職）"
+                    english={
+                      bilingual
+                        ? optionText(EMPLOYMENT_STATUS_PART_TIME, true)
+                        : undefined
+                    }
+                    onChange={(checked) =>
+                      toggleEmploymentStatus(
+                        EMPLOYMENT_STATUS_PART_TIME,
+                        checked
+                      )
+                    }
                   >
-                    <Input
-                      id="taMonthlyIncome"
-                      value={eligibility.taMonthlyIncome}
-                      onChange={(event) =>
-                        updateEligibility(
-                          "taMonthlyIncome",
-                          event.target.value
-                        )
-                      }
-                      className={cn(
-                        topLevelErrors.taMonthlyIncome && INVALID_FIELD_CLASS
-                      )}
-                      placeholder="例：8000"
-                    />
-                  </Field>
-                ) : null}
-                {eligibility.employmentStatus === EMPLOYMENT_STATUS_PART_TIME ? (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field
-                      label="兼職工作簡述"
-                      english={
-                        bilingual
-                          ? FORM_ENGLISH_COPY.employmentDescription
-                          : undefined
-                      }
-                      htmlFor="employmentDescription"
-                      required
-                      error={topLevelErrors.employmentDescription}
-                    >
-                      <Input
-                        id="employmentDescription"
-                        value={eligibility.employmentDescription}
-                        onChange={(event) =>
-                          updateEligibility(
-                            "employmentDescription",
-                            event.target.value
-                          )
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Field
+                        label="工作簡述"
+                        english={
+                          bilingual
+                            ? FORM_ENGLISH_COPY.employmentDescription
+                            : undefined
                         }
-                        className={cn(
-                          topLevelErrors.employmentDescription &&
-                            INVALID_FIELD_CLASS
-                        )}
-                        placeholder="例：研究助理、課輔教師"
-                      />
-                    </Field>
-                    <Field
-                      label="兼職平均月薪"
-                      english={
-                        bilingual
-                          ? FORM_ENGLISH_COPY.employmentMonthlyIncome
-                          : undefined
-                      }
-                      htmlFor="employmentMonthlyIncome"
-                      required
-                      error={topLevelErrors.employmentMonthlyIncome}
-                    >
-                      <Input
-                        id="employmentMonthlyIncome"
-                        value={eligibility.employmentMonthlyIncome}
-                        onChange={(event) =>
-                          updateEligibility(
-                            "employmentMonthlyIncome",
-                            event.target.value
-                          )
+                        htmlFor="employmentDescription"
+                        required
+                        error={topLevelErrors.employmentDescription}
+                      >
+                        <Input
+                          id="employmentDescription"
+                          value={eligibility.employmentDescription}
+                          onChange={(event) =>
+                            updateEligibility(
+                              "employmentDescription",
+                              event.target.value
+                            )
+                          }
+                          className={cn(
+                            topLevelErrors.employmentDescription &&
+                              INVALID_FIELD_CLASS
+                          )}
+                          placeholder="例：研究助理、課輔教師"
+                        />
+                      </Field>
+                      <Field
+                        label="平均月薪（元）"
+                        english={
+                          bilingual
+                            ? FORM_ENGLISH_COPY.employmentMonthlyIncome
+                            : undefined
                         }
-                        className={cn(
-                          topLevelErrors.employmentMonthlyIncome &&
-                            INVALID_FIELD_CLASS
-                        )}
-                        placeholder="例：12000"
-                      />
-                    </Field>
-                  </div>
-                ) : null}
+                        htmlFor="employmentMonthlyIncome"
+                        required
+                        error={topLevelErrors.employmentMonthlyIncome}
+                      >
+                        <Input
+                          id="employmentMonthlyIncome"
+                          value={eligibility.employmentMonthlyIncome}
+                          onChange={(event) =>
+                            updateEligibility(
+                              "employmentMonthlyIncome",
+                              event.target.value
+                            )
+                          }
+                          className={cn(
+                            topLevelErrors.employmentMonthlyIncome &&
+                              INVALID_FIELD_CLASS
+                          )}
+                          placeholder="例：12000"
+                        />
+                      </Field>
+                    </div>
+                  </EmploymentOption>
+                </div>
               </CardContent>
             </Card>
           ) : null}
@@ -6579,6 +6766,30 @@ export default function ScholarshipForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <ValidationMessage message={topLevelErrors.declarations} />
+              {isFullTimeDoctoralGrant ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                  <p className="font-medium text-slate-900">
+                    {bilingual ? "Affidavit" : "切結書"}
+                  </p>
+                  <p className="mt-2">
+                    {bilingual
+                      ? "I have read the “NTHU College of Education Graduate Student Scholarship and Grant Guidelines” and the application notes, and agree to comply with the following:"
+                      : "本人已詳閱「國立清華大學竹師教育學院研究生獎助學金作業細則」及申請注意事項，並可遵守以下規定："}
+                  </p>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5">
+                    <li>
+                      {bilingual
+                        ? "An awarded student who suspends study, returns to work after unpaid leave ends, or takes a full-time job after applying must notify the college office. The award is revoked in the month following the event, and once revoked it cannot be reinstated."
+                        : "通過申請之學生，如有休學、留職停薪期滿復職或申請後有專職者，應主動通知院辦公室，並於事實發生次月取消得獎資格，取消資格後不再恢復獲獎資格。"}
+                    </li>
+                    <li>
+                      {bilingual
+                        ? "I agree to submit the publication record and research results of the awarded academic year by the end of July of the following semester."
+                        : "同意於下學期 7 月底前繳交獲獎該學年度發表情形及研究成果說明。"}
+                    </li>
+                  </ol>
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <CheckField
                   checked={eligibility.hasSpecialRecommendation}
@@ -6836,6 +7047,44 @@ function CheckField({
         <ValidationMessage message={error} />
       </span>
     </label>
+  );
+}
+
+/**
+ * 兼職與留職停薪情形調查的單一勾選項。紙本申請書在每個勾選項後面接續填寫欄位
+ * （留職停薪期間、工作簡述與月薪），這裡沿用相同版面：勾選後才展開附帶欄位。
+ */
+function EmploymentOption({
+  checked,
+  children,
+  english,
+  invalid,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  children?: React.ReactNode;
+  english?: string;
+  invalid?: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-md border bg-white p-4",
+        invalid ? "border-red-300 bg-red-50/30" : "border-slate-200"
+      )}
+    >
+      <label className="flex items-start gap-3 text-sm leading-6">
+        <Checkbox
+          checked={checked}
+          onCheckedChange={(value) => onChange(value === true)}
+        />
+        <span>{english ?? label}</span>
+      </label>
+      {checked && children ? <div className="mt-4 sm:pl-7">{children}</div> : null}
+    </div>
   );
 }
 

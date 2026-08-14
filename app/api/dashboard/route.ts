@@ -13,7 +13,7 @@ import {
   DATABASE_OPTIONS,
   DEPARTMENT_OPTIONS,
   DASHBOARD_STUDY_STATUS_OPTIONS,
-  EMPLOYMENT_STATUS_OPTIONS,
+  DASHBOARD_EMPLOYMENT_STATUS_OPTIONS,
   FULL_TIME_APPLICATION_TYPES,
   GPA_SCALE_OPTIONS,
   MATCHING_FUND_SOURCE_OPTIONS,
@@ -98,8 +98,14 @@ function validateAndMergePayload(
   ) {
     return { ok: false, error: "累計 GPA 級距不合法。" };
   }
-  if (!isAllowedOption(eligibility.employmentStatus, EMPLOYMENT_STATUS_OPTIONS)) {
-    return { ok: false, error: "兼職情形不合法。" };
+  // 兼職與留職停薪情形調查可複選；清單含舊版單選值，既有申請案才存得回去。
+  if (
+    !isAllowedMultiOption(
+      eligibility.employmentStatus,
+      DASHBOARD_EMPLOYMENT_STATUS_OPTIONS
+    )
+  ) {
+    return { ok: false, error: "兼職與留職停薪情形不合法。" };
   }
   if (!isAllowedOption(eligibility.otherAidStatus, OTHER_AID_STATUS_OPTIONS)) {
     return { ok: false, error: "獎助調查不合法。" };
